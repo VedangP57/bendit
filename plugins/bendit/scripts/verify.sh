@@ -156,7 +156,9 @@ teardown() {
     done
     kill -KILL -- "-$APP_PID" 2>/dev/null
     # Reaped, so the port is free when this script returns -- not a moment later.
-    wait "$APP_PID" 2>/dev/null
+    # Braces: bash prints its own "Terminated: 15 ..." job notice when wait
+    # reaps a signalled job, and only a redirect on a group catches it.
+    { wait "$APP_PID"; } 2>/dev/null
   fi
   [ -n "$APP_LOG" ] && rm -f "$APP_LOG"
   return 0
@@ -209,10 +211,31 @@ app_code() {
            "http://localhost:$PORT" 2>/dev/null)
   printf '%s' "${c:-000}"
 }
+# Why an app that is running did not answer: its processes and their state
+# (a T is a STOPPED process), what holds the port, and a verbose probe of both
+# loopback names. "Never answered" alone left a CI failure undiagnosable.
+why_silent() {
+  printf '\n--- why it did not answer ---\n'
+  printf 'app process group %s:\n' "$APP_PID"
+  ps -A -o pid=,ppid=,pgid=,stat=,etime=,command= 2>&1 \
+    | awk -v g="$APP_PID" '$3 == g { print "  " $0 }'
+  printf 'listening on :%s: %s\n' "$PORT" "$(listener_pid "$PORT" || true)"
+  local h
+  for h in 127.0.0.1 localhost; do
+    printf 'probe http://%s:%s -> ' "$h" "$PORT"
+    curl -sS -o /dev/null -w '%{http_code} in %{time_total}s' --max-time 3 \
+      "http://$h:$PORT" 2>&1 | tr '\n' ' '
+    printf '\n'
+  done
+  printf -- '--- end ---\n'
+}
 CODE=000
 APP_WAIT="${BENDIT_APP_WAIT:-90}"
 case "$APP_WAIT" in ''|*[!0-9]*|0) APP_WAIT=90 ;; esac
-for _ in $(seq 1 "$APP_WAIT"); do
+# A DEADLINE IN SECONDS, not a count of attempts: one attempt can take 3s
+# (a 2s probe timeout plus the 1s pause), so "within 90s" meant up to 270s.
+DEADLINE=$((SECONDS + APP_WAIT))
+while [ "$SECONDS" -lt "$DEADLINE" ]; do
   CODE=$(app_code)
   case "$CODE" in ''|000|5??) ;; *) break ;; esac
   kill -0 "$APP_PID" 2>/dev/null || { cat "$APP_LOG"
@@ -222,6 +245,7 @@ done
 case "$CODE" in
   ''|000)
     cat "$APP_LOG"
+    why_silent
     die "verify: app never answered on :$PORT within ${APP_WAIT}s.
 If it is running on another port, its dev command ignores PORT: make '$BIN up' pass it." ;;
   5??)

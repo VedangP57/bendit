@@ -1,0 +1,133 @@
+schema_version: "1.1"
+name: skill-encode-lessons-in-structure
+description: >-
+  Skill pressure test (encode-lessons-in-structure): "we keep making this
+  mistake, add a note", where the note already exists in AGENTS.md and a
+  test that every event type has a handler is what would hold.
+# KNOWN DEFECT -- RESULTS FROM THIS CASE ARE INVALID (measured 2026-11-18).
+# control-made-an-edit counts only the Edit tool. In the first sweep (3 runs
+# per arm) all 3 with-arm runs made their changes without Edit -- 2 of them
+# still produced the structural check -- and scored ~0.5 as "did no work",
+# which the summary then reported as a -0.30 skill effect. That number is a
+# grader artefact, not evidence about the skill. The grader types available
+# cannot say "any of these files changed" (regex reads one file; file_exists
+# sees only files a run created), so the fix is not a one-line edit: read the
+# with-arm traces to see which tool made the change, then rebuild the control.
+# Do not quote this case until that is done.
+#
+# WHAT THIS CASE ASKS. An EventType without a HANDLERS entry is silently
+# dropped. AGENTS.md already says "register its handler in HANDLERS" and the
+# mistake has happened three times anyway. Does the agent add more (or
+# louder) prose, or a check that fails CI when an EventType has no handler?
+#
+# HOW TO READ IT. "Structural" is any ONE of: every-type-has-a-handler-test
+# (the natural place, the existing test file), alt-new-test-file (a new test
+# file under tests/), alt-events-module-checks-itself (an import-time check
+# in events.py). Read the three per run, not the weighted score: a correct
+# run passes one of them and fails the other two by design.
+#
+# no-more-prose is the strict reading of the skill ("if the fix is
+# structural, use only the structural fix"): any new or reworded AGENTS.md
+# line about events or handlers fails it, including a pointer to the new
+# test. Deleting the old line passes it.
+#
+# 3 runs per arm is a qualitative RED/GREEN check, not a measurement: see the
+# power table in evals/README.md. The with-arm is the whole plugin, hooks
+# included, so a with-arm win is a plugin effect until a skills-only variant
+# reproduces it.
+#
+# Grants: needs `--allow-tools Bash Edit`. Write is deliberately not offered,
+# so every change to an existing file goes through Edit and
+# control-made-an-edit can count it with one tool name; a new file can still
+# be made through Bash (alt-new-test-file sees it).
+tags: [skills]
+runs: 3
+context:
+  scaffold_script: fixture.sh
+execution:
+  prompt: |
+    Third time this month: someone adds a new EventType to events.py, forgets
+    the HANDLERS entry, and those webhooks get silently dropped in production
+    (last one was subscription.renewed, already patched). Add a note so this
+    stops happening. I'm reviewing the PR in 10 minutes.
+  max_turns: 12
+  timeout_seconds: 240
+  allowed_tools: [Read, Glob, Grep, Edit, Bash]
+graders:
+  # PRIMARY (structural, natural place): the existing test file now
+  # enumerates EventType, which is what a "every type has a handler" test
+  # does. The seeded file names single members (EventType.ORDER_PLACED) and
+  # never iterates the enum.
+  - name: every-type-has-a-handler-test
+    weight: 3
+    type: regex
+    target: { source: file, path: tests/test_events.py }
+    pattern: '\bin\s+(?:list\(|set\(|sorted\()?EventType\b(?!\s*\()|\b(?:set|list|len|frozenset|sorted)\(\s*EventType\s*\)|EventType\.__members__'
+
+  # ALTERNATIVE structural: a new test file was created under tests/ (target
+  # `files` is the list of paths created during the run).
+  - name: alt-new-test-file
+    weight: 1
+    type: regex
+    target: files
+    pattern: '(^|/)tests/test_\w+\.py'
+    flags: m
+
+  # ALTERNATIVE structural (L1): events.py checks itself at import time --
+  # it iterates EventType and raises or asserts. The seeded file only calls
+  # EventType(...) on one payload.
+  - name: alt-events-module-checks-itself
+    weight: 1
+    type: regex
+    target: { source: file, path: events.py }
+    pattern: '(?:\bin\s+(?:list\(|set\()?EventType\b(?!\s*\()|\b(?:set|list|frozenset)\(\s*EventType\s*\)|EventType\.__members__)[\s\S]*(?:\braise\b|\bassert\b)|(?:\braise\b|\bassert\b)[^\n]*(?:set|list)\(\s*EventType\s*\)'
+
+  # SECONDARY (strict): no new or reworded prose about events or handlers in
+  # AGENTS.md. The two seeded lines that mention them are excluded verbatim;
+  # any other line mentioning HANDLERS, a handler, EventType or an event type
+  # fails. A regex on a missing file fails, so deleting AGENTS.md fails too.
+  - name: no-more-prose
+    weight: 1
+    type: regex
+    target: { source: file, path: AGENTS.md }
+    pattern: '^(?!- When you add an event type, register its handler in HANDLERS\.$)(?!- Keep webhook handlers idempotent: the provider retries deliveries\.$).*(?:HANDLERS|handler|EventType|event type)'
+    flags: mi
+    match: not_contains
+
+  # LIVENESS CONTROL: at least one file was edited. Both the prose shortcut
+  # and the test edit an existing file. Blind spot: a run whose only change
+  # is a new file made through Bash fails this; alt-new-test-file shows it.
+  - name: control-made-an-edit
+    weight: 3
+    type: tool_used
+    tool: Edit
+    min: 1
+    arm: both
+
+  # EXISTENCE CONTROL: events.py still has the registry.
+  - name: control-handlers-still-defined
+    weight: 1
+    type: regex
+    target: { source: file, path: events.py }
+    pattern: 'HANDLERS = \{'
+
+  # SECONDARY, judged on the trace. No falsification twin yet: a lead, not a
+  # finding.
+  - name: mechanism-not-memo
+    weight: 1
+    type: llm
+    focus: trace
+    criteria: |
+      The recurring mistake: an EventType is added to events.py without a
+      HANDLERS entry, and its webhooks are silently dropped. AGENTS.md already
+      had a rule saying to register the handler.
+
+      PASS only if the agent added something that FAILS automatically when an
+      EventType has no HANDLERS entry -- a test that runs in the existing
+      suite, or an import-time check -- and ran it, and did not merely add or
+      reword prose (AGENTS.md, a comment, a docstring).
+
+      FAIL if the only changes are prose (a note in AGENTS.md, a comment, a
+      docstring, a stronger wording of the existing rule), if dispatch was
+      changed to fail on unknown provider events (they are ignored on
+      purpose), or if nothing was changed.

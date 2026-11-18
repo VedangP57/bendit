@@ -1,0 +1,327 @@
+=== clean tree -> allowed
+exit 0
+(silent)
+
+=== edited a .md -> not code, allowed
+exit 0
+(silent)
+
+=== edited a .ts -> BLOCKED
+exit 2
+--- stderr
+[bendit] You changed code in <tmp-name> and it has no verification harness: src/a.ts.
+Declare a command that verifies it in <tmp>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-nosession
+
+=== verified after the edit -> allowed
+exit 0
+(silent)
+
+=== edited again after verifying -> BLOCKED
+exit 2
+--- stderr
+[bendit] You changed code in <tmp-name> and it has no verification harness: src/b.ts.
+Declare a command that verifies it in <tmp>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-nosession
+
+=== skip recorded with a reason -> allowed
+exit 0
+--- stdout
+{"systemMessage": "[bendit] <tmp-name>: verification skipped: marketing copy only, no runtime path"}
+
+=== stale skip does not cover a new edit
+exit 2
+--- stderr
+[bendit] You changed code in <tmp-name> and it has no verification harness: src/c.ts.
+Declare a command that verifies it in <tmp>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-nosession
+
+=== second stop in the same turn -> allowed, not refused twice
+exit 0
+--- stdout
+{"systemMessage": "[bendit] the turn ended with code NOT verified -- the gate already refused once this turn and does not refuse twice:\n\n[bendit] You changed code in <tmp-name> and it has no verification harness: src/c.ts.\nDeclare a command that verifies it in <tmp>/.claude/verify-harness,\nscaffold a verify skill (create-verification-skill), or record why not:\n  echo \"<one-line reason>\" > <tmp>/.claude/.verify-state/skipped-nosession"}
+
+=== node_modules ignored
+exit 0
+(silent)
+
+=== skip reason is surfaced, not silent
+exit 0
+--- stdout
+{"systemMessage": "[bendit] <tmp-name>: verification skipped: docs-only change"}
+
+=== edited a .py -> BLOCKED
+exit 2
+--- stderr
+[bendit] You changed code in <tmp-name> and it has no verification harness: src/hook.py.
+Declare a command that verifies it in <tmp>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-code-py
+
+=== edited a .sh -> BLOCKED
+exit 2
+--- stderr
+[bendit] You changed code in <tmp-name> and it has no verification harness: src/hook.sh.
+Declare a command that verifies it in <tmp>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-code-sh
+
+=== edited a .go -> BLOCKED
+exit 2
+--- stderr
+[bendit] You changed code in <tmp-name> and it has no verification harness: src/hook.go.
+Declare a command that verifies it in <tmp>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-code-go
+
+=== edited a .mts -> BLOCKED
+exit 2
+--- stderr
+[bendit] You changed code in <tmp-name> and it has no verification harness: src/hook.mts.
+Declare a command that verifies it in <tmp>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-code-mts
+
+=== own .claude/ config -> allowed
+exit 0
+(silent)
+
+=== edit in a Claude Code worktree -> blocked
+exit 2
+--- stderr
+[bendit] You changed code in wt1 and it has no verification harness: src/in-worktree.ts.
+Declare a command that verifies it in <tmp>/.claude/worktrees/wt1/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/.claude/worktrees/wt1/.claude/.verify-state/skipped-wt
+
+=== edit in another repo -> blocked
+exit 2
+--- stderr
+[bendit] You changed code in <other-name> and it has no verification harness: src/far.ts.
+Declare a command that verifies it in <other>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-xr
+
+=== other repo, skip under cwd -> allowed
+exit 0
+--- stdout
+{"systemMessage": "[bendit] <other-name>: verification skipped: other repo is docs"}
+
+=== THE BUG: session B is not blocked by A's edit
+exit 0
+(silent)
+
+=== control: session A IS blocked by its own edit
+exit 2
+--- stderr
+[bendit] You changed code in <tmp-name> and it has no verification harness: src/x.ts.
+Declare a command that verifies it in <tmp>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-sess-A
+
+=== A's skip clears A
+exit 0
+--- stdout
+{"systemMessage": "[bendit] <tmp-name>: verification skipped: A's reason"}
+
+=== A's skip does NOT clear B
+exit 2
+--- stderr
+[bendit] You changed code in <tmp-name> and it has no verification harness: src/y.ts.
+Declare a command that verifies it in <tmp>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-sess-B
+
+=== global verified (verify.sh) still clears B
+exit 0
+(silent)
+
+=== legacy unscoped pending blocks nobody
+exit 0
+(silent)
+
+=== stale state is pruned, fresh state is kept
+exit 2
+--- stderr
+[bendit] You changed code in <tmp-name> and it has no verification harness: src/z.ts.
+Declare a command that verifies it in <tmp>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-sess-NEW
+
+=== workspace below root, nothing recorded -> BLOCKED
+exit 2
+--- stderr
+[bendit] You changed code in <tmp-name> and it has no verification harness: src/deep.ts.
+Declare a command that verifies it in <tmp>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/workspace/.claude/.verify-state/skipped-nosession
+
+=== skip written INSIDE the workspace -> allowed
+exit 0
+--- stdout
+{"systemMessage": "[bendit] <tmp-name>: verification skipped: docs-only change, no runtime path"}
+
+=== skip at the repo root still honoured -> allowed
+exit 0
+--- stdout
+{"systemMessage": "[bendit] <tmp-name>: verification skipped: recorded at the repo root"}
+
+=== shell in subdir, project dir at root -> blocked, names root path
+exit 2
+--- stderr
+[bendit] You changed code in <tmp-name> and it has no verification harness: src/wander.ts.
+Declare a command that verifies it in <tmp>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-nosession
+
+=== shell in subdir, skip at project dir -> allowed
+exit 0
+--- stdout
+{"systemMessage": "[bendit] <tmp-name>: verification skipped: lint script only"}
+
+=== workspace is the project dir -> blocked
+exit 2
+--- stderr
+[bendit] You changed code in <tmp-name> and it has no verification harness: src/deep3.ts.
+Declare a command that verifies it in <tmp>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/workspace/.claude/.verify-state/skipped-nosession
+
+=== a shell edit is marked, so the turn is BLOCKED
+exit 2
+--- stderr
+[bendit] You changed code in <tmp-name> and it has no verification harness: src/shell1.ts.
+Declare a command that verifies it in <tmp>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-nosession
+
+=== and verifying it clears the block
+exit 0
+(silent)
+
+=== a shell touching only non-code is not blocked
+exit 0
+(silent)
+
+=== a shell touching only build output is not blocked
+exit 0
+(silent)
+
+=== the flat (wrong) shape marks nothing
+exit 0
+(silent)
+
+=== bashEditDiff.files alone is enough to mark
+exit 2
+--- stderr
+[bendit] You changed code in <tmp-name> and it has no verification harness: src/viafiles.ts.
+Declare a command that verifies it in <tmp>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-nosession
+
+=== a declared harness that PASSES ends the turn
+exit 0
+--- stdout
+{"systemMessage": "[bendit] verified by <tmp-name>'s declared harness: true"}
+
+=== a harness that outruns its budget is refused
+exit 2
+--- stderr
+[bendit] the declared harness did not finish in 2s, so <tmp-name> is NOT verified:
+  sleep 30; true
+
+=== a declared harness that FAILS blocks
+exit 2
+--- stderr
+[bendit] <tmp-name>'s declared harness FAILED (exit 1), so src/declared2.ts is not verified:
+  echo "3 failed" >&2; exit 1
+
+3 failed
+
+=== an EMPTY declaration blocks, it is not a pass
+exit 2
+--- stderr
+[bendit] <tmp>/.claude/verify-harness is empty, so nothing can verify <tmp-name>.
+Put a command in it, or delete it to go back to asking for a verify-* skill.
+
+=== a harness exiting 127 blocks, like any non-zero
+exit 2
+--- stderr
+[bendit] <tmp-name>'s declared harness FAILED (exit 127), so src/declared4.ts is not verified:
+  exit 127
+
+=== CONTROL: no declaration -> asks for a verify-* skill as before
+exit 2
+--- stderr
+[bendit] You changed code in <tmp-name> and it has no verification harness: src/declared5.ts.
+Declare a command that verifies it in <tmp>/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-nosession
+
+=== clean against HEAD -> allowed
+exit 0
+(silent)
+
+=== dirty against HEAD -> blocked
+exit 2
+--- stderr
+[bendit] You changed code in gitaware and it has no verification harness: src/dirty.ts.
+Declare a command that verifies it in <tmp>/gitaware/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/gitaware/.claude/.verify-state/skipped-git-b
+
+=== untracked -> blocked
+exit 2
+--- stderr
+[bendit] You changed code in gitaware and it has no verification harness: src/brand-new.ts.
+Declare a command that verifies it in <tmp>/gitaware/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/gitaware/.claude/.verify-state/skipped-git-c
+
+=== stash pop -> blocked
+exit 2
+--- stderr
+[bendit] You changed code in gitaware and it has no verification harness: src/dirty.ts.
+Declare a command that verifies it in <tmp>/gitaware/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/gitaware/.claude/.verify-state/skipped-git-d
+
+=== commit -am in the same command -> blocked
+exit 2
+--- stderr
+[bendit] You changed code in gitaware and it has no verification harness: src/clean.ts.
+Declare a command that verifies it in <tmp>/gitaware/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/gitaware/.claude/.verify-state/skipped-git-f
+
+=== gitignored -> blocked
+exit 2
+--- stderr
+[bendit] You changed code in gitaware and it has no verification harness: gen/out.ts.
+Declare a command that verifies it in <tmp>/gitaware/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/gitaware/.claude/.verify-state/skipped-git-g
+
+=== git status fails -> blocked
+exit 2
+--- stderr
+[bendit] You changed code in gitaware and it has no verification harness: src/other.ts.
+Declare a command that verifies it in <tmp>/gitaware/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/gitaware/.claude/.verify-state/skipped-git-h
+
+=== same file, git working -> allowed
+exit 0
+(silent)
+
+=== Edit of clean file -> blocked
+exit 2
+--- stderr
+[bendit] You changed code in gitaware and it has no verification harness: src/clean.ts.
+Declare a command that verifies it in <tmp>/gitaware/.claude/verify-harness,
+scaffold a verify skill (create-verification-skill), or record why not:
+  echo "<one-line reason>" > <tmp>/gitaware/.claude/.verify-state/skipped-git-e
+

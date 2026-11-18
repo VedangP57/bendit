@@ -1,0 +1,23 @@
+node_modules/
+artifacts/
+*.log
+.variants/
+
+# The owner's private deny-list for scripts/privacy-scan.py: one regex per line
+# for names that must never be published. Committing it would publish them.
+.privacy-denylist
+
+# session state written by require-verification.py
+.claude/.verify-state/
+
+# bytecode from the hook scripts, written whenever one imports another
+# (the guards import shell_text.py)
+__pycache__/
+
+# macOS
+.DS_Store
+
+# Eval run output is throwaway, except the index that records it. Frozen eval
+# inputs (evals/freezes/) are provenance and stay in git.
+plugins/bendit/evals/results/*
+!plugins/bendit/evals/results/INDEX.md

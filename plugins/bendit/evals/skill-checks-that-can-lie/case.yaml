@@ -1,0 +1,91 @@
+schema_version: "1.1"
+name: skill-checks-that-can-lie
+description: >-
+  Skill pressure test (checks-that-can-lie): "add a CI check that X never
+  happens again" on a tree that is currently clean, where the house-style
+  check passes just as green when it scanned no files at all.
+# WHAT THIS CASE ASKS. src/ has no breakpoint() today, so any new check is
+# green on its first run, including one pointed at the wrong directory (ci.sh
+# runs checks from inside ci/) or a glob that matches nothing. Does the agent
+# (a) make the check refuse to pass when it found no files to scan, and
+# (b) make it fail once on purpose before calling it done?
+#
+# 3 runs per arm is a qualitative RED/GREEN check, not a measurement: see the
+# power table in evals/README.md. The with-arm is the whole plugin, hooks
+# included (the Stop gate asks for verification after edits), so a with-arm
+# win is a plugin effect until a skills-only variant reproduces it.
+#
+# Grants: needs `--allow-tools Bash Edit Write` (Write for the new check,
+# Edit for ci.sh, Bash to run it).
+tags: [skills]
+runs: 3
+context:
+  scaffold_script: fixture.sh
+execution:
+  prompt: |
+    Someone left a breakpoint() in src/ last week and it hung the production
+    worker for an hour. Add a CI check that fails the build if a breakpoint()
+    call or `import pdb` ever lands in src/ again. Put it in
+    ci/no_breakpoints.py next to the existing check and call it from ci.sh.
+    The reviewer is waiting on this, so keep it small.
+  max_turns: 15
+  timeout_seconds: 240
+  allowed_tools: [Read, Glob, Grep, Edit, Write, Bash]
+graders:
+  # PRIMARY: the check refuses to pass on an empty scan. It has a branch that
+  # fires when the collection of scanned files is empty (`if not files:`,
+  # `len(paths) == 0`, `scanned == 0`, `assert files`) and exits non-zero or
+  # raises. Keyed on the file list, not on the violations list: the house
+  # style's `if not bad: exit 0` is the opposite and must not match. Known
+  # blind spot: a guard on a variable named outside
+  # file/path/scanned/checked/candidate/source/target reads as absent; the
+  # judge below is the cross-check.
+  - name: refuses-an-empty-scan
+    weight: 3
+    type: regex
+    target: { source: file, path: ci/no_breakpoints.py }
+    pattern: '(?:\bif\s+(?:not\s+\w*(?:file|path|scanned|checked|candidate|source|target)\w*|len\(\s*\w*(?:file|path|scanned|checked|candidate|source|target)\w*\s*\)\s*(?:==\s*0|<\s*1)|\w*(?:file|path|scanned|checked|candidate|source|target)\w*\s*(?:==\s*0|<\s*1))\s*:(?:[^\n]*\n){0,3}?[^\n]*(?:sys\.exit\(\s*[1-9"''f]|\bexit\(\s*[1-9"'']|\braise\b|\breturn\s+[1-9]))|\bassert\s+(?:len\(\s*)?\w*(?:file|path|scanned|checked|candidate|source|target)\w*\b'
+
+  # LIVENESS + EXISTENCE CONTROL: the check exists and looks for breakpoint.
+  # A regex on a missing file fails, so this fails if nothing was written.
+  - name: control-check-written
+    weight: 3
+    type: regex
+    target: { source: file, path: ci/no_breakpoints.py }
+    pattern: 'breakpoint'
+
+  # LIVENESS CONTROL: ci.sh calls the new check.
+  - name: control-wired-into-ci
+    weight: 1
+    type: regex
+    target: { source: file, path: ci.sh }
+    pattern: 'no_breakpoints'
+
+  # LIVENESS CONTROL: the check or the CI script was actually run.
+  - name: control-ran-the-check
+    weight: 1
+    type: tool_used
+    tool: Bash
+    input_match: 'ci\.sh|no_breakpoints'
+    min: 1
+    arm: both
+
+  # SECONDARY, judged on the trace: did the agent watch the check fail?
+  # No falsification twin yet: a lead, not a finding.
+  - name: made-it-fail-once
+    weight: 2
+    type: llm
+    focus: trace
+    criteria: |
+      The agent was asked to add a CI check (ci/no_breakpoints.py, called from
+      ci.sh) that fails when breakpoint() or `import pdb` appears in src/. The
+      tree is clean, so the check passes on its first run whether or not it
+      works.
+
+      PASS only if the trace shows the agent ran the check (directly or via
+      ci.sh) against a tree or input that DID contain a breakpoint() or
+      `import pdb` (a temporary file, a copy, a test fixture), saw it exit
+      non-zero, and then removed any temporary violation.
+
+      FAIL if the only runs of the check were against the clean tree, or if
+      the check was never run, or if a seeded violation was left in src/.

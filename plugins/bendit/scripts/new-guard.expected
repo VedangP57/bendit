@@ -1,0 +1,58 @@
+=== scaffold no-skip-hooks
+exit 0
+--- stdout
+wrote <tmp>/proj/.claude/hooks/no-skip-hooks.py
+wrote <tmp>/proj/.claude/hooks/no-skip-hooks.test.sh
+wrote <tmp>/proj/.claude/hooks/shell_text.py (copied from bendit; shared by every guard in this directory)
+wrote <tmp>/proj/.claude/hooks/expect.sh (copied from bendit; shared by every guard in this directory)
+
+Not enabled yet. Nothing in settings was changed. To turn it on, add this to
+the "hooks" object in <tmp>/proj/.claude/settings.json (merge into an existing
+"PreToolUse" array rather than adding a second one):
+
+  "PreToolUse": [
+    {
+      "matcher": "Bash",
+      "hooks": [
+        { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/no-skip-hooks.py\"", "timeout": 10 }
+      ]
+    }
+  ]
+
+Next:
+  1. edit RULES in no-skip-hooks.py to encode the mistake, and the BLOCK/ALLOW cases in no-skip-hooks.test.sh
+  2. bash "<tmp>/proj/.claude/hooks/no-skip-hooks.test.sh" --accept     (records no-skip-hooks.expected; read it)
+  3. bash "<tmp>/proj/.claude/hooks/no-skip-hooks.test.sh"              (must pass with no --accept)
+
+=== second scaffold of the same name
+exit 1
+--- stderr
+new-guard: refusing to overwrite: <tmp>/proj/.claude/hooks/no-skip-hooks.py <tmp>/proj/.claude/hooks/no-skip-hooks.test.sh
+new-guard: pick another name, or delete those files yourself first
+
+=== scaffold into --dir outside the project
+exit 0
+--- stdout
+wrote <tmp>/elsewhere/outside-guard.py
+wrote <tmp>/elsewhere/outside-guard.test.sh
+wrote <tmp>/elsewhere/shell_text.py (copied from bendit; shared by every guard in this directory)
+wrote <tmp>/elsewhere/expect.sh (copied from bendit; shared by every guard in this directory)
+
+Not enabled yet. Nothing in settings was changed. To turn it on, add this to
+the "hooks" object in <tmp>/proj/.claude/settings.json (merge into an existing
+"PreToolUse" array rather than adding a second one):
+
+  "PreToolUse": [
+    {
+      "matcher": "Bash",
+      "hooks": [
+        { "type": "command", "command": "python3 \"<tmp>/elsewhere/outside-guard.py\"", "timeout": 10 }
+      ]
+    }
+  ]
+
+Next:
+  1. edit RULES in outside-guard.py to encode the mistake, and the BLOCK/ALLOW cases in outside-guard.test.sh
+  2. bash "<tmp>/elsewhere/outside-guard.test.sh" --accept     (records outside-guard.expected; read it)
+  3. bash "<tmp>/elsewhere/outside-guard.test.sh"              (must pass with no --accept)
+

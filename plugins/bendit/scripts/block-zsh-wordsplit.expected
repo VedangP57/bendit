@@ -1,0 +1,22 @@
+=== blocked: bare scalar in a for-list
+exit 2
+--- stderr
+[bendit] BLOCKED: `for ... in $files` runs ONCE under zsh, not once per word.
+This shell is zsh, which does not word-split a bare parameter. The loop
+body would run on the whole string, or not at all if it is empty -- and
+the command would still exit 0, so whatever it checks would report success.
+
+Use one of:
+  bash -c '...'                      run the loop in bash, which splits
+  for x in $(printf %s "$files"); do   command substitution DOES split
+  while IFS= read -r x; do ... done <<< "$files"   ONE PER LINE only
+  for x in "${arr[@]}"               if it is already an array
+
+The read loop splits on NEWLINES, not spaces: right for `git ls-files`
+output, wrong for a space-separated string, where it gives one iteration
+and reproduces this bug quietly. Measured, not assumed.
+
+If $files really is a zsh array, this is a false positive: say so and run
+it under bash -c, or quote the expansion to show the single-item intent.
+(Disable this guard with the plugin option zshGuard=false.)
+

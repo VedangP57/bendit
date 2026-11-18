@@ -1,0 +1,118 @@
+=== a macOS home path
+exit 1
+--- stderr
+privacy-scan: 1 file scanned, 0 deny-list rules, 1 finding
+--- stdout
+home.md:1: home path: /Users/j***/
+
+=== a Linux home path
+exit 1
+--- stderr
+privacy-scan: 1 file scanned, 0 deny-list rules, 1 finding
+--- stdout
+linux.sh:1: home path: /home/j***/
+
+=== a Windows home path
+exit 1
+--- stderr
+privacy-scan: 1 file scanned, 0 deny-list rules, 1 finding
+--- stdout
+win.txt:1: home path: C:\Users\j***\
+
+=== an email address
+exit 1
+--- stderr
+privacy-scan: 1 file scanned, 0 deny-list rules, 1 finding
+--- stdout
+mail.md:1: email: j***@corp.io
+
+=== a GitHub noreply address still names a person
+exit 1
+--- stderr
+privacy-scan: 1 file scanned, 0 deny-list rules, 1 finding
+--- stdout
+gh.md:1: email: j***@users.noreply.github.com
+
+=== placeholders, CI paths, package pins
+exit 0
+--- stderr
+privacy-scan: 1 file scanned, 0 deny-list rules, 0 findings
+
+=== CONTROL: with no deny-list, an unknown name passes
+exit 0
+--- stderr
+privacy-scan: 1 file scanned, 0 deny-list rules, 0 findings
+
+=== a .privacy-denylist in the scanned root is loaded by default
+exit 1
+--- stderr
+privacy-scan: 1 file scanned, 1 deny-list rule, 1 finding
+--- stdout
+notes.md:1: deny-list line 3: Z***
+
+=== a deny-listed name is found, case-insensitively
+exit 1
+--- stderr
+privacy-scan: 1 file scanned, 1 deny-list rule, 1 finding
+--- stdout
+notes.md:1: deny-list line 3: Z***
+
+=== a deny-listed name in a FILE NAME is found
+exit 1
+--- stderr
+privacy-scan: 1 file scanned, 1 deny-list rule, 1 finding
+--- stdout
+zephyrcorp-plan.md:0: in the file name: deny-list line 3: z***
+
+=== the deny-list file itself is never scanned or reported
+exit 1
+--- stderr
+privacy-scan: 2 files scanned, 1 deny-list rule, 2 findings
+--- stdout
+notes.md:1: deny-list line 3: Z***
+zephyrcorp-plan.md:0: in the file name: deny-list line 3: z***
+
+=== an invalid deny-list regex is a config error
+exit 2
+--- stderr
+privacy-scan: deny-list <tmp>/bad-denylist line 1 is not a valid regex (at position 0)
+
+=== a --denylist that does not exist is a config error
+exit 2
+--- stderr
+privacy-scan: --denylist <tmp>/missing does not exist
+
+=== zero files scanned is exit 2, never a pass
+exit 2
+--- stderr
+privacy-scan: 0 files scanned (0 unreadable), so NOTHING was checked
+
+=== a path that does not exist scans nothing: exit 2
+exit 2
+--- stderr
+privacy-scan: 0 files scanned (1 unreadable), so NOTHING was checked
+--- stdout
+no-such-file: unreadable (FileNotFoundError), so it was NOT checked
+
+=== an IGNORED file is not scanned
+exit 0
+--- stderr
+privacy-scan: 2 files scanned, 0 deny-list rules, 0 findings
+
+=== an UNTRACKED file is scanned, with the root deny-list
+exit 1
+--- stderr
+privacy-scan: 3 files scanned, 1 deny-list rule, 1 finding
+--- stdout
+untracked.md:1: deny-list line 1: Z***
+
+=== a tracked file deleted from the work tree is skipped, not unreadable
+exit 0
+--- stderr
+privacy-scan: 2 files scanned, 1 deny-list rule, 0 findings
+
+=== outside a repo with no paths is exit 2
+exit 2
+--- stderr
+privacy-scan: not inside a git repository and no paths given, so there is nothing to scan
+

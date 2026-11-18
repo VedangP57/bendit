@@ -1,0 +1,244 @@
+=== NEXT_PUBLIC key used to authorize
+exit 2
+--- stderr
+[bendit] post-edit review:
+  a.ts:1  NEXT_PUBLIC_SYNC_API_KEY is used in a file that performs credential checks. NEXT_PUBLIC_* is inlined into the browser bundle at build time, so it is public in every build that ships and cannot authorize anything.
+
+Address these now or say explicitly why each does not apply.
+
+=== catch returns success
+exit 2
+--- stderr
+[bendit] post-edit review:
+  b.ts  A catch block appears to return a success shape. That turns a loud failure into a quiet wrong answer -- the caller cannot tell the difference between 'no rows' and 'it broke'.
+
+Address these now or say explicitly why each does not apply.
+
+=== workaround comment
+exit 2
+--- stderr
+[bendit] post-edit review:
+  c.ts:1  This comment explains a workaround rather than a non-obvious why. It is the artifact that makes a band-aid permanent -- the next agent reads it as precedent. Fix the cause, or record it as a TODO with a condition (greppable) rather than prose (not).
+
+Address these now or say explicitly why each does not apply.
+
+=== @ts-ignore
+exit 2
+--- stderr
+[bendit] post-edit review:
+  d.ts:1  @ts-ignore silences the next line entirely, including errors you did not anticipate. Use @ts-expect-error, which fails when the error goes away.
+
+Address these now or say explicitly why each does not apply.
+
+=== use client touching service role
+exit 2
+--- stderr
+[bendit] post-edit review:
+  e.tsx  This is a 'use client' module that references a service-role credential or RLS-bypassing client. Anything it reads is compiled into the browser bundle.
+
+Address these now or say explicitly why each does not apply.
+
+=== rpc() call
+exit 2
+--- stderr
+[bendit] post-edit review:
+  l.ts:1  This touches an RLS-bypassing credential. Confirm the module is server-only (`import 'server-only'` at the top) and that the route checks authorization.
+
+Address these now or say explicitly why each does not apply.
+
+=== service role as the SECOND arg
+exit 2
+--- stderr
+[bendit] post-edit review:
+  m.ts:1  This touches an RLS-bypassing credential. Confirm the module is server-only (`import 'server-only'` at the top) and that the route checks authorization.
+
+Address these now or say explicitly why each does not apply.
+
+=== service role from the real env var
+exit 2
+--- stderr
+[bendit] post-edit review:
+  n.ts:1  This touches an RLS-bypassing credential. Confirm the module is server-only (`import 'server-only'` at the top) and that the route checks authorization.
+
+Address these now or say explicitly why each does not apply.
+
+=== secret key read straight
+exit 2
+--- stderr
+[bendit] post-edit review:
+  o.ts:1  This touches an RLS-bypassing credential. Confirm the module is server-only (`import 'server-only'` at the top) and that the route checks authorization.
+
+Address these now or say explicitly why each does not apply.
+
+=== an ordinary createClient with no service role
+exit 0
+(silent)
+
+=== anon key in a browser client
+exit 0
+(silent)
+
+=== NEXT_PUBLIC in a file with no auth
+exit 0
+(silent)
+
+=== catch that rethrows
+exit 0
+(silent)
+
+=== @ts-expect-error
+exit 0
+(silent)
+
+=== explanatory why-comment
+exit 0
+(silent)
+
+=== ordinary component
+exit 0
+(silent)
+
+=== adds ?. and nothing else
+exit 2
+--- stderr
+[bendit] post-edit review:
+  z.ts  This edit adds optional chaining and changes nothing else. That silences the symptom without establishing why the bad state is reachable. Name the cause -- or say explicitly that this is a stopgap and what the real fix is.
+
+Address these now or say explicitly why each does not apply.
+
+=== adds ?? {} and nothing else
+exit 2
+--- stderr
+[bendit] post-edit review:
+  z.ts  This edit adds a nullish default and changes nothing else. That silences the symptom without establishing why the bad state is reachable. Name the cause -- or say explicitly that this is a stopgap and what the real fix is.
+
+Address these now or say explicitly why each does not apply.
+
+=== adds ?. AND real logic
+exit 0
+(silent)
+
+=== unrelated rename
+exit 0
+(silent)
+
+=== adds ?? '' and nothing else
+exit 2
+--- stderr
+[bendit] post-edit review:
+  z.ts  This edit adds a nullish default and changes nothing else. That silences the symptom without establishing why the bad state is reachable. Name the cause -- or say explicitly that this is a stopgap and what the real fix is.
+
+Address these now or say explicitly why each does not apply.
+
+=== adds ?? 0 and nothing else
+exit 2
+--- stderr
+[bendit] post-edit review:
+  z.ts  This edit adds a nullish default and changes nothing else. That silences the symptom without establishing why the bad state is reachable. Name the cause -- or say explicitly that this is a stopgap and what the real fix is.
+
+Address these now or say explicitly why each does not apply.
+
+=== wraps in try/catch(e){} and nothing else
+exit 2
+--- stderr
+[bendit] post-edit review:
+  z.ts  This edit adds a try/catch and changes nothing else. That silences the symptom without establishing why the bad state is reachable. Name the cause -- or say explicitly that this is a stopgap and what the real fix is.
+
+Address these now or say explicitly why each does not apply.
+
+=== ?? with a computed default is real logic
+exit 0
+(silent)
+
+=== an unrelated edit to a file with an OLD @ts-ignore is silent
+exit 0
+(silent)
+
+=== CONTROL: an edit that ADDS a @ts-ignore still fires
+exit 2
+--- stderr
+[bendit] post-edit review:
+  lr.ts:3  @ts-ignore silences the next line entirely, including errors you did not anticipate. Use @ts-expect-error, which fails when the error goes away.
+
+Address these now or say explicitly why each does not apply.
+
+=== exit status after a pipe
+exit 2
+--- stderr
+[bendit] post-edit review:
+  s.sh:1  Exit status after a pipe belongs to the LAST command, so this reports success even when the piped-from command failed. Use `set -o pipefail`, check PIPESTATUS/pipestatus, or don't pipe the thing you are testing.
+
+A check that can pass for the wrong reason is worse than no check.
+
+=== [ test ] && VAR under set -e
+exit 2
+--- stderr
+[bendit] post-edit review:
+  s.sh:2  `[ test ] && VAR=x` returns non-zero when the test is false. Under `set -e` that exits the script silently, mid-way, often with no output. Use if/then/fi.
+
+A check that can pass for the wrong reason is worse than no check.
+
+=== timeout (absent on macOS)
+exit 2
+--- stderr
+[bendit] post-edit review:
+  s.sh:1  `timeout` is GNU coreutils and is absent on macOS: the command never runs and whatever you assert afterwards passes unchanged. Use gtimeout, or a bounded retry loop.
+
+A check that can pass for the wrong reason is worse than no check.
+
+=== quote idiom in double quotes
+exit 2
+--- stderr
+[bendit] post-edit review:
+  s.sh:1  The '"'"' idiom escapes a quote inside a SINGLE-quoted string. Inside the double-quoted -c argument a single quote is already literal, so this injects garbage into the command.
+
+A check that can pass for the wrong reason is worse than no check.
+
+=== pipefail set, pipe then &&
+exit 0
+(silent)
+
+=== [ test ] && VAR, no set -e
+exit 0
+(silent)
+
+=== if/then instead of && VAR
+exit 0
+(silent)
+
+=== ordinary pipeline
+exit 0
+(silent)
+
+=== commented-out trap
+exit 0
+(silent)
+
+=== Write that only adds ?.
+exit 2
+--- stderr
+[bendit] post-edit review:
+  w.ts  This edit adds optional chaining and changes nothing else. That silences the symptom without establishing why the bad state is reachable. Name the cause -- or say explicitly that this is a stopgap and what the real fix is.
+
+Address these now or say explicitly why each does not apply.
+
+=== Write that also changes real logic
+exit 0
+(silent)
+
+=== MultiEdit that only adds ?.
+exit 2
+--- stderr
+[bendit] post-edit review:
+  w.ts  This edit adds optional chaining and changes nothing else. That silences the symptom without establishing why the bad state is reachable. Name the cause -- or say explicitly that this is a stopgap and what the real fix is.
+
+Address these now or say explicitly why each does not apply.
+
+=== MultiEdit that also changes real logic
+exit 0
+(silent)
+
+=== a Write with no snapshot is silent about band-aids
+exit 0
+(silent)
+

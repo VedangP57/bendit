@@ -1,0 +1,68 @@
+# .claude/verify-harness -- the command that proves this repo works.
+#
+# WHO RUNS IT. The Stop gate (scripts/require-verification.py) runs this file
+# when the agent changed code and nothing has verified it since. It takes every
+# line that is not a comment, runs them as ONE `sh` script from the repo root,
+# and reads the exit code:
+#   0          verified -- the turn may end
+#   non-zero   NOT verified -- the turn is refused, with the tail of the output
+# /verify (scripts/verify.sh) runs it too, when the repo has no app harness.
+#
+# THE ONE RULE. Exit non-zero whenever anything is unverified, and never exit 0
+# having checked nothing. A harness that passes on an empty test suite, a
+# skipped step or a missing tool is worse than none: it turns "unverified" into
+# "verified" with a green tick.
+#   - `set -e`, so a failing step fails the harness.
+#   - Run the real test command, not a wrapper that swallows its exit code.
+#   - No `|| true`, no `2>/dev/null` on a command whose success you rely on.
+#   - A file of only comments is refused by the gate as "empty".
+#
+# Plain sh, not bash: no arrays, no [[ ]]. Keep it inside the gate's time
+# budget (300s by default); a slow harness is refused, never killed mid-run.
+# Generate a starting point instead of copying this file by hand:
+#   scripts/scaffold-verification-skill.sh <repo-path>
+#
+# THREE SHAPES. Uncomment one, adapt it, delete the rest -- and delete the
+# refusal at the bottom, which is what keeps an unedited copy from passing.
+#
+# --- 1. tests only (a library) -------------------------------------------------
+# The project's own checks ARE the verification. Cheapest first.
+#
+#   set -e
+#   npm run lint
+#   npm run typecheck
+#   npm test
+#
+# Other ecosystems, same idea:
+#   python3 -m pytest              # or: uv run pytest / poetry run pytest
+#   go vet ./... && go test ./...  # make sure *_test.go files exist: with none,
+#                                  # `go test` passes having run nothing
+#   cargo test
+#
+# --- 2. a CLI ------------------------------------------------------------------
+# The checks, plus a run of the real entrypoint, so a broken build or a crash on
+# start-up cannot hide behind green unit tests.
+#
+#   set -e
+#   python3 -m pytest
+#   python3 -m mytool --help >/dev/null
+#   out=$(python3 -m mytool add 2 3)
+#   [ "$out" = "5" ] || { echo "mytool add 2 3 printed '$out', wanted 5" >&2; exit 1; }
+#
+# --- 3. a web app ----------------------------------------------------------------
+# The checks, then the app itself, through the app harness that
+# scaffold-verification-skill.sh generates. Its `verify` verb finds the kit
+# (BENDIT_KIT_ROOT, CLAUDE_PLUGIN_ROOT when it is this kit, a copy vendored
+# in the repo, the newest installed copy -- `kit` says which) and runs
+# verify.sh: start the app on this repo's registry port, wait until it SERVES
+# (a 5xx is not ready), run doctor, run every scenarios/*.sh, tear it down.
+# Zero scenarios is a failure, not a pass. No env var or local file is needed,
+# so it runs the same in a terminal, under the Stop gate and in a fresh clone.
+#
+#   set -e
+#   npm run lint
+#   npm test
+#   "$(git rev-parse --show-toplevel)/.claude/skills/verify-myapp/bin/verify-myapp" verify
+#
+# --- delete this line once a shape above is in place -----------------------------
+echo "verify-harness: this is the unedited template -- pick a shape above, then delete this line" >&2; exit 2

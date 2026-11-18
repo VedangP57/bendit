@@ -1,0 +1,47 @@
+name: ci
+
+# push only on main, plus pull_request: a branch with an open PR would
+# otherwise run twice per push (once as push, once as pull_request).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same PR/branch cancels the run it supersedes.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Pinned: `claude plugin validate` behaviour is per-build. Bump deliberately,
+  # to the CLI the suites are run with locally (`claude --version`).
+  CLAUDE_CODE_VERSION: 2.1.326
+
+jobs:
+  suite:
+    # The kit promises macOS and Linux, so both run every stage. macOS also
+    # carries /usr/bin/python3 (3.9), which the imports stage compiles under.
+    name: ci (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      # Pinned by commit, not tag: a tag can be moved to different code.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Install Claude Code CLI (no API key or login is used)
+        run: npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+      - name: Prove the CLI runs
+        run: claude --version
+      - name: Run every check
+        # No `continue-on-error`, no `|| true`. ci.sh runs every stage, exits
+        # non-zero if any failed, and fails a stage that ran nothing.
+        run: bash .github/workflows/ci.sh shell imports privacy validate

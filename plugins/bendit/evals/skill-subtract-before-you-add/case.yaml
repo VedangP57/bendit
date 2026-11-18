@@ -1,0 +1,95 @@
+schema_version: "1.1"
+name: skill-subtract-before-you-add
+description: >-
+  Skill pressure test (subtract-before-you-add): duplicate receipts, where ops
+  suggested a settings flag to switch the old sender off and deleting the
+  stale call is the whole fix.
+# WHAT THIS CASE ASKS. complete_order calls both the current receipt sender
+# and the legacy one the CHANGELOG says was replaced in 2.3. The suggested
+# fix (a flag in shop/config.py gating the legacy call) works, and leaves two
+# senders plus a setting whose only correct value is "off". Does the agent
+# delete the call instead of adding the option?
+#
+# The prompt reports a suggestion, not a requirement: an agent that deletes
+# the call and says why it did not add the flag has done what was asked
+# (stop the duplicates). An agent that adds the flag AND deletes the call
+# fails no-new-setting; read that as "added", which it is.
+#
+# 3 runs per arm is a qualitative RED/GREEN check, not a measurement: see the
+# power table in evals/README.md. The with-arm is the whole plugin, hooks
+# included, so a with-arm win is a plugin effect until a skills-only variant
+# reproduces it.
+#
+# Grants: needs `--allow-tools Bash Edit`. Write is not offered (no new file
+# is needed); deleting shop/legacy/mailer.py needs Bash, which is offered.
+tags: [skills]
+runs: 3
+context:
+  scaffold_script: fixture.sh
+execution:
+  prompt: |
+    Since the 2.3 release every customer gets two receipt emails per order
+    (`python3 -m shop.demo` shows it). Support is drowning in tickets. Ops
+    suggested adding a setting to shop/config.py so they can switch the old
+    one off. Do whatever's quickest, I need this out within the hour.
+  max_turns: 12
+  timeout_seconds: 240
+  allowed_tools: [Read, Glob, Grep, Edit, Bash]
+graders:
+  # PRIMARY: complete_order no longer calls the legacy sender, in any form.
+  # A flag-gated call (`if config.X: legacy_send_receipt(...)`) and a
+  # commented-out call both still contain `legacy_send_receipt(`. The import
+  # line has no `(`, so a left-over import alone does not fail this. A regex
+  # on a missing file fails, so deleting orders.py does not pass.
+  - name: legacy-call-removed
+    weight: 3
+    type: regex
+    target: { source: file, path: shop/orders.py }
+    pattern: 'legacy_send_receipt\('
+    match: not_contains
+
+  # SECONDARY: no new setting. shop/config.py is still byte-for-byte the
+  # seeded file (anchored, whole file, copied from fixture.sh).
+  - name: no-new-setting
+    weight: 2
+    type: regex
+    target: { source: file, path: shop/config.py }
+    pattern: '^"""Runtime settings, read from the environment\."""\nimport os\n\nSMTP_HOST = os\.environ\.get\("SMTP_HOST", "localhost"\)\nRECEIPT_FROM = os\.environ\.get\("RECEIPT_FROM", "receipts@example\.com"\)\n$'
+
+  # LIVENESS CONTROL: complete_order's body changed. Verbatim from
+  # fixture.sh. Deleting the line breaks it; wrapping it in an `if` breaks it;
+  # no edit leaves it.
+  - name: control-complete-order-edited
+    weight: 3
+    type: regex
+    target: { source: file, path: shop/orders.py }
+    pattern: '    send_receipt\(order, outbox\)\n    legacy_send_receipt\(order, outbox\)\n    return order'
+    match: not_contains
+
+  # BEHAVIOUR + EXISTENCE: orders still send the CURRENT receipt. Fails if
+  # the agent deleted the wrong sender (which also "stops the duplicate"), or
+  # the file, or the scaffold never ran.
+  - name: keeps-the-current-sender
+    weight: 2
+    type: regex
+    target: { source: file, path: shop/orders.py }
+    pattern: '(?<!legacy_)send_receipt\(order'
+
+  # SECONDARY, judged on the trace. No falsification twin yet: a lead, not a
+  # finding.
+  - name: subtracted-not-added
+    weight: 1
+    type: llm
+    focus: trace
+    criteria: |
+      complete_order in shop/orders.py called two receipt senders: the current
+      one and a legacy one that the CHANGELOG says was replaced in 2.3.
+
+      PASS only if the agent stopped the duplicate by removing the legacy
+      call (and optionally the legacy module and import), added no new
+      setting, flag or environment variable, and kept the current sender.
+
+      FAIL if it added a setting, flag or environment variable to switch the
+      legacy sender off (whether or not it also removed the call), commented
+      the call out instead of removing it, removed the current sender, or
+      changed nothing.

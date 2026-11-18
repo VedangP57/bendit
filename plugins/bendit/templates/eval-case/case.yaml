@@ -1,0 +1,138 @@
+# TEMPLATE CASE. Copy this directory to evals/<your-case>/ and change every
+# field. Field shapes below were read from the validator in Claude Code
+# 2.1.326; re-check against `claude plugin eval --help` and a pilot on yours.
+#
+# Deliberately UNLOADABLE as shipped: the schema_version below is not a version
+# string, so `claude plugin eval` lists this file under "Couldn't load" instead
+# of spending money on a placeholder. Set it to "1.1" in your copy.
+schema_version: "TEMPLATE-set-me-to-1.1"
+
+# Unique case name; what --case <glob> filters on.
+name: template-fails-loudly-on-missing-config
+
+# One line shown in reports.
+description: >-
+  Does the rule make the agent fail loudly on a missing setting instead of
+  inventing a default?
+
+# Tags pick sweeps: `--tag ablation` runs only cases where the with/without
+# comparison is live. Tag every case; never sweep untagged (an untagged sweep
+# also runs every twin and every copy of this template).
+#   ablation  both arms are needed to answer the question
+#   smoke     proves the harness reaches the thing under test; run first
+#   canary    both arms already match; run one arm when the model changes
+#   falsify   a twin that must FAIL (see evals/_falsify/)
+tags: [ablation]
+
+# Runs per arm. TOP-LEVEL key: under `execution:` it is silently ignored and
+# you get the default of 3. Maximum 50. See the power table in evals/README.md:
+# 3 per arm can never reach p < 0.05; ~12 detects a guard-sized effect; a 20%
+# effect needs ~30-50.
+runs: 12
+
+context:
+  # Runs fixture.sh in the empty workspace before each run, ONLY when the
+  # command line has --scaffold. Without it the workspace is empty.
+  scaffold_script: fixture.sh
+
+execution:
+  # The user turn. Describe the task the way a user would. Do NOT dictate the
+  # exact action your rule is about (e.g. the literal command a guard is tested
+  # on): then you measure whether the agent types what it is told.
+  prompt: |
+    Starting the server with no PORT set crashes with "Cannot read properties
+    of undefined (reading 'trim')" in src/settings.js. Fix it.
+
+  # Budget. A run cut off by the turn cap or timeout is usually still graded on
+  # what it produced, so an under-set budget reads as a low score, not an error.
+  max_turns: 10
+  timeout_seconds: 300
+
+  # Tools the case needs. Only a read-only set is available by default; Edit,
+  # Write and Bash ALSO need the operator grant on the command line:
+  #   --allow-tools Edit Write Bash
+  # Without that grant the agent cannot change a file, every "the bad thing is
+  # absent" grader passes in both arms, and the suite reports a perfect score
+  # while measuring nothing. The liveness control below is what catches it.
+  allowed_tools: [Read, Glob, Grep, Edit, Write]
+
+  # Optional: tools to withhold even if granted.
+  # disallowed_tools: [Bash]
+
+graders:
+  # Grader types: regex | tool_used | tool_order | file_exists | llm | baseline.
+  # Every grader takes `name` (unique), `weight` (default 1) and optionally
+  # `arm: with-only | both`. Read results PER GRADER, as counts (7/12), not as
+  # the weighted score.
+
+  # PRIMARY, deterministic, and keyed on the CORRECT behaviour being present
+  # (the function now throws), not on a bad token being absent. A grader that
+  # bans `??` or `?.` passes a re-worded band-aid (`|| 3000`, `return 3000`) and
+  # fails a correct fix that happens to use `?.` before throwing. Before the
+  # first paid run, hand-write three or four fixes (good, band-aid, re-worded
+  # band-aid, no edit) and check each grader scores them the way you intend.
+  # Known limit of this one: a fix that throws from a helper imported from
+  # another file has no `throw` here. The llm grader below covers that.
+  - name: throws-on-missing-port
+    weight: 3
+    type: regex
+    target: { source: file, path: src/settings.js }  # contents of that file
+    pattern: 'getPort[\s\S]*\bthrow\b'
+    match: contains            # contains | not_contains | count:N
+    flags: ''                  # JS RegExp flags, e.g. i, m, s
+
+  # Judged cross-check, pointed at the FILE with `focus`. Without `focus` the
+  # judge reads the agent's last message (the default), and a rubric that says
+  # "read src/settings.js" changes nothing -- prose in criteria never selects
+  # the input. focus: last_message | trace | files | { source: file, path }.
+  # Judge with a sonnet-class model (--judge-model), never the agent's own
+  # model. Give every judged grader a falsification twin before trusting it.
+  - name: missing-port-is-loud
+    weight: 2
+    type: llm
+    focus: { source: file, path: src/settings.js }
+    criteria: |
+      Judge only getPort.
+
+      PASS if, when PORT is missing or empty, getPort throws (directly or via
+      a helper) an error that names PORT.
+
+      FAIL if it returns any value for a missing PORT -- a default port, NaN,
+      undefined, null -- or swallows the problem in a catch.
+
+  # LIVENESS CONTROL: the agent actually changed getPort. It matches the
+  # untouched function VERBATIM (copied from fixture.sh, not retyped), so any
+  # edit inside it breaks the match, and an untouched file still contains it.
+  # This is what separates "fixed it" from "never got to edit anything" (no
+  # grant, wrong file, gave up). Weight it like the grader it protects; if it
+  # fails, no other grader in the run means anything.
+  - name: control-getport-was-edited
+    weight: 3
+    type: regex
+    target: { source: file, path: src/settings.js }
+    pattern: 'getPort\(env\) \{\n  return parseInt\(env\.PORT\.trim\(\), 10\);\n\}'
+    match: not_contains
+
+  # EXISTENCE CONTROL: the file is still there and still has the function. A
+  # `{ source: file, path }` target fails on a missing file, so this fails if
+  # the scaffold never ran (no --scaffold) or the agent deleted the file.
+  # (Do not use `file_exists` for this: it checks files CREATED during the run,
+  # so a scaffolded file grades as absent.)
+  - name: control-file-still-defines-getport
+    weight: 1
+    type: regex
+    target: { source: file, path: src/settings.js }
+    pattern: 'export function getPort'
+
+  # Other grader shapes, for reference:
+  # - name: ran-the-tests
+  #   type: tool_used
+  #   tool: Bash
+  #   input_match: 'npm test'   # JS RegExp tested against the call's input
+  #   min: 1                    # default 1; for "never called" use min: 0,
+  #   max: 5                    #   max: 0 AND arm: both
+  #   arm: both
+  # - name: read-before-edit
+  #   type: tool_order
+  #   before: Read
+  #   after: Edit

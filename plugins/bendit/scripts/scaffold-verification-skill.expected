@@ -1,0 +1,249 @@
+=== kit discovery: nothing installed -> refused, naming every place searched
+exit 2
+--- stderr
+refusing: cannot find bendit's scripts/verify.sh. Searched, in order:
+  $BENDIT_KIT_ROOT  unset
+  $CLAUDE_PLUGIN_ROOT    unset
+  <tmp>/clone/.claude/vendor/bendit/plugins/bendit
+  <tmp>/clone/.claude/vendor/bendit
+  <tmp>/fakehome/.claude/plugins/cache/*/bendit/*/scripts/verify.sh
+Install the plugin (claude plugin install bendit@bendit), or set BENDIT_KIT_ROOT to its folder.
+
+=== node-pnpm-next
+exit 0
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/node-pnpm-next
+  name      : node-pnpm-next (folder name; no project name found)
+  kind      : web (package.json scripts.dev (next dev -p 3000) and depends on next)
+  ecosystem : node (next)
+  lint      : pnpm run lint   [package.json scripts.lint]
+  typecheck : pnpm run typecheck   [package.json scripts.typecheck]
+  test      : pnpm run test   [package.json scripts.test]
+  launch    : exec pnpm run dev -p "$PORT"
+  note      : package manager: pnpm (pnpm-lock.yaml)
+
+=== node-yarn-vite
+exit 0
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/node-yarn-vite
+  name      : node-yarn-vite (folder name; no project name found)
+  kind      : web (package.json scripts.dev (vite) and depends on vite)
+  ecosystem : node (vite)
+  test      : yarn run test   [package.json scripts.test]
+  launch    : exec yarn run dev --port "$PORT" --strictPort
+  note      : package manager: yarn (yarn.lock)
+
+=== node-bun-cli
+exit 0
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/node-bun-cli
+  name      : node-bun-cli (folder name; no project name found)
+  kind      : cli (package.json has "bin")
+  ecosystem : node
+  test      : bun run test   [package.json scripts.test]
+  smoke     : node bin/tool.js --help
+  note      : package manager: bun (bun.lockb)
+
+=== node-two-locks
+exit 3
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/node-two-locks
+  name      : node-two-locks (folder name; no project name found)
+  kind      : library (package.json has no dev script, server dependency or "bin")
+  ecosystem : node
+  test      : npm run test   [package.json scripts.test]
+  TODO      : several lockfiles (yarn.lock, package-lock.json) -- re-run with --pm to say which package manager this repo uses
+
+=== node-placeholder
+exit 3
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/node-placeholder
+  name      : node-placeholder (folder name; no project name found)
+  kind      : library (package.json has no dev script, server dependency or "bin")
+  ecosystem : node
+  gates     : none detected
+  note      : package manager: npm (no lockfile, no "packageManager" field; npm is the default -- re-run with --pm to change)
+  note      : package.json scripts.test is npm's "no test specified" placeholder -- ignored
+  TODO      : no test command found -- a harness with nothing to run cannot verify anything; add the command that proves this project works
+
+=== node-watch-dev
+exit 3
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/node-watch-dev
+  name      : node-watch-dev (folder name; no project name found)
+  kind      : unknown (package.json has a dev script (tsc -w) but nothing says it serves HTTP -- re-run with --kind web (and --dev if needed) or --kind library)
+  ecosystem : node
+  test      : npm run test   [package.json scripts.test]
+  note      : package manager: npm (package-lock.json)
+  TODO      : package.json has a dev script (tsc -w) but nothing says it serves HTTP -- re-run with --kind web (and --dev if needed) or --kind library
+
+=== py-uv-cli
+exit 0
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/py-uv-cli
+  name      : c (pyproject.toml [project].name)
+  kind      : cli (pyproject [project.scripts])
+  ecosystem : python
+  lint      : uv run python -m ruff check .   [ruff configured]
+  typecheck : uv run python -m mypy .   [mypy configured]
+  test      : uv run python -m pytest   [pytest configured]
+  smoke     : uv run mytool --help
+  note      : python runner: uv run python (uv.lock)
+
+=== py-poetry-fastapi
+exit 3
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/py-poetry-fastapi
+  name      : py-poetry-fastapi (folder name; no project name found)
+  kind      : web (python dependencies mention fastapi)
+  ecosystem : python (fastapi)
+  test      : poetry run python -m pytest   [pytest configured]
+  launch    : none detected
+  note      : python runner: poetry run python (poetry.lock / [tool.poetry])
+  TODO      : no command to serve this web app was detected -- re-run with --dev '<command that serves on "$PORT">'
+
+=== py-django
+exit 0
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/py-django
+  name      : py-django (folder name; no project name found)
+  kind      : web (manage.py (django))
+  ecosystem : python (django)
+  test      : python3 -m pytest   [pytest configured]
+  launch    : exec python3 manage.py runserver "127.0.0.1:$PORT"
+  note      : python runner: python3 (no uv.lock, poetry.lock or .venv: python3 on PATH, which must have the dev dependencies)
+
+=== py-no-tests
+exit 3
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/py-no-tests
+  name      : n (pyproject.toml [project].name)
+  kind      : library (python project with no entrypoint or web framework)
+  ecosystem : python
+  gates     : none detected
+  note      : python runner: python3 (no uv.lock, poetry.lock or .venv: python3 on PATH, which must have the dev dependencies)
+  TODO      : no Python tests found (test_*.py / *_test.py) -- add tests, or put the command that proves this project works here
+
+=== go-cli
+exit 0
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/go-cli
+  name      : c (go.mod module)
+  kind      : cli (package main in ./cmd/c)
+  ecosystem : go
+  lint      : go vet ./...   [go.mod]
+  test      : go test ./...   [*_test.go files]
+  smoke     : go run ./cmd/c --help
+
+=== go-web
+exit 0
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/go-web
+  name      : w (go.mod module)
+  kind      : web (package main calling ListenAndServe (.))
+  ecosystem : go
+  lint      : go vet ./...   [go.mod]
+  test      : go test ./...   [*_test.go files]
+  launch    : exec go run .
+  note      : the Go server must listen on $PORT (os.Getenv("PORT")); verify.sh says "never answered" if it does not
+
+=== rust-lib
+exit 0
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/rust-lib
+  name      : r (Cargo.toml [package].name)
+  kind      : library (Cargo.toml with src/lib.rs only)
+  ecosystem : rust
+  typecheck : cargo check --all-targets   [Cargo.toml]
+  test      : cargo test   [#[test] / tests/]
+
+=== make-only
+exit 0
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/make-only
+  name      : make-only (folder name; no project name found)
+  kind      : library (only a Makefile: its targets are the harness)
+  ecosystem : make
+  lint      : make lint   [Makefile target lint]
+  test      : make test   [Makefile target test]
+
+=== nothing
+exit 3
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/nothing
+  name      : nothing (folder name; no project name found)
+  kind      : unknown
+  ecosystem : none detected
+  gates     : none detected
+  TODO      : no package.json, pyproject.toml, setup.py, go.mod, Cargo.toml or Makefile -- write the commands that prove this project works, and re-run with --kind
+
+=== name-py-poetry
+exit 0
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/name-py-poetry
+  name      : data-tool (pyproject.toml [project].name)
+  kind      : library (python project with no entrypoint or web framework)
+  ecosystem : python
+  test      : poetry run python -m unittest discover   [1 test files, no pytest config]
+  note      : python runner: poetry run python (poetry.lock / [tool.poetry])
+
+=== name-go-v2
+exit 0
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/name-go-v2
+  name      : svc (go.mod module)
+  kind      : library (go module with no package main)
+  ecosystem : go
+  lint      : go vet ./...   [go.mod]
+  test      : go test ./...   [*_test.go files]
+
+=== name-cargo
+exit 0
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/name-cargo
+  name      : fast-thing (Cargo.toml [package].name)
+  kind      : library (Cargo.toml with src/lib.rs only)
+  ecosystem : rust
+  typecheck : cargo check --all-targets   [Cargo.toml]
+  test      : cargo test   [#[test] / tests/]
+
+=== name-unusable
+exit 0
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/name-unusable
+  name      : name-unusable (folder name; no project name found)
+  kind      : library (package.json has no dev script, server dependency or "bin")
+  ecosystem : node
+  test      : npm run test   [package.json scripts.test]
+  note      : package.json "name" ('@@@') has no letters or digits to name the skill by -- skipped
+  note      : package manager: npm (no lockfile, no "packageManager" field; npm is the default -- re-run with --pm to change)
+
+=== Name.With_Dots
+exit 0
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/Name.With_Dots
+  name      : name-with-dots (folder name; no project name found)
+  kind      : library (only a Makefile: its targets are the harness)
+  ecosystem : make
+  test      : make test   [Makefile target test]
+
+=== node-two-locks with --pm yarn
+exit 0
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/node-two-locks
+  name      : node-two-locks (folder name; no project name found)
+  kind      : library (package.json has no dev script, server dependency or "bin")
+  ecosystem : node
+  test      : yarn run test   [package.json scripts.test]
+  note      : package manager: yarn (--pm)
+
+=== node-watch-dev with --kind library
+exit 0
+--- stdout
+detected (dry run, nothing written): <tmp>/fx/node-watch-dev
+  name      : node-watch-dev (folder name; no project name found)
+  kind      : library (--kind)
+  ecosystem : node
+  test      : npm run test   [package.json scripts.test]
+  note      : package manager: npm (package-lock.json)
+

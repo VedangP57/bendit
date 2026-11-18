@@ -1,0 +1,772 @@
+=== rm -rf /
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== rm -fr with reordered flags
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== chained rm -rf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== psql DROP TABLE
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== supabase db push
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: supabase db push/reset — use `supabase db diff` and let the human push.
+If this is genuinely required, ask the human to run it.
+
+=== supabase db reset
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: supabase db push/reset — use `supabase db diff` and let the human push.
+If this is genuinely required, ask the human to run it.
+
+=== git push --force
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: force push — use --force-with-lease, and never on a shared branch.
+If this is genuinely required, ask the human to run it.
+
+=== git push -f, flag last
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: force push — use --force-with-lease, and never on a shared branch.
+If this is genuinely required, ask the human to run it.
+
+=== git -C dir push --force
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: force push — use --force-with-lease, and never on a shared branch.
+If this is genuinely required, ask the human to run it.
+
+=== stripe live key
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: Stripe LIVE secret key in the command.
+If this is genuinely required, ask the human to run it.
+
+=== supabase PAT
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: Supabase personal access token in the command.
+If this is genuinely required, ask the human to run it.
+
+=== supabase secret key
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: Supabase secret key in the command.
+If this is genuinely required, ask the human to run it.
+
+=== github PAT
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: GitHub personal access token in the command.
+If this is genuinely required, ask the human to run it.
+
+=== rm -rf on the heredoc opener line
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== rm -rf piped after heredoc ends
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== unquoted heredoc expands $( )
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== stripe live key in a heredoc
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: Stripe LIVE secret key in the command.
+If this is genuinely required, ask the human to run it.
+
+=== grep for the literal DROP TABLE
+exit 0
+(silent)
+
+=== branch named ...-main-...
+exit 0
+(silent)
+
+=== force-with-lease
+exit 0
+(silent)
+
+=== ordinary push
+exit 0
+(silent)
+
+=== rm without recursive+force
+exit 0
+(silent)
+
+=== supabase db diff
+exit 0
+(silent)
+
+=== a test-mode stripe key
+exit 0
+(silent)
+
+=== filename containing rm -rf
+exit 0
+(silent)
+
+=== pnpm install
+exit 0
+(silent)
+
+=== empty command
+exit 0
+(silent)
+
+=== whitespace-only command
+exit 0
+(silent)
+
+=== heredoc with a backticked rm -rf
+exit 0
+(silent)
+
+=== heredoc with an rm -rf regex
+exit 0
+(silent)
+
+=== indented <<- quoted heredoc
+exit 0
+(silent)
+
+=== two heredocs in one command
+exit 0
+(silent)
+
+=== JSON object with no tool_input
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: hook payload carried no command to inspect.
+If this is genuinely required, ask the human to run it.
+
+=== tool_input without a command
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: hook payload carried no command to inspect.
+If this is genuinely required, ask the human to run it.
+
+=== command is not a string
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: hook payload command was not a string, so it could not be inspected.
+If this is genuinely required, ask the human to run it.
+
+=== JSON that is not an object
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: hook payload was JSON but not an object, so the command could not be read.
+If this is genuinely required, ask the human to run it.
+
+=== empty stdin
+exit 0
+(silent)
+
+=== whitespace-only stdin
+exit 0
+(silent)
+
+=== not JSON at all
+exit 0
+(silent)
+
+=== truncated JSON
+exit 0
+(silent)
+
+=== delete on the second line
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== delete on the third line
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== DROP DATABASE on its own line
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== supabase reset on its own line
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: supabase db push/reset — use `supabase db diff` and let the human push.
+If this is genuinely required, ask the human to run it.
+
+=== multi-line with nothing destructive
+exit 0
+(silent)
+
+=== delete on its own line INSIDE a quoted heredoc
+exit 0
+(silent)
+
+=== delete on its own line AFTER a heredoc ends
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== rm -r -f (flags split across args)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== rm -f -r (split, reversed)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== rm --recursive --force
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== rm -rf (control, still blocks)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== rm -Rf (control, capital R)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== rm -f on a filename holding f..r
+exit 0
+(silent)
+
+=== rm -f foobar.txt
+exit 0
+(silent)
+
+=== rm -r without force
+exit 0
+(silent)
+
+=== plain rm
+exit 0
+(silent)
+
+=== trap deletes the dir we cd into
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: this enters $T and then deletes it, which leaves the shell with no working directory — every later command, and every hook, then fails with EPERM. Delete it from a subshell, or cd out first.
+If this is genuinely required, ask the human to run it.
+
+=== cd then recursive delete, NO -f
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: this enters $T and then deletes it, which leaves the shell with no working directory — every later command, and every hook, then fails with EPERM. Delete it from a subshell, or cd out first.
+If this is genuinely required, ask the human to run it.
+
+=== mktemp, cd in, delete it
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: this enters $T and then deletes it, which leaves the shell with no working directory — every later command, and every hook, then fails with EPERM. Delete it from a subshell, or cd out first.
+If this is genuinely required, ask the human to run it.
+
+=== braces and quotes still match
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: this enters $TMP and then deletes it, which leaves the shell with no working directory — every later command, and every hook, then fails with EPERM. Delete it from a subshell, or cd out first.
+If this is genuinely required, ask the human to run it.
+
+=== trailing slash still matches
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: this enters $T and then deletes it, which leaves the shell with no working directory — every later command, and every hook, then fails with EPERM. Delete it from a subshell, or cd out first.
+If this is genuinely required, ask the human to run it.
+
+=== deleting a SUBDIR of the cwd
+exit 0
+(silent)
+
+=== deleting an unrelated directory
+exit 0
+(silent)
+
+=== cd with no delete at all
+exit 0
+(silent)
+
+=== recursive delete with no cd
+exit 0
+(silent)
+
+=== rm -r then cd is allowed outright
+exit 0
+(silent)
+
+=== rm -r then cd, && separated
+exit 0
+(silent)
+
+=== rm -r a scratch dir, then enter it
+exit 0
+(silent)
+
+=== cd then delete it
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: this enters $S and then deletes it, which leaves the shell with no working directory — every later command, and every hook, then fails with EPERM. Delete it from a subshell, or cd out first.
+If this is genuinely required, ask the human to run it.
+
+=== cd, other work, then delete it
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: this enters $S and then deletes it, which leaves the shell with no working directory — every later command, and every hook, then fails with EPERM. Delete it from a subshell, or cd out first.
+If this is genuinely required, ask the human to run it.
+
+=== trap deletes it: a trap runs at EXIT, which is after the cd
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: this enters $S and then deletes it, which leaves the shell with no working directory — every later command, and every hook, then fails with EPERM. Delete it from a subshell, or cd out first.
+If this is genuinely required, ask the human to run it.
+
+=== delete after a cd even with an earlier unrelated rm
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: this enters $S and then deletes it, which leaves the shell with no working directory — every later command, and every hook, then fails with EPERM. Delete it from a subshell, or cd out first.
+If this is genuinely required, ask the human to run it.
+
+=== sudo rm -rf /
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== sudo -u root rm -rf x
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== env rm -rf build
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== VAR=1 rm -rf build
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== command rm -rf build
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== backslash \rm -rf build
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== /bin/rm -rf build
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== time rm -rf x
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== nohup rm -rf x
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== xargs rm -rf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== xargs -0 -n 1 rm -rf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== bash -c 'rm -rf build'
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== sh -c "rm -rf build"
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== bash -lc combined flags
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== eval "rm -rf build"
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== ( rm -rf build )
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== { rm -rf build; }
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== if-then rm -rf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== find . -delete
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `find -delete` removes everything it matches — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== find -exec rm -rf {} +
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== find -exec sh -c 'rm -rf'
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== rm build -rf (flags after operand)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== rm -rf inside $( )
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== echo ... | bash
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== bash <<< here-string
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== hc exec ... -- sh -c 'x; rm -rf'
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== docker exec c sh -c 'rm -rf'
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: echo of sh -c text
+exit 0
+(silent)
+
+=== commit message mentioning rm -rf
+exit 0
+(silent)
+
+=== echo rm -rf as text
+exit 0
+(silent)
+
+=== grep for rm -rf
+exit 0
+(silent)
+
+=== comment mentioning rm -rf
+exit 0
+(silent)
+
+=== find without -delete
+exit 0
+(silent)
+
+=== command -v rm is a lookup
+exit 0
+(silent)
+
+=== pnpm rm is pnpm remove
+exit 0
+(silent)
+
+=== bash script.sh
+exit 0
+(silent)
+
+=== rm -rf in a trap stays the cleanup idiom
+exit 0
+(silent)
+
+=== npx supabase db push
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: supabase db push/reset — use `supabase db diff` and let the human push.
+If this is genuinely required, ask the human to run it.
+
+=== npx supabase@latest db reset
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: supabase db push/reset — use `supabase db diff` and let the human push.
+If this is genuinely required, ask the human to run it.
+
+=== pnpm supabase db reset
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: supabase db push/reset — use `supabase db diff` and let the human push.
+If this is genuinely required, ask the human to run it.
+
+=== pnpm exec supabase db push
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: supabase db push/reset — use `supabase db diff` and let the human push.
+If this is genuinely required, ask the human to run it.
+
+=== pnpm dlx supabase db push
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: supabase db push/reset — use `supabase db diff` and let the human push.
+If this is genuinely required, ask the human to run it.
+
+=== yarn supabase db push
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: supabase db push/reset — use `supabase db diff` and let the human push.
+If this is genuinely required, ask the human to run it.
+
+=== bunx supabase db reset
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: supabase db push/reset — use `supabase db diff` and let the human push.
+If this is genuinely required, ask the human to run it.
+
+=== supabase --debug db push
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: supabase db push/reset — use `supabase db diff` and let the human push.
+If this is genuinely required, ask the human to run it.
+
+=== npx supabase db diff
+exit 0
+(silent)
+
+=== pnpm supabase status
+exit 0
+(silent)
+
+=== bash <<'EOF' rm -rf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== sh -s <<'EOF' rm -rf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== cat <<'EOF' | bash
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== psql <<'SQL' DROP TABLE
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== psql <<SQL unquoted, multi-line
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== cat <<'EOF' > file stays data
+exit 0
+(silent)
+
+=== psql heredoc with a safe query
+exit 0
+(silent)
+
+=== <<'X' inside double quotes
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== <<'X' inside a comment
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== <<'X' inside single quotes
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== +refspec forces
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: force push — use --force-with-lease, and never on a shared branch.
+If this is genuinely required, ask the human to run it.
+
+=== -uf combined short flags
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: force push — use --force-with-lease, and never on a shared branch.
+If this is genuinely required, ask the human to run it.
+
+=== git -c x=y push --force
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: force push — use --force-with-lease, and never on a shared branch.
+If this is genuinely required, ask the human to run it.
+
+=== git --no-pager push -f
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: force push — use --force-with-lease, and never on a shared branch.
+If this is genuinely required, ask the human to run it.
+
+=== commit message mentioning force push
+exit 0
+(silent)
+
+=== --force-if-includes with lease
+exit 0
+(silent)
+
+=== push -u is not force
+exit 0
+(silent)
+
+=== DELETE without WHERE
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== lowercase delete without where
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== DELETE with WHERE
+exit 0
+(silent)
+
+=== second -c is unbounded
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== fine-grained GitHub PAT
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: GitHub fine-grained personal access token in the command.
+If this is genuinely required, ask the human to run it.
+
+=== Stripe restricted live key
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: Stripe LIVE restricted key in the command.
+If this is genuinely required, ask the human to run it.
+
+=== cd in a subshell, then rm -r
+exit 0
+(silent)
+
+=== CONTROL: cd in a { } group DOES move the shell
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: this enters $T and then deletes it, which leaves the shell with no working directory — every later command, and every hook, then fails with EPERM. Delete it from a subshell, or cd out first.
+If this is genuinely required, ask the human to run it.
+
+=== non-UTF-8 bytes in a JSON payload
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== non-UTF-8 junk that is not JSON
+exit 0
+(silent)
+

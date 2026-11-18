@@ -1,0 +1,3 @@
+# What verifies bendit itself. The Stop gate runs this when code changed.
+# Same command CI runs, so the gate and CI cannot disagree.
+bash .github/workflows/ci.sh shell imports privacy validate

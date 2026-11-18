@@ -1,0 +1,13 @@
+{
+  "name": "bendit",
+  "owner": {
+    "name": "VedangP57"
+  },
+  "plugins": [
+    {
+      "name": "bendit",
+      "source": "./plugins/bendit",
+      "description": "Enforced rules for coding agents: fail-closed guard hooks, a verification gate, practice skills, and /adopt for any project."
+    }
+  ]
+}

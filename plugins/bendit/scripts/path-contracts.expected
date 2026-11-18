@@ -1,0 +1,12 @@
+=== hot: allocation refused
+exit 2
+--- stderr
+[bendit] particles.hot.ts is marked .hot.*: it runs every frame or every tick, and this allocates — new.
+Hoist it out of the hot path, reuse a preallocated object, or rename the file if it is not hot after all.
+
+=== gen: refused outright
+exit 2
+--- stderr
+[bendit] types.gen.ts is generated (.gen.*): edit the generator, not its output.
+If this file is no longer generated, rename it.
+

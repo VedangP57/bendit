@@ -1,0 +1,18 @@
+=== warning text
+exit 2
+--- stderr
+[bendit] that command hid its errors and returned nothing, so it has told you nothing.
+An empty result here means EITHER "ran fine, found none" OR "failed, and you cannot see why" — the two look identical and mean opposite things.
+Before using this as an answer, re-run it without the redirect:
+  drop 2>/dev/null and read stderr
+A binary at a path where it does not exist, or a directory that is not there, fails silently this way.
+
+=== warning text: a count of zero
+exit 2
+--- stderr
+[bendit] that command hid its errors and returned only a count of 0, so it has told you nothing.
+A 0 here means EITHER "ran fine, found none" OR "failed, and you cannot see why" — the two look identical and mean opposite things.
+Before using this as an answer, re-run it without the redirect:
+  drop 2>/dev/null and read stderr
+A binary at a path where it does not exist, or a directory that is not there, fails silently this way.
+

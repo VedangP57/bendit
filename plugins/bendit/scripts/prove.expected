@@ -1,0 +1,259 @@
+=== green repo, working kit
+exit 0
+--- stdout
+bendit prove: good
+kit:  <kit>
+repo: <tmp>/good
+
+check                                                                  | result | evidence rung
+-----------------------------------------------------------------------+--------+--------------
+block-dangerous-bash: refuses `git push --force`                       | PASS   | 4
+block-dangerous-bash: allows `git status`                              | PASS   | 4
+block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
+block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
+path-contracts: allows a write to x.ts                                 | PASS   | 4
+post-edit-review --pre: allows a write (snapshot only)                 | PASS   | 4
+post-edit-review: flags a catch that returns success (advice)          | PASS   | 4
+post-edit-review: silent on a clean edit                               | PASS   | 4
+warn-suppressed-stderr: flags `2>/dev/null` with empty output (advice) | PASS   | 4
+warn-suppressed-stderr: silent without the redirect                    | PASS   | 4
+Stop gate: --mark records a code edit                                  | PASS   | 4
+Stop gate: refuses when the harness exits 1                            | PASS   | 4
+Stop gate: allows when the harness exits 0                             | PASS   | 4
+harness: .claude/verify-harness exits 0                                | PASS   | 4
+privacy: agent-layer files carry no home path or email                 | PASS   | 4
+
+prove: all 16 checks passed
+not proved by this script: live wiring -- that Claude Code runs these hooks in a real
+session. Do the in-session check in references/prove.md (a refused force push whose
+message names bendit).
+
+=== red harness
+exit 1
+--- stdout
+bendit prove: red
+kit:  <kit>
+repo: <tmp>/red
+
+check                                                                  | result | evidence rung
+-----------------------------------------------------------------------+--------+--------------
+block-dangerous-bash: refuses `git push --force`                       | PASS   | 4
+block-dangerous-bash: allows `git status`                              | PASS   | 4
+block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
+block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
+path-contracts: allows a write to x.ts                                 | PASS   | 4
+post-edit-review --pre: allows a write (snapshot only)                 | PASS   | 4
+post-edit-review: flags a catch that returns success (advice)          | PASS   | 4
+post-edit-review: silent on a clean edit                               | PASS   | 4
+warn-suppressed-stderr: flags `2>/dev/null` with empty output (advice) | PASS   | 4
+warn-suppressed-stderr: silent without the redirect                    | PASS   | 4
+Stop gate: --mark records a code edit                                  | PASS   | 4
+Stop gate: refuses when the harness exits 1                            | PASS   | 4
+Stop gate: allows when the harness exits 0                             | PASS   | 4
+harness: .claude/verify-harness exits 0                                | FAIL   | 4
+privacy: agent-layer files carry no home path or email                 | PASS   | 4
+
+failures:
+  harness: .claude/verify-harness exits 0
+    exit 1: 2 tests failed
+
+prove: 1 of 16 checks FAILED -- adoption is NOT complete
+not proved by this script: live wiring -- that Claude Code runs these hooks in a real
+session. Do the in-session check in references/prove.md (a refused force push whose
+message names bendit).
+
+=== no harness
+exit 1
+--- stdout
+bendit prove: none
+kit:  <kit>
+repo: <tmp>/none
+
+check                                                                  | result | evidence rung
+-----------------------------------------------------------------------+--------+--------------
+block-dangerous-bash: refuses `git push --force`                       | PASS   | 4
+block-dangerous-bash: allows `git status`                              | PASS   | 4
+block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
+block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
+path-contracts: allows a write to x.ts                                 | PASS   | 4
+post-edit-review --pre: allows a write (snapshot only)                 | PASS   | 4
+post-edit-review: flags a catch that returns success (advice)          | PASS   | 4
+post-edit-review: silent on a clean edit                               | PASS   | 4
+warn-suppressed-stderr: flags `2>/dev/null` with empty output (advice) | PASS   | 4
+warn-suppressed-stderr: silent without the redirect                    | PASS   | 4
+Stop gate: --mark records a code edit                                  | PASS   | 4
+Stop gate: refuses when the harness exits 1                            | PASS   | 4
+Stop gate: allows when the harness exits 0                             | PASS   | 4
+harness: .claude/verify-harness exits 0                                | FAIL   | 4
+privacy: agent-layer files carry no home path or email                 | PASS   | 4
+
+failures:
+  harness: .claude/verify-harness exits 0
+    no .claude/verify-harness: the Stop gate has nothing to run for this repo
+
+prove: 1 of 16 checks FAILED -- adoption is NOT complete
+not proved by this script: live wiring -- that Claude Code runs these hooks in a real
+session. Do the in-session check in references/prove.md (a refused force push whose
+message names bendit).
+
+=== block-dangerous-bash replaced by exit 0
+exit 1
+--- stdout
+bendit prove: good
+kit:  <tmp>/kit-open
+repo: <tmp>/good
+
+check                                                                  | result | evidence rung
+-----------------------------------------------------------------------+--------+--------------
+block-dangerous-bash: refuses `git push --force`                       | FAIL   | 4
+block-dangerous-bash: allows `git status`                              | PASS   | 4
+block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
+block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
+path-contracts: allows a write to x.ts                                 | PASS   | 4
+post-edit-review --pre: allows a write (snapshot only)                 | PASS   | 4
+post-edit-review: flags a catch that returns success (advice)          | PASS   | 4
+post-edit-review: silent on a clean edit                               | PASS   | 4
+warn-suppressed-stderr: flags `2>/dev/null` with empty output (advice) | PASS   | 4
+warn-suppressed-stderr: silent without the redirect                    | PASS   | 4
+Stop gate: --mark records a code edit                                  | PASS   | 4
+Stop gate: refuses when the harness exits 1                            | PASS   | 4
+Stop gate: allows when the harness exits 0                             | PASS   | 4
+harness: .claude/verify-harness exits 0                                | PASS   | 4
+privacy: agent-layer files carry no home path or email                 | PASS   | 4
+
+failures:
+  block-dangerous-bash: refuses `git push --force`
+    exit 0, wanted 2 (a refusal)
+
+prove: 1 of 16 checks FAILED -- adoption is NOT complete
+not proved by this script: live wiring -- that Claude Code runs these hooks in a real
+session. Do the in-session check in references/prove.md (a refused force push whose
+message names bendit).
+
+=== path-contracts refuses under another name
+exit 1
+--- stdout
+bendit prove: good
+kit:  <tmp>/kit-anon
+repo: <tmp>/good
+
+check                                                                  | result | evidence rung
+-----------------------------------------------------------------------+--------+--------------
+block-dangerous-bash: refuses `git push --force`                       | PASS   | 4
+block-dangerous-bash: allows `git status`                              | PASS   | 4
+block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
+block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+path-contracts: refuses a write to x.gen.ts                            | FAIL   | 4
+path-contracts: allows a write to x.ts                                 | PASS   | 4
+post-edit-review --pre: allows a write (snapshot only)                 | PASS   | 4
+post-edit-review: flags a catch that returns success (advice)          | PASS   | 4
+post-edit-review: silent on a clean edit                               | PASS   | 4
+warn-suppressed-stderr: flags `2>/dev/null` with empty output (advice) | PASS   | 4
+warn-suppressed-stderr: silent without the redirect                    | PASS   | 4
+Stop gate: --mark records a code edit                                  | PASS   | 4
+Stop gate: refuses when the harness exits 1                            | PASS   | 4
+Stop gate: allows when the harness exits 0                             | PASS   | 4
+harness: .claude/verify-harness exits 0                                | PASS   | 4
+privacy: agent-layer files carry no home path or email                 | PASS   | 4
+
+failures:
+  path-contracts: refuses a write to x.gen.ts
+    refused, but stderr does not name bendit (it must begin "[bendit]" or "BLOCKED by bendit"): [some-kit] x.gen.ts is generated (.gen.*): edit the generator, not its output. | If this file is no longer generated, rename it.
+
+prove: 1 of 16 checks FAILED -- adoption is NOT complete
+not proved by this script: live wiring -- that Claude Code runs these hooks in a real
+session. Do the in-session check in references/prove.md (a refused force push whose
+message names bendit).
+
+=== Stop gate that never refuses
+exit 1
+--- stdout
+bendit prove: good
+kit:  <tmp>/kit-nostop
+repo: <tmp>/good
+
+check                                                                  | result | evidence rung
+-----------------------------------------------------------------------+--------+--------------
+block-dangerous-bash: refuses `git push --force`                       | PASS   | 4
+block-dangerous-bash: allows `git status`                              | PASS   | 4
+block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
+block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
+path-contracts: allows a write to x.ts                                 | PASS   | 4
+post-edit-review --pre: allows a write (snapshot only)                 | PASS   | 4
+post-edit-review: flags a catch that returns success (advice)          | PASS   | 4
+post-edit-review: silent on a clean edit                               | PASS   | 4
+warn-suppressed-stderr: flags `2>/dev/null` with empty output (advice) | PASS   | 4
+warn-suppressed-stderr: silent without the redirect                    | PASS   | 4
+Stop gate: --mark records a code edit                                  | FAIL   | 4
+Stop gate: refuses when the harness exits 1                            | FAIL   | 4
+Stop gate: allows when the harness exits 0                             | FAIL   | 4
+harness: .claude/verify-harness exits 0                                | PASS   | 4
+privacy: agent-layer files carry no home path or email                 | PASS   | 4
+
+failures:
+  Stop gate: --mark records a code edit
+    exit 0, pending record NOT written
+  Stop gate: refuses when the harness exits 1
+    exit 0, wanted 2
+  Stop gate: allows when the harness exits 0
+    exit 0, wanted 0 and "verified by ..." on stdout
+
+prove: 3 of 16 checks FAILED -- adoption is NOT complete
+not proved by this script: live wiring -- that Claude Code runs these hooks in a real
+session. Do the in-session check in references/prove.md (a refused force push whose
+message names bendit).
+
+=== a hook prove.sh has no probe for
+exit 1
+--- stdout
+bendit prove: good
+kit:  <tmp>/kit-unprobed
+repo: <tmp>/good
+
+check                                                                  | result | evidence rung
+-----------------------------------------------------------------------+--------+--------------
+block-dangerous-bash: refuses `git push --force`                       | PASS   | 4
+block-dangerous-bash: allows `git status`                              | PASS   | 4
+block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
+block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+new-guard-nobody-probed.py: has a probe                                | FAIL   | 4
+path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
+path-contracts: allows a write to x.ts                                 | PASS   | 4
+post-edit-review --pre: allows a write (snapshot only)                 | PASS   | 4
+post-edit-review: flags a catch that returns success (advice)          | PASS   | 4
+post-edit-review: silent on a clean edit                               | PASS   | 4
+warn-suppressed-stderr: flags `2>/dev/null` with empty output (advice) | PASS   | 4
+warn-suppressed-stderr: silent without the redirect                    | PASS   | 4
+Stop gate: --mark records a code edit                                  | PASS   | 4
+Stop gate: refuses when the harness exits 1                            | PASS   | 4
+Stop gate: allows when the harness exits 0                             | PASS   | 4
+harness: .claude/verify-harness exits 0                                | PASS   | 4
+privacy: agent-layer files carry no home path or email                 | PASS   | 4
+
+failures:
+  new-guard-nobody-probed.py: has a probe
+    hooks.json runs it, but prove.sh has no known-bad/known-good payload for it -- add one
+
+prove: 1 of 17 checks FAILED -- adoption is NOT complete
+not proved by this script: live wiring -- that Claude Code runs these hooks in a real
+session. Do the in-session check in references/prove.md (a refused force push whose
+message names bendit).
+
+=== no argument
+exit 2
+--- stderr
+Prove bendit works for a repo, and print the evidence as a table.
+
+  bash prove.sh <repo>
+prove: give exactly one repo path
+
+=== not a git repo
+exit 2
+--- stderr
+prove: <tmp>/plain is not inside a git repository -- the Stop gate finds harnesses through git
+

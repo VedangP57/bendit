@@ -184,13 +184,15 @@ fi
 
 say "· starting app via the harness (never a bare dev server: that reads your real env)"
 APP_LOG=$(mktemp "${TMPDIR:-/tmp}/verify-app.XXXXXX") || die "verify: cannot create a log file"
-# Job control on for this one launch: a background job then leads its own
-# process group (pgid == its pid), which is what lets teardown stop the whole
-# tree with one signal. Off again straight after, so nothing else changes.
-set -m
-"$BIN" up >"$APP_LOG" 2>&1 &
+# The app leads its OWN process group (pgid == its pid), which is what lets
+# teardown stop the whole tree with one signal. A tiny python3 shim calls
+# setpgrp() and execs the harness, so the pid is unchanged. NOT `set -m`: job
+# control also makes bash manage the terminal, and on GitHub's macOS runners
+# every verify after the first then saw its app never answer (CI, 2026-11-18;
+# fine on Linux and on a local Mac). setpgrp touches nothing but the group.
+python3 -c 'import os, sys; os.setpgrp(); os.execvp(sys.argv[1], sys.argv[1:])' \
+  "$BIN" up >"$APP_LOG" 2>&1 &
 APP_PID=$!
-set +m
 # READY MEANS SERVING, NOT MERELY ANSWERING.
 #
 # `curl -s -o /dev/null` exits 0 for ANY response, so a loop on it breaks out on

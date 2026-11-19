@@ -97,9 +97,75 @@ A dev/start script, a server entry point, a `Procfile`, a mobile app config.
 Yes means the verification skill is worth scaffolding; a library or CLI usually
 needs only its test suite as the harness.
 
+## 8. Features
+
+Four optional features exist, and only these (`FEATURES` in
+`KIT/scripts/features.py`). Each is on when its signal is found, and its `why`
+is that signal's source, written as you would cite it in the report.
+
+| feature | on when | why (its source) | needs |
+|---|---|---|---|
+| `browser-driver` | web app: a `package.json` dependency key from the list below, or `index.html` at the root | `package.json:<line> <name>`, or `index.html` | Node 20+ and Chrome |
+| `ux-design-laws` | web app (same signal) | same as `browser-driver` | the `bendit-web` add-on (SKILL.md step 3b installs it) |
+| `session-brief` | a git project | `git project (git rev-parse --show-toplevel)` | nothing |
+| `ls-guard` | `ls` is not the real `ls` in the user's shell | `type ls in <shell>: <the ls is … line>` | nothing |
+
+A feature whose signal is absent is off, and its `why` says what was not found
+(`no web framework in package.json`, `not a git repository`, `ls is /bin/ls`).
+
+**Web app.** The names are the installer's (`is_web_project` in bendit's
+`install.sh`): `next react vue svelte @sveltejs/kit nuxt astro vite
+@angular/core solid-js @remix-run/react`, as a key of `dependencies` or
+`devDependencies`. From the project root, these print the signal and its line,
+or nothing:
+
+```bash
+test -e index.html && echo "index.html"
+python3 -I -c '
+import json
+names = "next react vue svelte @sveltejs/kit nuxt astro vite @angular/core solid-js @remix-run/react".split()
+text = open("package.json").read()
+d = json.loads(text)
+keys = set()
+for k in ("dependencies", "devDependencies"):
+    if isinstance(d.get(k), dict):
+        keys.update(d[k])
+for n in names:
+    if n in keys:
+        line = next(i for i, l in enumerate(text.splitlines(), 1) if "\"%s\"" % n in l)
+        print("package.json:%d %s" % (line, n))
+        break
+'
+```
+
+With no `package.json` the second command fails with `FileNotFoundError`: that
+means "no web framework in package.json", not an error to report.
+
+**What `browser-driver` needs.** Read only; nothing is installed in this step:
+
+```bash
+node --version    # v20 or newer (the installer's NODE_MIN)
+for c in google-chrome google-chrome-stable chromium chromium-browser; do command -v "$c"; done
+for d in /Applications "$HOME/Applications"; do
+  for a in "Google Chrome.app" "Chromium.app"; do test -e "$d/$a" && echo "$d/$a"; done
+done
+```
+
+Chrome is found if either loop prints a line (the installer's `find_chrome`).
+A missing dependency does not turn the feature off here: SKILL.md step 3b asks.
+
+**`ls`.** Run `"$SHELL" -ic 'type ls'` and read the `ls is …` line on stdout;
+an interactive shell may print startup warnings on stderr, which are not the
+answer. A line containing `alias` (bash says `aliased`) or `function` means
+`ls` is not the real one: `ls-guard` on, why e.g. `type ls in zsh: ls is a
+shell function` (no `$` in it, so it survives double quotes). Leave out any
+`from <file>` tail (zsh names the rc file): it is a home path, and
+`.claude/bendit.json` is committed. A path (`ls is /bin/ls`) means off.
+
 ## Output
 
-Print one table, then the list of `?` items that become interview questions:
+Print one table, then the features table from §8 (`feature | on/off | why`),
+then the list of `?` items that become interview questions:
 
 ```
 finding              | value                      | source

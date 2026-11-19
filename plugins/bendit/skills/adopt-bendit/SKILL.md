@@ -40,6 +40,28 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
    get one "yes, go" before anything is written.
 3. **Install.** Follow `references/install.md` (marketplace, else vendor).
    *Stop* if neither route works; report what failed with its output.
+3b. **Features.** Print the table from `references/detect.md` §8:
+   `feature | on/off | why`. For each **on** feature with a missing dependency,
+   ask, one at a time, whether to install it, showing the exact command
+   (macOS with Homebrew: `brew install node`, `brew install --cask
+   google-chrome`; otherwise the download page, https://nodejs.org/ or
+   https://www.google.com/chrome/) *[no]*. A "no" turns that feature off with why
+   `you declined <dep>` (e.g. `you declined Chrome`); it never stops adoption.
+   If `ux-design-laws` is on, ask *"Install the bendit-web add-on for this
+   project only? [yes]"*; a no turns it off with why `you declined bendit-web`.
+   Then show, get a yes, and run **one** Bash call that writes every feature to
+   `.claude/bendit.json` (one permission prompt; `ROOT` is the project root):
+   ```bash
+   python3 "$KIT/scripts/features.py" set "$ROOT" browser-driver on "package.json:5 next" &&
+   python3 "$KIT/scripts/features.py" set "$ROOT" ux-design-laws on "package.json:5 next" &&
+   python3 "$KIT/scripts/features.py" set "$ROOT" session-brief on "git project (git rev-parse --show-toplevel)" &&
+   python3 "$KIT/scripts/features.py" set "$ROOT" ls-guard off "type ls in zsh: ls is /bin/ls" &&
+   python3 "$KIT/scripts/features.py" show "$ROOT"
+   ```
+   Re-running it on an unchanged project rewrites the same bytes. Last, if
+   `ux-design-laws` is on (the person said yes above), run
+   `claude plugin install bendit-web@bendit --scope project`: it writes only
+   the project's `.claude/settings.json`; show that diff.
 4. **Build the project layer.** Follow `references/project-layer.md`:
    `AGENTS.md` (which records the integration and production branches),
    `.claude/verify-harness`, a verification skill if there is an app, CI if
@@ -65,8 +87,11 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
 bendit adoption: <project>  — COMPLETE | NOT COMPLETE (<what failed>)
 
 PROVE.SH (as printed)
-<check>                           | PASS/FAIL                    | 4
+<check>                           | PASS/FAIL/UNUSED             | 4
 LIVE WIRING                       | PASS / FAIL / inconclusive / pending | 5
+
+FEATURES (.claude/bendit.json)    | on/off | why             | measured?
+<every feature>                   | on/off | <its source>    | not yet measured
 
 ENFORCED (refuses, exit 2)        | proved by
 <guard>                           | prove.sh rows + live check

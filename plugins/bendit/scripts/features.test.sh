@@ -54,6 +54,22 @@ fmt=$("$PY" -c 'import sys; t=open(sys.argv[1]).read(); print(t.startswith("{\n 
 chk "file is sorted keys, 2-space indent, one trailing newline" "$fmt" "True True True"
 cap "show after merges" show "$T/merge"
 
+echo; echo "RE-ADOPT"
+# /adopt writes every feature with one chain of `set` calls; running /adopt
+# again on an unchanged project must not churn the committed file.
+readopt() {
+  "$PY" "$F" set "$T/readopt" browser-driver on "package.json:5 next" &&
+  "$PY" "$F" set "$T/readopt" ux-design-laws on "package.json:5 next" &&
+  "$PY" "$F" set "$T/readopt" session-brief on "git project" &&
+  "$PY" "$F" set "$T/readopt" ls-guard off "ls is the real ls"
+}
+proj readopt
+readopt; chk "first adopt chain exits 0" "$?" "0"
+cp "$T/readopt/.claude/bendit.json" "$T/readopt-first.json"
+readopt; chk "second adopt chain exits 0" "$?" "0"
+if cmp -s "$T/readopt-first.json" "$T/readopt/.claude/bendit.json"; then same=y; else same=n; fi
+chk "the same set chain twice -> a byte-identical file" "$same" "y"
+
 echo; echo "MALFORMED FILES FAIL CLOSED"
 # A refusal is: exit 2, the "features: " prefix, the file named, the problem
 # named, and nothing on stdout. Exit 2 alone proves nothing (python exits 2 for

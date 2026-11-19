@@ -29,6 +29,13 @@ claude plugin marketplace add <source> --scope project
 claude plugin install bendit@bendit --scope project
 ```
 
+For a web app, SKILL.md step 3b adds the `bendit-web` add-on from the same
+marketplace, after its own yes:
+
+```bash
+claude plugin install bendit-web@bendit --scope project
+```
+
 Project scope writes to the project's `.claude/settings.json`; show the user
 that diff afterwards. That file is the record of this route: it names the
 marketplace and the plugin, and Claude Code reads it. Write nothing else.
@@ -60,6 +67,10 @@ Copy the kit into the project so it is versioned with the code:
    claude plugin marketplace add ./.claude/vendor/bendit --scope project
    claude plugin install bendit@bendit --scope project
    ```
+
+   The copy already holds every plugin under `plugins/`, so for a web app step
+   3b's add-on comes from it too, after its own yes:
+   `claude plugin install bendit-web@bendit --scope project`.
 
    Then read `.claude/settings.json`: if the marketplace path was stored as an
    absolute path, it will not work in another checkout. Report that under "not

@@ -121,8 +121,14 @@ bendit/
   used by /ship and /review-diff.
 - `zshGuard` (boolean, default true): enables block-zsh-wordsplit when $SHELL is zsh.
 Per-project state lives in the project, never in the plugin folder, and only
-where something reads it (no config file nothing reads: that is failure class
-F1): `.claude/verify-harness` (command the Stop gate runs; holds the project's
+where something reads it (a config file nothing reads is failure class F1).
+There is one config file, `.claude/bendit.json`, read by: the session-brief and
+ls-guard hooks, `prove.sh`, `/doctor`; it records which optional features
+(`browser-driver`, `ux-design-laws`, `session-brief`, `ls-guard`) are on and
+why, and `/adopt` writes it through `scripts/features.py`. For a web app,
+`/adopt` also installs the `bendit-web` add-on with `--scope project`, verified
+on Claude Code 2.1.328: a plugin installed with --scope project loads only in
+that project. The rest: `.claude/verify-harness` (command the Stop gate runs; holds the project's
 commands), `AGENTS.md` (`Integration branch:` and production branch lines, read
 by /ship and /review-diff), `.env.verify.example` (committed list of optional
 local overrides, `.env.verify.local`), and for a vendored install

@@ -433,6 +433,28 @@ exit 0
 This machine is ready. Fetching bendit...
 2.1.328
 
+=== cache inside a git repo, empty v folder
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+This machine is ready. Fetching bendit...
+2.1.328
+
+=== clone missing plugin.json
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+This machine is ready. Fetching bendit...
+2.1.328
+
 === unreachable source
 exit 1
 --- stderr

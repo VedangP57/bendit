@@ -342,7 +342,10 @@ fetch_kit() {
   dir="$cache/v$BENDIT_VERSION"
   src="${BENDIT_SOURCE:-https://github.com/VedangP57/bendit.git}"
   ref="${BENDIT_REF:-v$BENDIT_VERSION}"
-  if [ -d "$dir" ] && git -C "$dir" rev-parse --verify HEAD >/dev/null 2>&1; then
+  # git -C walks up into a parent repository, so .git must be in dir itself, and
+  # the plugin must really be there.
+  if [ -d "$dir/.git" ] && [ -f "$dir/plugins/bendit/.claude-plugin/plugin.json" ] \
+     && git -C "$dir" rev-parse --verify HEAD >/dev/null 2>&1; then
     say "$dir/plugins/bendit"
     return 0
   fi

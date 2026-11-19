@@ -341,6 +341,21 @@ KIT_SOURCE="$KIT" BENDIT_TTY="$F/ans" expect_capture "cache without .git" run_in
 chk "no .git: exits 0"                 "$EXPECT_CODE" 0
 chk "no .git: the stale folder is gone" "$([ -e "$(cache_of "$F")/v$VERSION/stale" ] && echo kept || echo replaced)" replaced
 chk "no .git: a fresh clone is there"  "$([ -d "$(cache_of "$F")/v$VERSION/.git" ] && echo yes || echo no)" yes
+# A cache inside a git work tree (HOME is a dotfiles repo): an empty v folder must
+# not count as a good clone just because a parent repo has commits.
+F="$T/f6"; ready_kit "$F"; : > "$F/ans"
+( cd "$F/home" && git init -q . && : > seed && git add seed && git -c user.name=t -c user.email=t@t commit -q -m seed )
+mkdir -p "$(cache_of "$F")/v$VERSION"
+KIT_SOURCE="$KIT" BENDIT_TTY="$F/ans" expect_capture "cache inside a git repo, empty v folder" run_installer "$F"
+chk "parent repo: exits 0"             "$EXPECT_CODE" 0
+chk "parent repo: replaced by a fresh clone" "$([ -d "$(cache_of "$F")/v$VERSION/.git" ] && echo yes || echo no)" yes
+chk "parent repo: the plugin dir exists" "$([ -f "$(cache_of "$F")/v$VERSION/plugins/bendit/.claude-plugin/plugin.json" ] && echo yes || echo no)" yes
+F="$T/f7"; ready_kit "$F"; : > "$F/ans"
+KIT_SOURCE="$KIT" BENDIT_TTY="$F/ans" run_installer "$F" >/dev/null
+rm -f "$(cache_of "$F")/v$VERSION/plugins/bendit/.claude-plugin/plugin.json"
+KIT_SOURCE="$KIT" BENDIT_TTY="$F/ans" expect_capture "clone missing plugin.json" run_installer "$F"
+chk "no plugin.json: exits 0"          "$EXPECT_CODE" 0
+chk "no plugin.json: re-fetched"       "$([ -f "$(cache_of "$F")/v$VERSION/plugins/bendit/.claude-plugin/plugin.json" ] && echo yes || echo no)" yes
 F="$T/f3"; ready_kit "$F"; : > "$F/ans"
 KIT_SOURCE="$T/gone" BENDIT_TTY="$F/ans" expect_capture "unreachable source" run_installer "$F"
 chk "unreachable: exits 1"             "$EXPECT_CODE" 1

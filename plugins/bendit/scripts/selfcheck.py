@@ -3,6 +3,9 @@
 
     selfcheck.py --hook       SessionStart: silent when all is well, loud when not
     selfcheck.py [--verbose]  a table, one row per hook (/bendit:doctor)
+    selfcheck.py --features <root>
+                              the project's features table, and a warning when
+                              the bendit-web add-on is enabled at user scope
 
 WHY. A hook that cannot start is a guard that is OFF, and nothing says so.
 macOS revoked a terminal's access to the folder the plugin lived in; every hook
@@ -207,8 +210,63 @@ def gather():
 
 _probes = None
 
+ADDON = 'bendit-web'
+ADDON_WARNING = f'{ADDON} is installed for every project, not only this one'
+
+
+def addon_scope_line():
+    """One line on whether the add-on is enabled at USER scope (every project).
+    `claude plugin list --json` is a list of {id, scope, enabled, ...}. When the
+    CLI is missing, errors or prints something else, say "could not check":
+    neither fine nor a problem."""
+    def cannot(why):
+        return f'add-on scope: could not check whether {ADDON} is installed for every project ({why})'
+    try:
+        p = subprocess.run(['claude', 'plugin', 'list', '--json'], capture_output=True, text=True,
+                           timeout=30, stdin=subprocess.DEVNULL)
+    except FileNotFoundError:
+        return cannot('the claude CLI is not on PATH')
+    except (OSError, subprocess.SubprocessError) as e:
+        return cannot(f'{type(e).__name__}: {e}')
+    if p.returncode != 0:
+        return cannot(f'claude plugin list exited {p.returncode}: {first_line(p.stderr) or "no output"}')
+    try:
+        entries = json.loads(p.stdout)
+        if not isinstance(entries, list):
+            raise ValueError('not a list')
+        user = [e for e in entries if isinstance(e, dict) and e.get('scope') == 'user'
+                and e.get('enabled') is True and str(e.get('id', '')).split('@')[0] == ADDON]
+    except (ValueError, TypeError, AttributeError) as e:
+        return cannot(f'claude plugin list --json was not the expected list: {e}')
+    if user:
+        return f'add-on scope: {ADDON_WARNING}. Fix: claude plugin uninstall {user[0]["id"]} --scope user, then run /adopt per project'
+    return f'add-on scope: ok ({ADDON} is not enabled at user scope)'
+
+
+def features_report(root):
+    """The features table for <root>, then the add-on scope line. 1 when
+    bendit.json is unreadable (reported, never read as everything off)."""
+    p = subprocess.run([sys.executable, os.path.join(KIT, 'scripts', 'features.py'), 'show', root],
+                       capture_output=True, text=True)
+    if p.returncode != 0:
+        print(f'features: {first_line(p.stderr) or "could not read .claude/bendit.json"}')
+        print('fix: repair or delete .claude/bendit.json, then run /adopt')
+        return 1
+    print(f'bendit features: {os.path.join(root, ".claude", "bendit.json")}')
+    print()
+    print(p.stdout.rstrip('\n'))
+    print()
+    print(addon_scope_line())
+    return 0
+
 
 def main(argv):
+    if '--features' in argv:
+        i = argv.index('--features')
+        if i + 1 >= len(argv):
+            print('usage: selfcheck.py --features <root>', file=sys.stderr)
+            return 2
+        return features_report(argv[i + 1])
     hook = '--hook' in argv
     if hook:
         try:

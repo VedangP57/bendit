@@ -2,7 +2,7 @@
 # packages/: the npm and PyPI wrappers around install.sh.
 #
 # Each wrapper ships its own byte-identical copy of install.sh (packages/sync.sh
-# makes it), so the checks are: the copies match, the four version strings
+# makes it), so the checks are: the copies match, the five version strings
 # match, each wrapper runs the bundled installer and passes arguments and exit
 # codes through, and the npm tarball would contain the files it needs.
 # node and npm are required: their absence FAILS the suite, never skips it.
@@ -36,12 +36,13 @@ done
 echo; echo "VERSIONS"
 v_sh="$(sed -n 's/^BENDIT_VERSION="\(.*\)"$/\1/p' "$ROOT/install.sh")"
 v_plugin="$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' "$ROOT/plugins/bendit/.claude-plugin/plugin.json" | head -1)"
+v_web="$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' "$ROOT/plugins/bendit-web/.claude-plugin/plugin.json" | head -1)"
 v_npm="$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' "$ROOT/packages/npm/package.json" | head -1)"
 v_py="$(sed -n 's/^version *= *"\(.*\)"$/\1/p' "$ROOT/packages/pypi/pyproject.toml" | head -1)"
-if [ -n "$v_sh" ] && [ "$v_sh" = "$v_plugin" ] && [ "$v_sh" = "$v_npm" ] && [ "$v_sh" = "$v_py" ]; then
-  good "all four versions are $v_sh"
+if [ -n "$v_sh" ] && [ "$v_sh" = "$v_plugin" ] && [ "$v_sh" = "$v_npm" ] && [ "$v_sh" = "$v_py" ] && [ "$v_sh" = "$v_web" ]; then
+  good "all five versions are $v_sh"
 else
-  bad "versions differ: install.sh=${v_sh:-?} plugin.json=${v_plugin:-?} package.json=${v_npm:-?} pyproject.toml=${v_py:-?}"
+  bad "versions differ: install.sh=${v_sh:-?} plugin.json=${v_plugin:-?} bendit-web/plugin.json=${v_web:-?} package.json=${v_npm:-?} pyproject.toml=${v_py:-?}"
 fi
 
 echo; echo "WRAPPERS RUN THE BUNDLED INSTALLER"

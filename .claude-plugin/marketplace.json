@@ -8,6 +8,11 @@
       "name": "bendit",
       "source": "./plugins/bendit",
       "description": "Enforced rules for coding agents: fail-closed guard hooks, a verification gate, practice skills, and /adopt for any project."
+    },
+    {
+      "name": "bendit-web",
+      "source": "./plugins/bendit-web",
+      "description": "bendit add-on for web apps: UI design skill. Installed by /adopt, per project."
     }
   ]
 }

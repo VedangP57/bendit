@@ -37,17 +37,17 @@ PER_SKILL_CAP = 600   # one outlier crowds out the rest: past this, cut the desc
 PLUGIN = Path(__file__).resolve().parent.parent
 
 
-def plugin_name() -> str:
+def plugin_name(plugin: Path = PLUGIN) -> str:
     # The listing prefix is the plugin's manifest name. Falling back to the
     # directory name keeps the count honest (same length in the shipped layout)
     # rather than guessing a shorter one.
     try:
-        name = json.loads((PLUGIN / '.claude-plugin' / 'plugin.json').read_text())['name']
+        name = json.loads((plugin / '.claude-plugin' / 'plugin.json').read_text())['name']
         if isinstance(name, str) and name:
             return name
     except (OSError, ValueError, KeyError, TypeError):
         pass
-    return PLUGIN.name
+    return plugin.name
 
 
 def description_of(md: Path) -> str | None:
@@ -78,7 +78,9 @@ def main(argv: list[str]) -> int:
     if not root.is_dir():
         print(f'skill-budget: {root} is not a directory, so NOTHING was measured', file=sys.stderr)
         return 2
-    prefix = plugin_name() + ':'
+    # --dir <plugin>/skills: the listing prefix is THAT plugin's name, not bendit's.
+    owner = root.resolve().parent
+    prefix = plugin_name(owner if (owner / '.claude-plugin' / 'plugin.json').is_file() else PLUGIN) + ':'
     entries = [(d.name, d / 'SKILL.md', True) for d in sorted(root.iterdir())
                if (d / 'SKILL.md').is_file()]
     if not entries:

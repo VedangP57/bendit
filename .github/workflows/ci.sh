@@ -7,12 +7,16 @@
 #
 # Stages: shell  imports  privacy  validate
 #
-#   shell     every plugins/bendit/scripts/*.test.sh suite
+#   shell     every plugins/bendit/scripts/*.test.sh suite (only bendit has
+#             scripts; a plugin that gains some means changing $PLUGIN below)
 #   imports   byte-compiles every scripts/*.py under python3, and again under
 #             /usr/bin/python3 when it exists (3.9 on macOS: the oldest Python
 #             the kit supports), so syntax or an annotation 3.9 rejects fails
 #   privacy   scripts/privacy-scan.py over every file git would publish
-#   validate  `claude plugin validate` on the plugin
+#   validate  for EVERY plugins/*/ : `claude plugin validate`, then
+#             scripts/skill-budget.py over its skills and commands. A plugin with
+#             no skills and no commands is skipped by the budget with a printed
+#             note (an add-on that is still a skeleton); validate never skips.
 #
 # There is no `test` stage (`claude plugin test`): v1 ships no TypeScript mod,
 # so it would run zero tests -- and a stage with nothing to run is a failure
@@ -25,7 +29,8 @@
 # the defect this kit exists to prevent.
 set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 2
-PLUGIN=./plugins/bendit
+PLUGIN=./plugins/bendit              # the plugin that has scripts/ (shell, imports, privacy)
+PLUGINS=(./plugins/*/)               # every plugin: validate and budget
 OUT="$(mktemp -d)"
 failed=()
 
@@ -70,11 +75,34 @@ stage_privacy() {
 }
 
 stage_validate() {
-  echo "--- claude plugin validate $PLUGIN"
-  claude plugin validate "$PLUGIN" 2>&1 | tee "$OUT/validate.txt"
-  local rc=${PIPESTATUS[0]}
-  [ "$rc" -eq 0 ] || { fail "validate exited $rc"; return 1; }
-  grep -q 'Validation passed' "$OUT/validate.txt" || { fail "validate exited 0 but never said 'Validation passed'"; return 1; }
+  local p rc=0 validated=0 measured=0 n
+  local -a plugins=()
+  for p in "${PLUGINS[@]}"; do [ -d "$p" ] && plugins+=("${p%/}"); done
+  if [ "${#plugins[@]}" -eq 0 ]; then fail "no plugin under plugins/, so NOTHING was validated"; return 1; fi
+  for p in "${plugins[@]}"; do
+    echo "--- claude plugin validate $p"
+    claude plugin validate "$p" 2>&1 | tee "$OUT/validate.txt"
+    n=${PIPESTATUS[0]}
+    if [ "$n" -ne 0 ]; then fail "validate $p exited $n"; rc=1
+    elif ! grep -q 'Validation passed' "$OUT/validate.txt"; then fail "validate $p exited 0 but never said 'Validation passed'"; rc=1
+    else validated=$((validated+1)); fi
+
+    # budget: skills and commands, per plugin. Nothing to measure is a printed
+    # skip, not a failure -- but see below: skipping EVERY plugin is one.
+    if ! compgen -G "$p/skills/*/SKILL.md" >/dev/null && ! compgen -G "$p/commands/*.md" >/dev/null; then
+      echo "--- budget: $p has no skills and no commands, skipped"
+      continue
+    fi
+    echo "--- skill-budget.py $p"
+    if python3 "$PLUGIN/scripts/skill-budget.py" --dir "$p/skills" --commands "$p/commands"; then
+      measured=$((measured+1))
+    else
+      fail "skill budget for $p"; rc=1
+    fi
+  done
+  echo "validate: ${validated}/${#plugins[@]} plugins passed; budget measured ${measured}"
+  if [ "$measured" -eq 0 ]; then fail "no plugin had a skill or command to budget, so NOTHING was measured"; rc=1; fi
+  return $rc
 }
 
 stages=("$@"); [ "${#stages[@]}" -gt 0 ] || stages=(shell imports privacy validate)

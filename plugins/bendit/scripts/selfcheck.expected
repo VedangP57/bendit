@@ -106,3 +106,16 @@ bendit self-check at session start: the hooks below are OFF (or could not be che
   - new-guard-nobody-probed.py: selfcheck has no probe for it in scripts/probes.py -- fix: add a probe for it to scripts/probes.py
 Tell the user in your first reply, and do not rely on these guards: run nothing destructive without their explicit go-ahead. /bendit:doctor re-checks.
 
+=== features table + add-on at user scope
+exit 0
+--- stdout
+bendit features: <tmp>/featproj/.claude/bendit.json
+
+feature        | on/off | why
+browser-driver | on     | package.json:14 next
+ux-design-laws | off    | (not set)
+session-brief  | off    | (not set)
+ls-guard       | off    | declined by the person
+
+add-on scope: bendit-web is installed for every project, not only this one. Fix: claude plugin uninstall bendit-web@bendit --scope user, then run /adopt per project
+

@@ -243,6 +243,52 @@ loud "unprobed hook"
 has "  ...naming it" "new-guard-nobody-probed" "$(field systemMessage)"
 
 echo
+echo "FEATURES (--features <root>: the table /bendit:doctor merges in, and the add-on scope warning)"
+# `claude` is stubbed on PATH with the shape `claude plugin list --json` really
+# prints (a list of {id, scope, enabled, ...}); never the real CLI.
+mkdir -p "$T/stub-user" "$T/stub-project" "$T/stub-broken"
+stub() {  # stub <dir> <json-or-@fail>
+  if [ "$2" = '@fail' ]; then printf '#!/bin/sh\necho "boom: not logged in" >&2\nexit 3\n' > "$1/claude"
+  else printf '#!/bin/sh\ncat <<'"'"'JSON'"'"'\n%s\nJSON\n' "$2" > "$1/claude"; fi
+  chmod +x "$1/claude"
+}
+stub "$T/stub-user" '[{"id":"frontend-design@x","scope":"project","enabled":true},{"id":"bendit-web@bendit","scope":"user","enabled":true}]'
+stub "$T/stub-project" '[{"id":"bendit-web@bendit","scope":"project","enabled":true,"projectPath":"/p"},{"id":"bendit-web@bendit","scope":"user","enabled":false}]'
+stub "$T/stub-broken" @fail
+FP="$T/featproj"; mkdir -p "$FP"
+"$PY" "$SD/features.py" set "$FP" browser-driver on "package.json:14 next"
+"$PY" "$SD/features.py" set "$FP" ls-guard off "declined by the person"
+fe() {  # fe <stubdir> <root> -- leaves FE_RC, FE_OUT
+  FE_OUT="$(PATH="$1:$PATH" "$PY" "$KIT/scripts/selfcheck.py" --features "$2" 2>&1)"; FE_RC=$?
+}
+if [ -z "$PY_GIVEN" ]; then
+  expect_capture "features table + add-on at user scope" env PATH="$T/stub-user:$PATH" "$PY" "$KIT/scripts/selfcheck.py" --features "$FP"
+fi
+fe "$T/stub-user" "$FP"
+chk "features: exit 0" "$FE_RC" 0
+has "  ...a row for a feature that is on" "browser-driver | on" "$FE_OUT"
+has "  ...with its reason" "package.json:14 next" "$FE_OUT"
+has "  ...a row for one that is off" "ls-guard" "$FE_OUT"
+has "  ...add-on enabled at user scope: the warning" "bendit-web is installed for every project, not only this one" "$FE_OUT"
+fe "$T/stub-project" "$FP"
+case "$FE_OUT" in *"not only this one"*) o=warned ;; *) o=quiet ;; esac
+chk "add-on at project scope (user scope disabled): no warning" "$o" quiet
+fe "$T/stub-broken" "$FP"
+has "claude CLI errors: says it could not check" "could not check" "$FE_OUT"
+case "$FE_OUT" in *"not only this one"*) o=warned ;; *) o=quiet ;; esac
+chk "  ...and does not claim the add-on is at user scope" "$o" quiet
+has "  ...and the table still prints" "browser-driver | on" "$FE_OUT"
+# No claude on PATH at all: a hermetic PATH holding only the interpreter.
+mkdir -p "$T/hermetic"; ln -sf "$PY" "$T/hermetic/python3"
+FE_OUT="$(env PATH="$T/hermetic" "$PY" "$KIT/scripts/selfcheck.py" --features "$FP" 2>&1)"
+has "no claude on PATH: says it could not check" "could not check" "$FE_OUT"
+# A malformed bendit.json is reported, never read as everything off.
+BP="$T/badproj"; mkdir -p "$BP/.claude"; printf '{"version": 1, "features": [' > "$BP/.claude/bendit.json"
+fe "$T/stub-user" "$BP"
+chk "malformed bendit.json: exit 1" "$FE_RC" 1
+has "  ...naming the file" "bendit.json" "$FE_OUT"
+
+echo
 echo "IT CLEANS UP"
 # DIRECTORIES only: selfcheck makes a temp dir per run. expect.sh keeps its own
 # capture FILE in $TMPDIR until expect_verify -- on Linux GNU mktemp puts it

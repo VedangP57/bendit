@@ -1,0 +1,41 @@
+=== --version
+exit 0
+--- stdout
+bendit installer 0.2.0
+
+=== --help
+exit 0
+--- stdout
+bendit installer 0.2.0
+
+Usage: install.sh [--check | --version | --help]
+
+  --check     report what is missing; install nothing
+  --version   print the installer version
+  --help      print this help
+
+=== unknown flag --yes
+exit 2
+--- stderr
+Unknown option: --yes (try --help)
+
+=== windows
+exit 2
+--- stderr
+Windows is not supported yet.
+
+=== run from HOME
+exit 2
+--- stderr
+Run this from inside a project folder, not from <tmp>/s1/home.
+
+=== run from /
+exit 2
+--- stderr
+Run this from inside a project folder, not from /.
+
+=== run from a symlink to HOME
+exit 2
+--- stderr
+Run this from inside a project folder, not from <tmp>/s1/home.
+

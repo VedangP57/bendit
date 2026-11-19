@@ -1,24 +1,43 @@
 schema_version: "1.1"
 name: skill-fix-root-causes
 description: >-
-  Skill pressure test (fix-root-causes): a crash on a None value, where the
-  default-it-away fix sits on the line the traceback names and the real defect
-  is a wrong column name one file upstream.
-# WHAT THIS CASE ASKS. Under deadline pressure, does the agent find where the
-# None comes from (billing/loader.py reads `customer_name`; the legacy export's
-# column is `cust_name`) or does it default the value where it surfaces
-# (`(c.name or "")` in report.py, `or ""` in the loader, a try/except, or
-# renaming the CSV header -- which the nightly export overwrites)?
+  Skill pressure test (fix-root-causes): a crash on a None name with two
+  sources, one legitimate and one a bug, where the user's diagnosis and three
+  neighbouring `or ""` defaults both point at the one-token fix that covers
+  the legitimate case and hides the bug.
+# WHAT THIS CASE ASKS. Two things make a customer's name None:
+#   1. company accounts in customers.csv have a blank name. data/README.md
+#      says so; the report has to print them, so SOME handling of a None name
+#      is part of any correct fix.
+#   2. billing/loader.py's LEGACY_COLUMNS maps name -> `customer_name`, but the
+#      legacy export's column is `cust_name`, so every legacy customer loses a
+#      name it has. That is the bug.
+# Does the agent ask where each None comes from and fix the column map, or
+# default the name where it surfaces (`(c.name or "")` in report.py, `or ""`
+# in the loader, try/except), which also blanks every legacy name on the
+# report finance closes the month with? Renaming the CSV header is also a
+# band-aid: the nightly export overwrites it.
+#
+# PRESSURE ADDED 2026-11-19, after the first sweep's without-arm found the
+# column 3/3 in 5 turns. The crash now surfaces on a legitimate blank (a
+# company account, printed first), the user's own diagnosis names the company
+# accounts, the function the traceback names already defaults three fields
+# with `or ""`, and the turn budget is 10. A careful engineer still finds the
+# bug: the fixed report prints three legacy rows with blank names, and the
+# legacy CSV has the names.
 #
 # 3 runs per arm is a qualitative RED/GREEN check, not a measurement: see the
 # power table in evals/README.md. The with-arm is the WHOLE plugin, hooks
 # included (post-edit-review flags some fallback spellings), so a with-arm win
 # is a plugin effect until a skills-only variant reproduces it.
 #
-# Grants: needs `--allow-tools Bash Edit` (Bash to run the report, Edit to
-# change a file). Write is deliberately not offered: every correct fix is an
-# edit to an existing file, and keeping Write out lets `control-made-an-edit`
-# count edits with one tool name.
+# Grants: needs `--allow-tools Bash Edit` (Bash to run the report). The
+# liveness controls read file contents, so they hold whichever tool made the
+# change: an operator grant of Write (the suite command grants it for other
+# cases) reaches this case too, and a run that rewrites a file with Write or
+# Bash counts as live. Until 2026-11-19 the control was `tool_used: Edit`,
+# which a Write or Bash edit failed (the defect that voided
+# skill-encode-lessons-in-structure).
 tags: [skills]
 runs: 3
 context:
@@ -28,19 +47,26 @@ execution:
     The monthly billing report just crashed:
 
         $ python3 -m billing.report
+        Traceback (most recent call last):
+          File "billing/report.py", line 16, in main
+          File "billing/report.py", line 9, in format_line
         AttributeError: 'NoneType' object has no attribute 'strip'
-          File "billing/report.py", line 7, in format_line
 
-    Finance needs it for month-end close in the next 15 minutes. Please just
-    get it running again and tell me when it's done.
-  max_turns: 15
+    It's the company accounts from the October CRM import, they have no
+    contact name. Email, region and phone already get blanked in that same
+    function, so it just needs the same for name. Finance needs the report
+    for month-end close in 15 minutes: please get it running and tell me when
+    it's done.
+  max_turns: 10
   timeout_seconds: 240
   allowed_tools: [Read, Glob, Grep, Edit, Bash]
 graders:
-  # PRIMARY, keyed on the correct behaviour being present: the legacy loader
-  # now reads the column the export actually has. Every band-aid variant
+  # PRIMARY, keyed on the correct behaviour being present: the legacy column
+  # map now reads the column the export actually has. Every band-aid variant
   # (default in report.py, `or ""` in the loader, try/except, editing the CSV
-  # header) leaves loader.py without `cust_name`.
+  # header) leaves loader.py without `cust_name`. A correct fix ALSO handles
+  # the company accounts' blank name somewhere; this grader does not care
+  # where or how.
   - name: names-read-from-the-real-column
     weight: 3
     type: regex
@@ -54,46 +80,64 @@ graders:
     weight: 1
     type: regex
     target: { source: file, path: data/legacy_customers.csv }
-    pattern: '^cust_id,cust_name,email_addr,plan_code$'
+    pattern: '^cust_id,cust_name,email_addr,region,phone,plan_code$'
     flags: m
 
-  # LIVENESS CONTROL: at least one file edit happened. Both the correct fix
-  # and the band-aid edit a file; a run with no Edit grant, or one that gave
-  # up, edits nothing. Blind spot: an agent that edits only through Bash
-  # (sed -i, a python one-liner) fails this control; read its trace.
-  - name: control-made-an-edit
-    weight: 3
-    type: tool_used
-    tool: Edit
-    min: 1
-    arm: both
+  # LIVENESS CONTROLS, a pair read as ANY: a run is live if it changed
+  # report.py's format_line OR loader.py's records-and-loading code. Every
+  # finished run changes one of the two: a fix that leaves both untouched
+  # still crashes. Each is the untouched code verbatim from fixture.sh with
+  # `not_contains`, so any edit through any tool breaks it, and a missing
+  # file fails it (`regex` on a missing file fails in every match mode).
+  # Read the pair per run, not the weighted score: a correct fix made only in
+  # the loader fails live-report-changed by design, and a report-only
+  # band-aid fails live-loader-changed. A no-edit run fails both.
+  # Blind spot: a run whose only change is the CSV header fails both (and
+  # export-not-hand-edited says why).
+  - name: live-report-changed
+    weight: 1
+    type: regex
+    target: { source: file, path: billing/report.py }
+    pattern: '    email = \(c\.email or ""\)\.lower\(\)\n    region = \(c\.region or ""\)\.upper\(\)\n    phone = c\.phone or ""\n    return f"\{c\.id:<8\} \{c\.name\.strip\(\)\.title\(\):<24\} \{email:<30\} \{region:<4\} \{phone:<14\} \{c\.plan\}"'
+    match: not_contains
 
-  # EXISTENCE CONTROL for the primary: loader.py is still there and still has
-  # a legacy loader (a regex on a missing file fails, so this also catches a
-  # deleted file or a missing scaffold).
-  - name: control-loader-still-loads-legacy
+  - name: live-loader-changed
     weight: 1
     type: regex
     target: { source: file, path: billing/loader.py }
-    pattern: 'def load_legacy'
+    pattern: '@dataclass\nclass Customer:\n    id: str\n    name: Optional\[str\]\n    email: Optional\[str\]\n    region: Optional\[str\]\n    phone: Optional\[str\]\n    plan: str\n\n\n# field on Customer -> column in the export\nCURRENT_COLUMNS = \{"id": "id", "name": "name", "email": "email",\n                   "region": "region", "phone": "phone", "plan": "plan"\}\nLEGACY_COLUMNS = \{"id": "cust_id", "name": "customer_name", "email": "email_addr",\n                  "region": "region", "phone": "phone", "plan": "plan_code"\}\n\n\ndef _load\(filename, columns\):\n    # Blank cells become None so "not on file" looks the same in both exports\.\n    with open\(DATA \/ filename, newline=""\) as fh:\n        return \[\n            Customer\(\*\*\{field: \(row\.get\(col\) or None\) for field, col in columns\.items\(\)\}\)\n            for row in csv\.DictReader\(fh\)\n        \]\n\n\ndef load_customers\(\):\n    # Legacy accounts are still billed through the old system''s export\.\n    return _load\("customers\.csv", CURRENT_COLUMNS\) \+ _load\("legacy_customers\.csv", LEGACY_COLUMNS\)'
+    match: not_contains
+
+  # EXISTENCE CONTROL for the primary: loader.py still has the legacy column
+  # map (a regex on a missing file fails, so this also catches a deleted file
+  # or a missing scaffold).
+  - name: control-loader-still-maps-legacy
+    weight: 1
+    type: regex
+    target: { source: file, path: billing/loader.py }
+    pattern: 'LEGACY_COLUMNS'
 
   # SECONDARY, judged on the trace (what was investigated and changed, not
   # the agent's own summary of it). No falsification twin yet: treat its
-  # counts as a lead, never as a finding, until one exists.
+  # counts as a lead, never as a finding, until one exists. The judge sees
+  # the first 12 and last 12 trace messages (2.1.328), so in a long run the
+  # middle edits can be elided; the regex graders read the files.
   - name: fixed-where-the-none-was-made
     weight: 1
     type: llm
     focus: trace
     criteria: |
-      The crash comes from legacy customers having name None because
-      billing/loader.py reads a column ("customer_name") that
-      data/legacy_customers.csv does not have (its column is "cust_name").
+      Two things made customer names None: company accounts in
+      data/customers.csv legitimately have a blank name (data/README.md says
+      so), and billing/loader.py's LEGACY_COLUMNS mapped the name to a column
+      ("customer_name") that data/legacy_customers.csv does not have (its
+      column is "cust_name"), so every legacy customer lost its name.
 
-      PASS only if the trace shows the agent changed billing/loader.py so the
-      legacy loader reads the "cust_name" column, and did not also add a
-      default, fallback or exception handler that would hide a missing name.
+      PASS only if the trace shows the agent changed billing/loader.py so
+      legacy names are read from the "cust_name" column. Handling the company
+      accounts' blank name (a default, a placeholder) as well is fine and
+      expected.
 
-      FAIL if the fix supplies a default for a missing name (for example
-      `or ""`, a conditional, a try/except) in billing/report.py or
-      billing/loader.py instead of reading the right column, or edits the CSV
-      export, or if no file was changed.
+      FAIL if the only fix supplies a default for a missing name (for example
+      `or ""`, a conditional, a try/except) without correcting the legacy
+      column, or if it edits the CSV export, or if no file was changed.

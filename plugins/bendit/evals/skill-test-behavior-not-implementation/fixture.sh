@@ -2,9 +2,18 @@
 # A pricing function with real arithmetic (coupon before tax, a minimum spend,
 # rounding to cents) and a coupon book that is plain in-memory Python, so
 # nothing stops a test from calling the real thing and checking the number.
-# The existing test file sets the house style the prompt points at: a Mock
-# and an assert_called_once_with. Copying that style gives a green test that
-# would still pass if order_total returned the wrong total.
+#
+# The pressure is the file the test has to go in: tests/test_pricing.py
+# already exists, and every test in it is a Mock plus an
+# assert_called_once_with / assert_not_called on shipping_cost's rate table.
+# The prompt asks for "a test that order_total uses the coupon", in the same
+# style. Copying the style gives `coupons = Mock(); ...;
+# coupons.lookup.assert_called_once_with("SAVE10")`, which is green and
+# would still pass if the discount were never applied -- the exact bug the
+# test is meant to stop coming back. (A bare Mock lookup makes order_total
+# raise on `subtotal >= coupon.minimum`, so a copier has to set a
+# return_value: None keeps the call-only shape; a real Coupon puts the right
+# test one assertEqual away.)
 #
 # Python 3 standard library only. Run: python3 -m unittest discover -s tests -t .
 set -euo pipefail
@@ -42,11 +51,24 @@ class CouponBook:
         return self._coupons.get(code.strip().upper())
 PY
 
+cat > shop/rates.py <<'PY'
+"""Shipping rates per kg, by region. In memory; ops edit RATES."""
+from decimal import Decimal
+
+RATES = {"UK": Decimal("1.50"), "EU": Decimal("2.00"), "US": Decimal("3.25")}
+
+
+class RateTable:
+    def per_kg(self, region: str) -> Decimal:
+        return RATES[region]
+PY
+
 cat > shop/pricing.py <<'PY'
-"""Order totals."""
+"""Order totals and shipping."""
 from decimal import Decimal, ROUND_HALF_UP
 
 TAX_RATE = Decimal("0.08")
+FREE_SHIPPING_REGIONS = {"LOCAL"}
 
 
 def order_total(items, coupon_code, coupons):
@@ -65,38 +87,37 @@ def order_total(items, coupon_code, coupons):
             discount = subtotal * coupon.percent / 100
     taxed = (subtotal - discount) * (1 + TAX_RATE)
     return taxed.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-PY
-
-cat > shop/cart.py <<'PY'
-"""A shopping cart that asks the catalogue for prices."""
 
 
-class Cart:
-    def __init__(self, catalogue):
-        self._catalogue = catalogue
-        self.lines = []
-
-    def add(self, sku, qty):
-        price = self._catalogue.price_of(sku)
-        self.lines.append((price, qty))
+def shipping_cost(weight_kg, region, rates):
+    """Shipping for a parcel; rates is anything with .per_kg(region) (a RateTable)."""
+    if region in FREE_SHIPPING_REGIONS:
+        return Decimal("0.00")
+    return (Decimal(weight_kg) * rates.per_kg(region)).quantize(Decimal("0.01"))
 PY
 
 cat > tests/__init__.py <<'PY'
 PY
 
-cat > tests/test_cart.py <<'PY'
+cat > tests/test_pricing.py <<'PY'
+from decimal import Decimal
 from unittest import TestCase
 from unittest.mock import Mock
 
-from shop.cart import Cart
+from shop.pricing import shipping_cost
 
 
-class CartTest(TestCase):
-    def test_add_looks_up_the_price(self):
-        catalogue = Mock()
-        cart = Cart(catalogue)
-        cart.add("sku-1", 2)
-        catalogue.price_of.assert_called_once_with("sku-1")
+class ShippingCostTest(TestCase):
+    def test_looks_up_the_rate_for_the_region(self):
+        rates = Mock()
+        rates.per_kg.return_value = Decimal("2.00")
+        shipping_cost("3", "EU", rates)
+        rates.per_kg.assert_called_once_with("EU")
+
+    def test_free_shipping_region_skips_the_rate_lookup(self):
+        rates = Mock()
+        shipping_cost("3", "LOCAL", rates)
+        rates.per_kg.assert_not_called()
 PY
 
 cat > README.md <<'MD'

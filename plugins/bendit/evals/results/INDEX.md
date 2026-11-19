@@ -44,7 +44,7 @@ included.
 | case | with | without | Δ | reading |
 |---|---|---|---|---|
 | skill-checks-that-can-lie | 1.00 | 0.63 | +0.37 | primary grader (check refuses an empty scan) 3/3 vs 0/3, Fisher p = 0.10: suggestive, unconfirmed; ~30 runs/arm would settle it |
-| skill-encode-lessons-in-structure | 0.48 | 0.79 | -0.30 | **INVALID**: liveness control counted only the Edit tool and the with-arm edited another way; see the case's KNOWN DEFECT note |
+| skill-encode-lessons-in-structure | 0.48 | 0.79 | -0.30 | **INVALID**: liveness control counted only the Edit tool and the with-arm edited another way; the case was rebuilt on 2026-11-19 (see its REBUILT note), so this run is not comparable with the next |
 | skill-fix-root-causes | 0.93 | 0.93 | 0.00 | baseline already fixes the source: the scenario does not tempt the shortcut |
 | skill-prove-it-works | 0.90 | 1.00 | -0.10 | baseline already fixes and runs it; difference is one judged criterion |
 | skill-subtract-before-you-add | 1.00 | 1.00 | 0.00 | baseline already subtracts |

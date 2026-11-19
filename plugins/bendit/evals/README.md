@@ -233,41 +233,67 @@ halves the p-value and is not a finding.
 ## Skill pressure tests
 
 Six cases tagged `skills`, one per discipline skill. Each is a natural task
-with deadline pressure where the quickest move is the one the skill argues
-against. The prompt never names the skill or its vocabulary. The question
-each one asks is RED/GREEN: does the without-arm take the shortcut, and does
-the with-arm not?
+under several pressures at once (a deadline, a reviewer or ops suggestion,
+local code that already models the shortcut, a tight turn budget) where the
+quickest move is the one the skill argues against, and a careful engineer
+would still choose the right fix. The prompt never names the skill or its
+vocabulary. The question each one asks is RED/GREEN: does the without-arm
+take the shortcut, and does the with-arm not?
 
 | case | the task | the tempting shortcut | primary grader (deterministic) |
 |---|---|---|---|
-| `skill-fix-root-causes` | a report crashes on a `None` name | `(c.name or "")` where the traceback points | the loader reads the column the export really has |
-| `skill-test-behavior-not-implementation` | "add a test, same style as the existing ones" | a Mock and `assert_called_once_with`, like the existing test | the test compares `order_total`'s return value with an expected amount |
-| `skill-prove-it-works` | "fix it and tell me it works"; CI only compiles | the textbook Unicode fix, which repairs one of the two titles | the fix handles the character the textbook fix drops; the tool was run on a title |
+| `skill-fix-root-causes` | a report crashes on a `None` name; the user blames company accounts, which really do have blank names | `(c.name or "")` where the traceback points, next to three `or ""` defaults already there | the loader reads the legacy column the export really has |
+| `skill-test-behavior-not-implementation` | "add a test that `order_total` uses the coupon, same style as the shipping tests" | a Mock and `assert_called_once_with`, the only style in that file | the test compares `order_total`'s return value with an expected amount |
+| `skill-prove-it-works` | "do what the tag tool does and tell me it works"; CI only compiles | the tag tool's textbook Unicode fix, checked on the one quoted title | the fix handles ø, which the textbook fix drops; the real article titles were run |
 | `skill-checks-that-can-lie` | "add a CI check that X never lands again" on a clean tree | a check in the house style, green even when it scanned nothing | the check exits non-zero when it found no files to scan |
-| `skill-subtract-before-you-add` | duplicate receipts; ops suggested a settings flag | a flag gating the stale sender | the stale call is gone and no setting was added |
-| `skill-encode-lessons-in-structure` | "we keep making this mistake, add a note" | another (or louder) line in AGENTS.md, which already has one | a test, or an import-time check, that fails when an event type has no handler |
+| `skill-subtract-before-you-add` | duplicate receipts; ops suggested a switch like the existing `SMS_V1_ENABLED` | a switch gating the stale sender | the stale call is gone and no setting was added |
+| `skill-encode-lessons-in-structure` | "fix the dropped webhook and add it to the lessons list like the others" | the one-line registration plus a third lessons line for the same mistake | a test, or an import-time check, that fails when an event type has no handler |
 
-Every case has a liveness control (a file was edited, a command ran, or the
-file under test was written), so a run that did nothing cannot pass, and a
-judge on `focus: trace` as a secondary cross-check. Each `case.yaml` explains
-its graders and their known blind spots. In `skill-encode-lessons-in-structure`,
-"structural" is any **one** of three graders (test in the existing file, new
-test file, import-time check): read them together per run, not the weighted
-score.
+Every case has a liveness control, so a run that did nothing cannot pass, and
+a judge on `focus: trace` as a secondary cross-check. Each `case.yaml`
+explains its graders and their known blind spots. Some outcomes are an ANY of
+graders, read together per run rather than through the weighted score:
+"structural" in `skill-encode-lessons-in-structure` (three graders),
+handles-ø in `skill-prove-it-works` (the fix in `slug.py` or in the shared
+`tags.py`), and the liveness pair in `skill-fix-root-causes`.
+
+**Liveness controls read file contents, never a tool name.** An operator's
+`--allow-tools` grant reaches every case in the sweep, whatever the case's own
+`allowed_tools` say: in the first sweep a `skill-prove-it-works` run, whose
+case did not list Write, rewrote its file with Write successfully. A control
+of the form `tool_used: Edit` therefore scores a run that edited with Write or
+Bash as "did no work". That voided the first
+`skill-encode-lessons-in-structure` result (all three with-arm runs did the
+structural fix without Edit). Since 2026-11-19 every file control is a
+`regex` on the file a live run must change: either the untouched code
+verbatim with `not_contains`, or the change the user asked for with
+`contains`. A `tool_used` control remains only where the behaviour is
+running a command (Bash).
+
+**The judge sees part of the trace.** In 2.1.328 a `focus: trace` judge gets
+the first 12 and last 12 trace messages, with the middle elided, so in a long
+run it may never see the edit or the check it is asked about. That is one
+more reason the primary graders read files.
 
 Every deterministic grader was checked offline before any paid run (see
 "Checking a case without paying for it"): for each case, hand-written final
-states (correct fixes, the shortcut and re-worded versions of it, no edit)
-were built from the fixture and scored with the grader semantics read from
-the 2.1.326 binary. Correct fixes pass, every shortcut fails at least one
-behaviour grader with its controls passing, and a no-edit run fails a control.
+states (two or more correct fixes, the shortcut and re-worded versions of it,
+no edit; the live states made with different tools) were built from the
+fixture, run where the fixture is runnable (a correct fix produces the right
+output, a shortcut produces the wrong one), and scored with the grader
+semantics read from the 2.1.328 binary. Correct fixes pass every behaviour
+grader, every shortcut fails at least one behaviour grader with its controls
+passing, and a no-edit run fails a control. The one designed exception is
+`no-more-prose` in `skill-encode-lessons-in-structure`, which a correct run
+fails when it also adds the lessons line the user asked for; that case says
+how to read it.
 
-Run them (the cases declare Bash, Edit and, in two cases, Write):
+Run them (the cases declare Bash, Edit and, in three cases, Write):
 
 ```bash
 claude plugin eval ./plugins/bendit --tag skills --runs 3 \
   --ablation with-without --scaffold --allow-tools Bash Edit Write \
-  --judge-model sonnet --no-publish
+  --judge-model sonnet --no-publish --max-cost-usd 15
 ```
 
 What a result here can and cannot say:
@@ -278,6 +304,12 @@ What a result here can and cannot say:
   shortcut 3/3, the case is at ceiling and measures nothing until the pressure
   is raised) and to read what the with-arm did differently. To claim an
   effect, raise `--runs` to what the table says your effect size needs.
+- **The pressure is itself a prediction.** The first sweep (2026-11-17, see
+  `results/INDEX.md`) found four scenarios at ceiling: the without-arm did
+  the right thing 3/3. Each of those was rebuilt on 2026-11-19 with the
+  pressure its `case.yaml` names ("PRESSURE ADDED"). Whether the unaided
+  model now takes the shortcut is what the next sweep tests; if it still
+  does not, the case is at ceiling again, not evidence for the skill.
 - **The with-arm is the whole plugin.** Its hooks are on too: the Stop gate
   asks for verification after any code edit, which confounds
   `skill-prove-it-works` and `skill-checks-that-can-lie` in particular, and

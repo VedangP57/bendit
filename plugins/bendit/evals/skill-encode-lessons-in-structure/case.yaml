@@ -1,133 +1,179 @@
 schema_version: "1.1"
 name: skill-encode-lessons-in-structure
 description: >-
-  Skill pressure test (encode-lessons-in-structure): "we keep making this
-  mistake, add a note", where the note already exists in AGENTS.md and a
-  test that every event type has a handler is what would hold.
-# KNOWN DEFECT -- RESULTS FROM THIS CASE ARE INVALID (measured 2026-11-18).
-# control-made-an-edit counts only the Edit tool. In the first sweep (3 runs
-# per arm) all 3 with-arm runs made their changes without Edit -- 2 of them
-# still produced the structural check -- and scored ~0.5 as "did no work",
-# which the summary then reported as a -0.30 skill effect. That number is a
-# grader artefact, not evidence about the skill. The grader types available
-# cannot say "any of these files changed" (regex reads one file; file_exists
-# sees only files a run created), so the fix is not a one-line edit: read the
-# with-arm traces to see which tool made the change, then rebuild the control.
-# Do not quote this case until that is done.
+  Skill pressure test (encode-lessons-in-structure): "fix the dropped
+  webhook and add it to the lessons list like the others", where the lessons
+  list already records the same mistake twice and a test that every event
+  type has a handler is what would hold.
+# REBUILT 2026-11-19. The first sweep's result for this case is INVALID and
+# stays void (evals/results/INDEX.md): its liveness control was
+# `tool_used: Edit`, all 3 with-arm runs changed files without the Edit tool
+# (the operator's `--allow-tools ... Write` grant reaches every case, whatever
+# its allowed_tools say; the first sweep's prove-it-works trace shows a
+# successful Write in a case that did not list it), and the control scored
+# those runs as "did no work". Two more defects were found in the same
+# results: control-handlers-still-defined (`HANDLERS = \{`) failed a with-arm
+# run that wrapped the dict in a checking call, and in another with-arm run
+# all three structural regexes missed a structural fix the judge passed.
+# What changed:
+#   - The tree now carries the bug live (INVOICE_PAID has no HANDLERS entry)
+#     and the user asks for it fixed, so every live run must register it.
+#     The liveness control reads events.py for that registration: it is
+#     content-based, so Edit, Write and Bash edits all count, and a no-edit
+#     run fails it. Verified offline against hand-written states (good,
+#     shortcut, no edit; each made with a different tool) before any paid run.
+#   - The structural regexes key on EventType being enumerated in code (any
+#     `in EventType`, `set(EventType)`, `event_types=EventType`, ...) rather
+#     than a fixed spelling followed by raise/assert; comments and import
+#     lines are excluded.
+#   - The registry existence control accepts any `HANDLERS =` / `HANDLERS:`
+#     binding.
 #
 # WHAT THIS CASE ASKS. An EventType without a HANDLERS entry is silently
-# dropped. AGENTS.md already says "register its handler in HANDLERS" and the
-# mistake has happened three times anyway. Does the agent add more (or
-# louder) prose, or a check that fails CI when an EventType has no handler?
+# dropped. AGENTS.md already says "register its handler in HANDLERS", and its
+# Lessons list already records the mistake twice. Does the agent add a third
+# lessons line and stop, or add a check that fails CI when an EventType has
+# no handler?
+#
+# PRESSURE (added in the rebuild; the first sweep's without-arm wrote a test
+# 3/3, though that sweep is void). The user asks for the prose explicitly
+# ("add it to the lessons list like the others"), the house has an
+# established prose-per-incident list to copy, the actual fix is a one-line
+# registration that makes the task feel finished, the reviewer is 10 minutes
+# away, and the turn budget is 8. A careful engineer still sees that the
+# lessons list already holds this mistake twice and adds the check.
 #
 # HOW TO READ IT. "Structural" is any ONE of: every-type-has-a-handler-test
-# (the natural place, the existing test file), alt-new-test-file (a new test
-# file under tests/), alt-events-module-checks-itself (an import-time check
-# in events.py). Read the three per run, not the weighted score: a correct
-# run passes one of them and fails the other two by design.
+# (the existing test file enumerates EventType), alt-new-test-file (a test
+# file was created; lenient, see its note), alt-events-module-checks-itself
+# (events.py enumerates EventType at import time). Read the three per run,
+# not the weighted score: a correct run passes one of them and fails the
+# others by design.
 #
 # no-more-prose is the strict reading of the skill ("if the fix is
-# structural, use only the structural fix"): any new or reworded AGENTS.md
-# line about events or handlers fails it, including a pointer to the new
-# test. Deleting the old line passes it.
+# structural, use only the structural fix"). The user ASKED for a lessons
+# line here, so a run that adds the check AND the line has done the skill's
+# work and followed the user; read no-more-prose as a separate, secondary
+# count, never as the RED/GREEN outcome.
 #
 # 3 runs per arm is a qualitative RED/GREEN check, not a measurement: see the
 # power table in evals/README.md. The with-arm is the whole plugin, hooks
 # included, so a with-arm win is a plugin effect until a skills-only variant
 # reproduces it.
 #
-# Grants: needs `--allow-tools Bash Edit`. Write is deliberately not offered,
-# so every change to an existing file goes through Edit and
-# control-made-an-edit can count it with one tool name; a new file can still
-# be made through Bash (alt-new-test-file sees it).
+# Grants: needs `--allow-tools Bash Edit Write`. No grader counts a tool, so
+# the result does not depend on which one the run uses.
 tags: [skills]
 runs: 3
 context:
   scaffold_script: fixture.sh
 execution:
   prompt: |
-    Third time this month: someone adds a new EventType to events.py, forgets
-    the HANDLERS entry, and those webhooks get silently dropped in production
-    (last one was subscription.renewed, already patched). Add a note so this
-    stops happening. I'm reviewing the PR in 10 minutes.
-  max_turns: 12
+    invoice.paid webhooks have been silently dropped since Tuesday: someone
+    added INVOICE_PAID to EventType and forgot the HANDLERS entry. That's the
+    third time (it's in the lessons list in AGENTS.md twice already). Please
+    fix it, and add this one to the lessons list like the others. I'm
+    reviewing the PR in 10 minutes.
+  max_turns: 8
   timeout_seconds: 240
-  allowed_tools: [Read, Glob, Grep, Edit, Bash]
+  allowed_tools: [Read, Glob, Grep, Edit, Write, Bash]
 graders:
-  # PRIMARY (structural, natural place): the existing test file now
-  # enumerates EventType, which is what a "every type has a handler" test
-  # does. The seeded file names single members (EventType.ORDER_PLACED) and
-  # never iterates the enum.
+  # LIVENESS CONTROL (tool-agnostic): events.py now registers INVOICE_PAID.
+  # Matches a dict entry or any line naming both the member and the handler,
+  # or a decorator on the line above `def on_invoice_paid`. The seeded file
+  # has the member and the function on separate, non-adjacent lines, so no
+  # edit fails this, and a regex on a missing file fails too. Blind spot: a
+  # run that replaces HANDLERS with naming-convention auto-registration
+  # (never naming on_invoice_paid next to INVOICE_PAID) fails this control
+  # while passing alt-events-module-checks-itself; read such a run by hand.
+  - name: control-invoice-paid-registered
+    weight: 3
+    type: regex
+    target: { source: file, path: events.py }
+    pattern: 'INVOICE_PAID\b[^\n]*\bon_invoice_paid\b|\bon_invoice_paid\b[^\n]*\bINVOICE_PAID\b|INVOICE_PAID\b[^\n]*\n[ \t]*def on_invoice_paid\b'
+
+  # PRIMARY (structural, natural place): the existing test file enumerates
+  # EventType in code -- `for t in EventType`, `set(EventType)`,
+  # `list(EventType)`, `len(EventType)`, `EventType.__members__`, or EventType
+  # passed as a value. A per-instance regression test
+  # (`EventType.INVOICE_PAID`, `assertIn(EventType.X, HANDLERS)`) does not
+  # match: a member access is followed by `.`. Comment lines and the import
+  # line are excluded.
   - name: every-type-has-a-handler-test
     weight: 3
     type: regex
     target: { source: file, path: tests/test_events.py }
-    pattern: '\bin\s+(?:list\(|set\(|sorted\()?EventType\b(?!\s*\()|\b(?:set|list|len|frozenset|sorted)\(\s*EventType\s*\)|EventType\.__members__'
+    pattern: '^(?![ \t]*(?:#|from\b|import\b))[^\n#]*?(?:\bin\s+|[(=,*\[{]\s*)EventType\b(?!\w)(?!\s*[.(])|EventType\.__members__'
+    flags: m
 
-  # ALTERNATIVE structural: a new test file was created under tests/ (target
-  # `files` is the list of paths created during the run).
+  # ALTERNATIVE structural: a test file was created (target `files` is the
+  # list of paths created during the run; contents cannot be read). LENIENT:
+  # any new test file passes, including one that only tests invoice.paid. Use
+  # it to find runs to open with --keep-temp, and lean on the judge.
   - name: alt-new-test-file
     weight: 1
     type: regex
     target: files
-    pattern: '(^|/)tests/test_\w+\.py'
+    pattern: '(^|/)test_\w+\.py$'
     flags: m
 
-  # ALTERNATIVE structural (L1): events.py checks itself at import time --
-  # it iterates EventType and raises or asserts. The seeded file only calls
-  # EventType(...) on one payload.
+  # ALTERNATIVE structural (L1): events.py enumerates EventType in code (an
+  # import-time completeness check, or HANDLERS derived from the enum). The
+  # seeded file only names members and calls EventType(...) on one payload,
+  # and neither matches. Comment lines are excluded. Blind spot: prose in a
+  # docstring such as "for each member in EventType" matches.
   - name: alt-events-module-checks-itself
     weight: 1
     type: regex
     target: { source: file, path: events.py }
-    pattern: '(?:\bin\s+(?:list\(|set\()?EventType\b(?!\s*\()|\b(?:set|list|frozenset)\(\s*EventType\s*\)|EventType\.__members__)[\s\S]*(?:\braise\b|\bassert\b)|(?:\braise\b|\bassert\b)[^\n]*(?:set|list)\(\s*EventType\s*\)'
+    pattern: '^(?![ \t]*(?:#|from\b|import\b))[^\n#]*?(?:\bin\s+|[(=,*\[{]\s*)EventType\b(?!\w)(?!\s*[.(])|EventType\.__members__'
+    flags: m
 
-  # SECONDARY (strict): no new or reworded prose about events or handlers in
-  # AGENTS.md. The two seeded lines that mention them are excluded verbatim;
-  # any other line mentioning HANDLERS, a handler, EventType or an event type
-  # fails. A regex on a missing file fails, so deleting AGENTS.md fails too.
+  # SECONDARY (strict, see HOW TO READ IT): no new or reworded line about
+  # events, handlers or this incident in AGENTS.md. The five seeded lines
+  # that mention them are excluded verbatim; any other line mentioning
+  # HANDLERS, a handler, EventType, an event type, registering, invoice.paid
+  # or INVOICE_PAID fails. A regex on a missing file fails, so deleting
+  # AGENTS.md fails too.
   - name: no-more-prose
     weight: 1
     type: regex
     target: { source: file, path: AGENTS.md }
-    pattern: '^(?!- When you add an event type, register its handler in HANDLERS\.$)(?!- Keep webhook handlers idempotent: the provider retries deliveries\.$).*(?:HANDLERS|handler|EventType|event type)'
+    pattern: '^(?!- When you add an event type, register its handler in HANDLERS\.$)(?!- Keep webhook handlers idempotent: the provider retries deliveries\.$)(?!- 2026-10-21: refund\.issued was added to EventType without a HANDLERS entry; refunds were silently dropped for two days\. Register the handler in the same PR\.$)(?!- 2026-09-30: a non-idempotent handler double-shipped orders during a retry storm\. Check the delivery id before acting\.$)(?!- 2026-09-02: subscription\.renewed was added without a HANDLERS entry; renewals were silently dropped\. Every new event type needs a HANDLERS entry\.$).*(?:HANDLERS|handler|EventType|event type|regist|invoice\.paid|INVOICE_PAID)'
     flags: mi
     match: not_contains
 
-  # LIVENESS CONTROL: at least one file was edited. Both the prose shortcut
-  # and the test edit an existing file. Blind spot: a run whose only change
-  # is a new file made through Bash fails this; alt-new-test-file shows it.
-  - name: control-made-an-edit
-    weight: 3
-    type: tool_used
-    tool: Edit
-    min: 1
-    arm: both
-
-  # EXISTENCE CONTROL: events.py still has the registry.
+  # EXISTENCE CONTROL: events.py still binds a HANDLERS registry, in any
+  # form (`HANDLERS = {`, `HANDLERS = check(...)`, `HANDLERS: dict = {}`).
   - name: control-handlers-still-defined
     weight: 1
     type: regex
     target: { source: file, path: events.py }
-    pattern: 'HANDLERS = \{'
+    pattern: '^HANDLERS\b[ \t]*(?::[^\n=]*)?='
+    flags: m
 
   # SECONDARY, judged on the trace. No falsification twin yet: a lead, not a
-  # finding.
+  # finding. The judge sees the first and last 12 trace messages only
+  # (2.1.328), so a long run's middle edits can be elided; the regex graders
+  # read the files.
   - name: mechanism-not-memo
     weight: 1
     type: llm
     focus: trace
     criteria: |
       The recurring mistake: an EventType is added to events.py without a
-      HANDLERS entry, and its webhooks are silently dropped. AGENTS.md already
-      had a rule saying to register the handler.
+      HANDLERS entry, and its webhooks are silently dropped. AGENTS.md
+      already had a rule saying to register the handler, and its Lessons list
+      already recorded the same mistake twice. The user asked for the
+      INVOICE_PAID registration and a new lessons line.
 
-      PASS only if the agent added something that FAILS automatically when an
-      EventType has no HANDLERS entry -- a test that runs in the existing
-      suite, or an import-time check -- and ran it, and did not merely add or
-      reword prose (AGENTS.md, a comment, a docstring).
+      PASS only if the agent added something that FAILS automatically when
+      any EventType has no HANDLERS entry -- a test that runs in the existing
+      suite, or an import-time check -- and ran it. Adding the lessons line
+      the user asked for as well does not change the verdict.
 
-      FAIL if the only changes are prose (a note in AGENTS.md, a comment, a
-      docstring, a stronger wording of the existing rule), if dispatch was
-      changed to fail on unknown provider events (they are ignored on
-      purpose), or if nothing was changed.
+      FAIL if the only changes are the INVOICE_PAID registration plus prose
+      (a lessons line, a comment, a docstring, a stronger wording of the
+      existing rule) or a test of invoice.paid alone; if dispatch was changed
+      to fail on unknown provider events (they are ignored on purpose); or if
+      nothing was changed.

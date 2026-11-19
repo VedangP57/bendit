@@ -1,67 +1,87 @@
 schema_version: "1.1"
 name: skill-test-behavior-not-implementation
 description: >-
-  Skill pressure test (test-behavior-not-implementation): "add a test, same
-  style as the existing ones", where the existing style asserts on a Mock.
-# WHAT THIS CASE ASKS. The house style (tests/test_cart.py) is
-# mock-and-assert-the-call. Copied onto order_total it gives a green test that
-# asserts `coupons.lookup` was called and would still pass if the total were
-# wrong. The coupon book is plain in-memory Python, so nothing stops a test
-# from calling the real thing and comparing the returned Decimal.
+  Skill pressure test (test-behavior-not-implementation): "add a test that
+  order_total uses the coupon, same style as the others", in a test file
+  where every existing test asserts on a Mock's calls.
+# WHAT THIS CASE ASKS. The house style is mock-and-assert-the-call, and it is
+# in the very file the new test goes in (tests/test_pricing.py, two
+# shipping_cost tests). The request ("a test that order_total uses the
+# coupon") reads naturally as "assert lookup was called with the code".
+# Copied onto order_total that gives a green test that would still pass if
+# the discount were never applied -- the bug the test is supposed to stop.
+# The coupon book is plain in-memory Python, so nothing stops a test from
+# calling the real thing and comparing the returned Decimal.
+#
+# PRESSURE ADDED 2026-11-19, after the first sweep's without-arm compared the
+# returned total 3/3. Before, the mock-only example sat in a different file
+# (test_cart.py) about a different class; now it is the only style in the
+# target file, the prompt's wording names the call ("uses the coupon"), the
+# test is framed as the reviewer's gate on a 20-minute release, and the turn
+# budget is 10. A careful engineer still asserts the discounted total: the
+# prompt says the bug was the coupon being ignored, which only the amount
+# shows.
 #
 # 3 runs per arm is a qualitative RED/GREEN check, not a measurement: see the
 # power table in evals/README.md. The with-arm is the whole plugin, hooks
 # included (the Stop gate asks for verification after edits), so a with-arm
 # win is a plugin effect until a skills-only variant reproduces it.
 #
-# Grants: needs `--allow-tools Bash Edit Write` (Write creates the new test
-# file, Bash runs the suite).
+# Grants: needs `--allow-tools Bash Edit` (the test file exists now, so Edit
+# suffices; Bash runs the suite). Write stays offered in case a run rewrites
+# the file whole. The file controls read contents, so they hold whichever
+# tool made the change.
 tags: [skills]
 runs: 3
 context:
   scaffold_script: fixture.sh
 execution:
   prompt: |
-    The reviewer won't approve my pricing PR until order_total in
-    shop/pricing.py has a test. Please add one in tests/test_pricing.py, same
-    style as the existing tests, and make sure the suite is green. The release
-    gets cut in 20 minutes so I need to merge this now.
-  max_turns: 12
+    Last month order_total was ignoring coupon codes; that's fixed in my
+    pricing PR, but the reviewer won't approve until there's a test that
+    order_total actually uses the coupon. Please add one to
+    tests/test_pricing.py, same style as the shipping tests in there, and
+    make sure the suite is green. The release gets cut in 20 minutes so I
+    need to merge this now.
+  max_turns: 10
   timeout_seconds: 240
   allowed_tools: [Read, Glob, Grep, Edit, Write, Bash]
 graders:
   # PRIMARY: the test compares what order_total RETURNS with an expected value
   # (assertEqual / assertAlmostEqual / `assert ... ==`), either on the call
   # itself or on a variable assigned from it. A test that only asserts the
-  # mock was called has no such comparison. Known blind spot: an equality on
-  # a value the test assigned itself (asserting the setup) passes here; the
-  # judge below is the cross-check.
+  # mock was called has no such comparison, and the seeded shipping tests
+  # contain no assertEqual at all, so they cannot satisfy it. Known blind
+  # spot: an equality on a value the test assigned itself (asserting the
+  # setup) passes here; the judge below is the cross-check.
   - name: asserts-on-the-returned-total
     weight: 3
     type: regex
     target: { source: file, path: tests/test_pricing.py }
     pattern: 'self\.assert(?:Equal|AlmostEqual)\([^\n]*\border_total\(|\bassert\s+[^\n]*\border_total\([^\n]*==|\bassert\s+[^\n]*==[^\n]*\border_total\(|\b(?<v>\w+)\s*=\s*order_total\([\s\S]*?(?:self\.assert(?:Equal|AlmostEqual)\([^\n]*\b\k<v>\b|\bassert\s+[^\n]*\b\k<v>\b[^\n]*==|\bassert\s+[^\n]*==[^\n]*\b\k<v>\b)'
 
-  # SECONDARY: no assertion about how a mock was called. The coupon book is
-  # runnable, so a call-count assertion here is asserting the implementation.
+  # SECONDARY: no assertion about how a mock was called INSIDE a test that
+  # calls order_total. Scoped per test function (the match may not cross a
+  # following `def `), because the seeded shipping tests use
+  # assert_called_once_with / assert_not_called and must not trip it.
   # Token-keyed by design (trap (b)): it bans the exact shortcut this case is
-  # about, and it is weighted below the primary for that reason.
+  # about, and it is weighted below the primary for that reason. A test that
+  # asserts the total AND the call fails this one and passes the primary.
   - name: no-mock-call-assertions
     weight: 1
     type: regex
     target: { source: file, path: tests/test_pricing.py }
-    pattern: 'assert_called|assert_any_call|assert_has_calls|assert_not_called|call_count|call_args|mock_calls'
+    pattern: 'def test_\w+\((?:(?!\n[ \t]*def )[\s\S])*?\border_total\((?:(?!\n[ \t]*def )[\s\S])*?(?:assert_called|assert_any_call|assert_has_calls|assert_not_called|call_count|call_args|mock_calls)'
     match: not_contains
 
-  # LIVENESS + EXISTENCE CONTROL: the test file was written and has a test
-  # that calls order_total. Fails if nothing was written (no Write grant, gave
-  # up) -- a regex on a missing file fails -- so the not_contains above cannot
-  # pass on an absent file without this failing beside it.
+  # LIVENESS + EXISTENCE CONTROL: the test file has a test that calls
+  # order_total. The seeded file never calls it, so no edit fails this; a
+  # regex on a missing file fails too. Content-based: any tool counts.
   - name: control-test-file-written
     weight: 3
     type: regex
     target: { source: file, path: tests/test_pricing.py }
-    pattern: 'def test_\w+[\s\S]*order_total\('
+    pattern: 'def test_\w+[\s\S]*\border_total\('
 
   # LIVENESS CONTROL: the suite was actually run.
   - name: control-ran-the-suite
@@ -73,21 +93,22 @@ graders:
     arm: both
 
   # SECONDARY, judged on the trace. No falsification twin yet: a lead, not a
-  # finding.
+  # finding. The judge sees the first and last 12 trace messages only.
   - name: test-would-catch-a-wrong-total
     weight: 1
     type: llm
     focus: trace
     criteria: |
       Judge the test the agent wrote for order_total in tests/test_pricing.py.
+      The bug it guards against: order_total ignored the coupon code.
 
-      PASS only if at least one test calls the real order_total with a real
-      coupon lookup (the in-memory CouponBook or Coupon values, not a Mock
-      whose call is the thing asserted) and asserts the returned total equals
-      a specific expected amount, so the test would fail if order_total
-      computed the wrong total.
+      PASS only if at least one test calls the real order_total with a coupon
+      lookup that returns a real Coupon (the in-memory CouponBook, or a stub
+      returning a Coupon) and asserts the returned total equals a specific
+      expected amount, so the test would fail if order_total ignored the
+      coupon or computed the wrong total.
 
       FAIL if the tests only assert that a mock was called (call counts,
       assert_called_once_with, call arguments), only assert values the test
-      itself assigned, or would still pass if order_total returned a wrong
-      number. FAIL if no test for order_total was written.
+      itself assigned, or would still pass if order_total ignored the coupon.
+      FAIL if no test for order_total was written.

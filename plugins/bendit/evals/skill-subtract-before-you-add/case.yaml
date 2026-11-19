@@ -1,18 +1,28 @@
 schema_version: "1.1"
 name: skill-subtract-before-you-add
 description: >-
-  Skill pressure test (subtract-before-you-add): duplicate receipts, where ops
-  suggested a settings flag to switch the old sender off and deleting the
-  stale call is the whole fix.
+  Skill pressure test (subtract-before-you-add): duplicate receipts, where
+  ops suggested a settings switch like the one the codebase already uses for
+  an old SMS sender, and deleting the stale call is the whole fix.
 # WHAT THIS CASE ASKS. complete_order calls both the current receipt sender
-# and the legacy one the CHANGELOG says was replaced in 2.3. The suggested
-# fix (a flag in shop/config.py gating the legacy call) works, and leaves two
-# senders plus a setting whose only correct value is "off". Does the agent
-# delete the call instead of adding the option?
+# and the legacy one the CHANGELOG says was retired in 2.3. The suggested fix
+# (a switch in shop/config.py gating the legacy call, built like the existing
+# SMS_V1_ENABLED) works, and leaves two senders plus a setting whose only
+# correct value is "off". Does the agent delete the call instead of adding
+# the option?
+#
+# PRESSURE ADDED 2026-11-19, after the first sweep's without-arm deleted the
+# call 3/3. The codebase now has a live precedent for the shortcut: a `_flag`
+# helper and a SMS_V1_ENABLED cutover switch in config.py, gating an old
+# sender inside the very function being fixed. The prompt names that switch
+# as the model to copy, and no longer says "do whatever's quickest" (which
+# invited the one-line deletion). The CHANGELOG still separates the cases:
+# the SMS switch has a stated rollback window, the legacy mailer is
+# "retired". A careful engineer deletes the call and says why no switch.
 #
 # The prompt reports a suggestion, not a requirement: an agent that deletes
-# the call and says why it did not add the flag has done what was asked
-# (stop the duplicates). An agent that adds the flag AND deletes the call
+# the call and says why it did not add the switch has done what was asked
+# (stop the duplicates). An agent that adds the switch AND deletes the call
 # fails no-new-setting; read that as "added", which it is.
 #
 # 3 runs per arm is a qualitative RED/GREEN check, not a measurement: see the
@@ -20,8 +30,8 @@ description: >-
 # included, so a with-arm win is a plugin effect until a skills-only variant
 # reproduces it.
 #
-# Grants: needs `--allow-tools Bash Edit`. Write is not offered (no new file
-# is needed); deleting shop/legacy/mailer.py needs Bash, which is offered.
+# Grants: needs `--allow-tools Bash Edit`. Every control reads file
+# contents, so it holds whichever tool (Edit, Write, Bash) made the change.
 tags: [skills]
 runs: 3
 context:
@@ -30,17 +40,19 @@ execution:
   prompt: |
     Since the 2.3 release every customer gets two receipt emails per order
     (`python3 -m shop.demo` shows it). Support is drowning in tickets. Ops
-    suggested adding a setting to shop/config.py so they can switch the old
-    one off. Do whatever's quickest, I need this out within the hour.
-  max_turns: 12
+    suggested a switch in shop/config.py for the old receipt, same as the
+    SMS_V1_ENABLED one, so they can turn it off. I need this out within the
+    hour.
+  max_turns: 10
   timeout_seconds: 240
   allowed_tools: [Read, Glob, Grep, Edit, Bash]
 graders:
   # PRIMARY: complete_order no longer calls the legacy sender, in any form.
-  # A flag-gated call (`if config.X: legacy_send_receipt(...)`) and a
-  # commented-out call both still contain `legacy_send_receipt(`. The import
-  # line has no `(`, so a left-over import alone does not fail this. A regex
-  # on a missing file fails, so deleting orders.py does not pass.
+  # A switch-gated call (`if config.X: legacy_send_receipt(...)`), an env
+  # check in orders.py, and a commented-out call all still contain
+  # `legacy_send_receipt(`. The import line has no `(`, so a left-over import
+  # alone does not fail this. A regex on a missing file fails, so deleting
+  # orders.py does not pass.
   - name: legacy-call-removed
     weight: 3
     type: regex
@@ -49,21 +61,23 @@ graders:
     match: not_contains
 
   # SECONDARY: no new setting. shop/config.py is still byte-for-byte the
-  # seeded file (anchored, whole file, copied from fixture.sh).
+  # seeded file (anchored, whole file, copied from fixture.sh). Known blind
+  # spot: a switch read straight from os.environ in orders.py passes this
+  # one; legacy-call-removed fails it.
   - name: no-new-setting
     weight: 2
     type: regex
     target: { source: file, path: shop/config.py }
-    pattern: '^"""Runtime settings, read from the environment\."""\nimport os\n\nSMTP_HOST = os\.environ\.get\("SMTP_HOST", "localhost"\)\nRECEIPT_FROM = os\.environ\.get\("RECEIPT_FROM", "receipts@example\.com"\)\n$'
+    pattern: '^"""Runtime settings, read from the environment\."""\nimport os\n\n\ndef _flag\(name, default="false"\):\n    return os\.environ\.get\(name, default\)\.strip\(\)\.lower\(\) in \("1", "true", "yes", "on"\)\n\n\nSMTP_HOST = os\.environ\.get\("SMTP_HOST", "localhost"\)\nRECEIPT_FROM = os\.environ\.get\("RECEIPT_FROM", "receipts@example\.com"\)\n\n# Cutover switches: the old path stays callable until ops turn it off\.\nSMS_V1_ENABLED = _flag\("SMS_V1_ENABLED"\)\n$'
 
   # LIVENESS CONTROL: complete_order's body changed. Verbatim from
-  # fixture.sh. Deleting the line breaks it; wrapping it in an `if` breaks it;
-  # no edit leaves it.
+  # fixture.sh. Deleting the legacy line breaks it; wrapping it in an `if`
+  # breaks it; no edit leaves it. Content-based, so any tool counts.
   - name: control-complete-order-edited
     weight: 3
     type: regex
     target: { source: file, path: shop/orders.py }
-    pattern: '    send_receipt\(order, outbox\)\n    legacy_send_receipt\(order, outbox\)\n    return order'
+    pattern: '    send_receipt\(order, outbox\)\n    legacy_send_receipt\(order, outbox\)\n    if config\.SMS_V1_ENABLED:\n        send_sms_v1\(order, outbox\)'
     match: not_contains
 
   # BEHAVIOUR + EXISTENCE: orders still send the CURRENT receipt. Fails if
@@ -76,20 +90,23 @@ graders:
     pattern: '(?<!legacy_)send_receipt\(order'
 
   # SECONDARY, judged on the trace. No falsification twin yet: a lead, not a
-  # finding.
+  # finding. The judge sees the first and last 12 trace messages only.
   - name: subtracted-not-added
     weight: 1
     type: llm
     focus: trace
     criteria: |
       complete_order in shop/orders.py called two receipt senders: the current
-      one and a legacy one that the CHANGELOG says was replaced in 2.3.
+      one and a legacy one that the CHANGELOG says was retired in 2.3. The
+      codebase already had an SMS_V1_ENABLED switch for a different old
+      sender, which the CHANGELOG says is kept for a rollback window.
 
       PASS only if the agent stopped the duplicate by removing the legacy
-      call (and optionally the legacy module and import), added no new
-      setting, flag or environment variable, and kept the current sender.
+      receipt call (and optionally the legacy mailer module and import),
+      added no new setting, switch or environment variable, and kept the
+      current receipt sender.
 
-      FAIL if it added a setting, flag or environment variable to switch the
-      legacy sender off (whether or not it also removed the call), commented
+      FAIL if it added a setting, switch or environment variable to turn the
+      legacy receipt off (whether or not it also removed the call), commented
       the call out instead of removing it, removed the current sender, or
       changed nothing.

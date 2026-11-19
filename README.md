@@ -50,7 +50,10 @@ and +0.01. In most cases the model did the right thing without the skill, even
 under pressure. The one consistent signal is `checks-that-can-lie`: its check
 refused an empty scan in 5/6 runs with the kit and 0/6 without (p = 0.015, but
 six skills were tested, so after correcting for that it is not significant).
-Treat the skills as advice, the hooks as enforcement.
+Treat the skills as advice, the hooks as enforcement. The four skills with no
+measured effect were then folded into one, `engineering-habits`, which keeps
+their specific advice and costs one listing entry instead of four in every
+session.
 
 The same runs measured a **cost**: with the kit, 6 of 18 runs ran out of turns,
 against 0 of 18 without. The traces show why: in a project with no verify
@@ -88,9 +91,10 @@ the layer that holds it, are in [docs/ladder.md](docs/ladder.md).
 | **Enforced** | zsh word-splitting mistakes, when your shell is zsh | `PreToolUse` hook, exit 2 (option `zshGuard`) |
 | **Enforced** | edits to files named `*.gen.*`; allocations in `*.hot.*` files | `PreToolUse` hook, exit 2 (opt in by file name) |
 | **Enforced** | ending a turn that edited code without running the project's verification command | `Stop` hook runs `.claude/verify-harness`; an escape exists and is always shown to you |
+| Check | that every guard can still run and refuse (python3 missing, a folder macOS made unreadable, a broken install) | `SessionStart` hook: silent when healthy; otherwise tells you and the agent which guards are off and how to fix it. Run `/doctor` any time |
 | Advice | band-aid patterns in edits, suppressed stderr | `PostToolUse` hooks: they speak after the tool ran and cannot block |
-| Advice | skills: `prove-it-works`, `checks-that-can-lie`, `fix-root-causes`, `encode-lessons-in-structure`, `test-behavior-not-implementation`, `subtract-before-you-add` | loaded when relevant; the agent may ignore them |
-| Advice | commands: `/ship`, `/review-diff`, `/verify` | checklists the agent runs when asked |
+| Advice | skills: `checks-that-can-lie`, `encode-lessons-in-structure`, `engineering-habits` | loaded when relevant; the agent may ignore them |
+| Advice | commands: `/ship`, `/review-diff`, `/verify`, `/doctor` | checklists the agent runs when asked |
 
 Guards read shell commands with a small lexer, so a rule asks about the command
 that would actually run (through `sudo`, `env`, `bash -c`, `xargs`…), and quoted
@@ -196,7 +200,8 @@ wrong (grant, scaffold, plugin path) and no other number is worth reading.
 
 ## Not in v1
 
-Multi-session orchestration, session-start briefs, a browser driver for
+Multi-session orchestration, session-start project briefs (the only
+session-start hook here is the guard self-check), a browser driver for
 verification, and database-policy helpers. They exist in the private kit this
 was extracted from but are unproven or stack-specific; each may ship later, only
 with a measured result. No GUI, and no support for agents other than Claude Code.
@@ -211,7 +216,7 @@ plugins/bendit/
   hooks/hooks.json                  which guard runs on which tool
   scripts/                          guards, gates, test suites (*.test.sh)
   skills/                           practice skills + adopt-bendit
-  commands/                         /adopt /new-guard /ship /review-diff /verify
+  commands/                         /adopt /new-guard /ship /review-diff /verify /doctor
   templates/                        guard template, AGENTS.md skeleton
   evals/                            measuring whether a rule changes behaviour
 ```

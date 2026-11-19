@@ -45,8 +45,10 @@ gate in this kit fails closed and refuses to report success on empty input.
 
 ## Non-goals (v1)
 
-- Multi-session orchestration, session-start briefs, a browser driver, database
+- Multi-session orchestration, session-start project briefs, a browser driver, database
   (Supabase/RLS) helpers. They exist privately but are unproven or stack-specific.
+  (v2 adds one SessionStart hook, `scripts/selfcheck.py`: it only test-fires the
+  guards and stays silent when they work, so it is not a brief.)
   They may ship later, each only with a measured result.
 - Supporting non-Claude-Code agents.
 - A GUI.
@@ -98,13 +100,14 @@ bendit/
       scaffold-verification-skill.sh, verify.sh, verify-slots.sh, ports.py
       prove.sh                      /adopt's proof: guards, Stop gate dry run, harness
       privacy-scan.py               fails on personal data (used by CI and /adopt)
+      probes.py                     one known-bad payload per hook (prove.sh, selfcheck)
+      selfcheck.py                  SessionStart: test-fires every guard, loud only if one is off
       *.test.sh, *.expected
     skills/
       adopt-bendit/SKILL.md + references/*.md
-      checks-that-can-lie, prove-it-works, fix-root-causes,
-      encode-lessons-in-structure, test-behavior-not-implementation,
-      subtract-before-you-add, create-verification-skill
-    commands/ adopt.md, ship.md, review-diff.md, verify.md, new-guard.md
+      checks-that-can-lie, encode-lessons-in-structure,
+      engineering-habits, create-verification-skill
+    commands/ adopt.md, ship.md, review-diff.md, verify.md, new-guard.md, doctor.md
     templates/
       guard/guard.py, guard.test.sh  copy-and-edit starting point
       AGENTS.md                       project rules skeleton (ladder-ordered)

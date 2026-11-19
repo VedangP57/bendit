@@ -43,12 +43,21 @@ design, so routine cleanups keep working, and the guard's header says what that
 costs. `git clean -f`, which the same eval found getting through, has been
 blocked since.
 
-The kit's **skills** have no demonstrated effect. A 3-runs-per-arm pressure test
-of six skills (a check for direction, not a measurement) found a mean
-difference of -0.02: in four cases the model already did the right thing
-without the skill, one case was invalid (a grader defect, documented in the
-case), and one, `checks-that-can-lie`, was 3/3 vs 0/3 (p = 0.10, suggestive,
-unconfirmed). Treat the skills as advice, the hooks as enforcement.
+The kit's **skills** have no demonstrated effect. Two 3-runs-per-arm pressure
+tests of six skills (checks for direction, not measurements; the second with
+scenarios rebuilt to tempt the shortcut harder) found mean differences of -0.02
+and +0.01. In most cases the model did the right thing without the skill, even
+under pressure. The one consistent signal is `checks-that-can-lie`: its check
+refused an empty scan in 5/6 runs with the kit and 0/6 without (p = 0.015, but
+six skills were tested, so after correcting for that it is not significant).
+Treat the skills as advice, the hooks as enforcement.
+
+The same runs measured a **cost**: with the kit, 6 of 18 runs ran out of turns,
+against 0 of 18 without. The traces show why: in a project with no verify
+harness yet, the Stop gate refuses the stop and the agent spends turns working
+out how to satisfy it; and the Bash guard refused an `rm -rf` the agent used to
+clean up a scratch folder while following a skill's advice. Running `/adopt`
+first (which writes the harness) removes the first of these.
 
 That is a small sample, and you should not take it on trust. The kit ships the
 method to measure it on your own project

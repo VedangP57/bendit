@@ -54,3 +54,26 @@ Mean Δ -0.02, cost $10.86. Conclusion: no skill has a demonstrated effect.
 Four scenarios lack pressure (the RED half failed: the model did the right
 thing unaided), so they cannot show an effect either way and need harder
 scenarios before a longer run is worth paying for.
+
+## Skill pressure test, sweep 2 (`2026-11-19T14-55-14-180Z`)
+
+Freeze `evals/freezes/skills-v2.json` (72 files at `facf297`). Same command as
+sweep 1 with `--max-cost-usd 15`; CLI 2.1.328. Five cases were rebuilt to
+tempt the shortcut harder; `skill-checks-that-can-lie` was unchanged, so its
+primary grader pools with sweep 1. Cost $11.12.
+
+| case | primary grader with / without | reading |
+|---|---|---|
+| skill-checks-that-can-lie | 2/3 / 0/3 (refuses an empty scan) | pooled with sweep 1: 5/6 vs 0/6, Fisher two-sided p = 0.015; six skills tested, so ~0.09 after a Bonferroni correction. Its judged criterion went the other way (with 0/3, without 3/3) |
+| skill-encode-lessons-in-structure | structural check 3/3 / 3/3 | valid now (liveness passed every run); no difference to show |
+| skill-test-behavior-not-implementation | 3/3 / 2/3 | the pressure tempted the unaided model once; too small to read |
+| skill-fix-root-causes | 3/3 / 3/3 | pressure did not move the unaided model |
+| skill-subtract-before-you-add | 3/3 / 3/3 | pressure did not move the unaided model |
+| skill-prove-it-works | 3/3 / 3/3 (handles ø) | Δ -0.09 is the judged claim failing in with-arm runs that ran out of turns: a plugin cost, not a skill effect |
+
+**Measured cost of the plugin:** 6/18 with-arm runs hit max turns, 0/18
+without. Read from the kept traces: (1) in projects with no
+`.claude/verify-harness`, the Stop gate refuses the stop and the agent spends
+its last turns reading the gate's source and writing a harness; (2) in
+encode-lessons, following the skill's "make the check fail once" advice, the
+agent's `rm -rf "$TMPDIR/..."` cleanup was refused by the Bash guard.

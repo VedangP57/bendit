@@ -46,12 +46,19 @@ python3 - "$KIT" "$REPO" "$W" <<'PY'
 import json, os, signal, subprocess, sys
 
 kit, repo, w = sys.argv[1:4]
-rows = []          # (check, ok, rung, detail)
+rows = []          # (check, state, rung, detail); state is PASS, FAIL or OFF
 RUNG = '4'         # every row here was RUN and its output read
 
 
-def row(check, ok, detail=''):
-    rows.append((check, ok, RUNG, detail))
+def row(check, state, detail=''):
+    # state: True/False are the PASS/FAIL of a check that ran; 'OFF' is a
+    # feature the project does not use (not a failure, not a pass).
+    if state is True:
+        state = 'PASS'
+    elif state is False:
+        state = 'FAIL'
+    assert state in ('PASS', 'FAIL', 'OFF'), state
+    rows.append((check, state, RUNG, detail))
 
 
 def short(text, n=300):
@@ -62,6 +69,7 @@ def short(text, n=300):
 # The probes and the env they run in are shared with selfcheck.py: one table.
 sys.path.insert(0, os.path.join(kit, 'scripts'))
 import probes as P  # noqa: E402
+import features as F  # noqa: E402
 
 probe, ENV = P.prepare(w)
 
@@ -292,6 +300,39 @@ else:
     row(label, p.returncode == 0,
         '' if p.returncode == 0 else f'exit {p.returncode}: {short(p.stdout + p.stderr, 400)}')
 
+# --- the project's features (.claude/bendit.json) ---------------------------------
+# FEATURE_CHECKS maps a feature name to callable(repo, kit) -> (ok, detail): the
+# check that proves the feature works when it is ON. Plan 3 fills it. A feature
+# that is on with no check here is a FAIL: prove.sh will not vouch for what it
+# cannot run.
+FEATURE_CHECKS = {}
+label = 'features: .claude/bendit.json readable'
+try:
+    feats = F.load(repo)
+    row(label, True)
+except F.FeaturesError as e:
+    feats = None
+    row(label, False, str(e))
+else:
+    for name in F.FEATURES:
+        label = f'feature: {name}'
+        if feats is None:
+            row(label, 'OFF', 'not set up by /adopt yet')
+            continue
+        entry = feats['features'].get(name)
+        if entry is None:
+            row(label, 'OFF', 'not listed in .claude/bendit.json')
+        elif not entry['on']:
+            row(label, 'OFF', entry['why'])
+        elif name not in FEATURE_CHECKS:
+            row(label, False, f'no check for {name}')
+        else:
+            try:
+                ok, detail = FEATURE_CHECKS[name](repo, kit)
+            except Exception as e:  # a crashing check is a failed check
+                ok, detail = False, f'check crashed: {type(e).__name__}: {e}'
+            row(label, ok, detail)
+
 # --- the table ------------------------------------------------------------------------
 width = max([len('check')] + [len(r[0]) for r in rows])
 print(f'bendit prove: {os.path.basename(repo)}')
@@ -300,19 +341,26 @@ print(f'repo: {repo}')
 print()
 print(f'{"check".ljust(width)} | result | evidence rung')
 print(f'{"-" * width}-+--------+--------------')
-for i, (check, ok, rung, _d) in enumerate(rows, 1):
-    print(f'{check.ljust(width)} | {"PASS" if ok else "FAIL"}   | {rung}')
-failed = [(i, r) for i, r in enumerate(rows, 1) if not r[1]]
+for i, (check, state, rung, _d) in enumerate(rows, 1):
+    print(f'{check.ljust(width)} | {state.ljust(6)} | {rung}')
+failed = [(i, r) for i, r in enumerate(rows, 1) if r[1] == 'FAIL']
+off = [r for r in rows if r[1] == 'OFF']
 print()
+if off:
+    print('off (not failures -- the project does not use these):')
+    for check, _s, _r, detail in off:
+        print(f'  {check}')
+        print(f'    OFF  {detail}')
+    print()
 if failed:
     print('failures:')
-    for i, (check, _ok, _r, detail) in failed:
+    for i, (check, _s, _r, detail) in failed:
         print(f'  {check}')
         print(f'    {detail}')
     print()
     print(f'prove: {len(failed)} of {len(rows)} checks FAILED -- adoption is NOT complete')
 else:
-    print(f'prove: all {len(rows)} checks passed')
+    print(f'prove: all {len(rows)} checks passed ({len(off)} off)')
 print('not proved by this script: live wiring -- that Claude Code runs these hooks in a real')
 print('session. Do the in-session check in references/prove.md (a refused force push whose')
 print('message names bendit).')

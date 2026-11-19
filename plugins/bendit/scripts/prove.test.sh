@@ -27,11 +27,13 @@ expect_init "$SD/prove.expected"
 expect_scrub_dir "$T" '<tmp>'
 expect_scrub "$KIT" '<kit>'
 
-# repo <dir> <harness-body or ""> -- a committed scratch project
+# repo <dir> <harness-body or ""> [unapproved] -- a committed scratch project.
+# BENDIT_JSON, if set, is the body of its .claude/bendit.json.
 repo() {
   mkdir -p "$1"; git -C "$1" init -q
   printf 'x = 1\n' > "$1/app.py"; printf '# rules\n' > "$1/AGENTS.md"
   if [ -n "$2" ]; then mkdir -p "$1/.claude"; printf '# what verifies this repo\n%s\n' "$2" > "$1/.claude/verify-harness"; fi
+  if [ -n "${BENDIT_JSON:-}" ]; then mkdir -p "$1/.claude"; printf '%s\n' "$BENDIT_JSON" > "$1/.claude/bendit.json"; fi
   git -C "$1" add -A && git -C "$1" -c user.email=t@example.com -c user.name=t commit -qm init
   # A test repo's harness is approved, in a THROWAWAY approval list (below), so
   # each case tests what it names. "unapproved" opts out to test that row.
@@ -111,6 +113,34 @@ printf 'exit 0 # edited\n' >> "$U/.claude/verify-harness"
 expect_capture "harness changed after approval" bash "$SD/prove.sh" "$U"
 chk "a harness changed after approval fails again (exit 1)" "$EXPECT_CODE" "1"
 has "  ...saying it changed" "changed since you approved it" "$EXPECT_STDOUT"
+
+echo
+echo "PER-PROJECT FEATURES"
+expect_capture "no bendit.json" bash "$SD/prove.sh" "$G"
+chk "no bendit.json: exit 0 (OFF is not a failure)" "$EXPECT_CODE" "0"
+chk "  ...four features read OFF" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -c '^feature: .*| OFF ')" "4"
+has "  ...saying why" "OFF  not set up by /adopt yet" "$EXPECT_STDOUT"
+has "  ...and the summary counts them" "checks passed (4 off)" "$EXPECT_STDOUT"
+has "  ...readable row passes" "features: .claude/bendit.json readable" "$EXPECT_STDOUT"
+
+BENDIT_JSON='{"version":1,"features":{"browser-driver":{"on":false,"why":"you declined Chrome"}}}'
+F1="$T/feat-off"; repo "$F1" 'exit 0'
+expect_capture "feature declined" bash "$SD/prove.sh" "$F1"
+chk "a declined feature is OFF with its reason, exit 0" "$EXPECT_CODE" "0"
+has "  ...the reason is shown" "OFF  you declined Chrome" "$EXPECT_STDOUT"
+
+BENDIT_JSON='{"version":1,"features":{"ls-guard":{"on":true,"why":"zsh"}}}'
+F2="$T/feat-nocheck"; repo "$F2" 'exit 0'
+expect_capture "ls-guard on, no registered check" bash "$SD/prove.sh" "$F2"
+chk "an ON feature with no registered check fails prove" "$EXPECT_CODE" "1"
+has "  ...naming it" "no check for ls-guard" "$EXPECT_STDOUT"
+
+BENDIT_JSON='{"version":1,'
+F3="$T/feat-bad"; repo "$F3" 'exit 0'
+expect_capture "malformed bendit.json" bash "$SD/prove.sh" "$F3"
+chk "a malformed bendit.json fails prove" "$EXPECT_CODE" "1"
+has "  ...on the readable row" "features: .claude/bendit.json readable" "$EXPECT_STDOUT"
+unset BENDIT_JSON
 
 echo
 echo "A BROKEN GUARD"

@@ -50,6 +50,132 @@ check_location() {
   fi
 }
 
+# ver_ge <found> <min>  -- 0 when found >= min, compared numerically field by field.
+ver_ge() {
+  local a="${1#v}" b="${2#v}" x y
+  while [ -n "$a" ] || [ -n "$b" ]; do
+    x="${a%%.*}"; y="${b%%.*}"
+    case "$a" in *.*) a="${a#*.}" ;; *) a="" ;; esac
+    case "$b" in *.*) b="${b#*.}" ;; *) b="" ;; esac
+    x="${x//[!0-9]/}"; y="${y//[!0-9]/}"
+    x="${x:-0}"; y="${y:-0}"
+    [ "$((10#$x))" -gt "$((10#$y))" ] && return 0
+    [ "$((10#$x))" -lt "$((10#$y))" ] && return 1
+  done
+  return 0
+}
+
+# Chrome or Chromium, on PATH or as an app bundle. BENDIT_APP_DIRS (space
+# separated) overrides the app folders searched.
+find_chrome() {
+  local c d
+  for c in google-chrome google-chrome-stable chromium chromium-browser; do
+    command -v "$c" >/dev/null 2>&1 && return 0
+  done
+  if [ -n "${BENDIT_APP_DIRS:-}" ]; then
+    for d in $BENDIT_APP_DIRS; do
+      { [ -e "$d/Google Chrome.app" ] || [ -e "$d/Chromium.app" ]; } && return 0
+    done
+  else
+    for d in /Applications "$HOME/Applications"; do
+      { [ -e "$d/Google Chrome.app" ] || [ -e "$d/Chromium.app" ]; } && return 0
+    done
+  fi
+  return 1
+}
+
+# 0 when ./package.json names a web framework as a dependency key, or ./index.html
+# exists. Read-only. With python3 >= 3.9 the JSON is parsed properly; without it
+# the check is a grep for "<name>": anywhere in the file, which is approximate (a
+# nested key of the same name would count).
+is_web_project() {
+  local names="next react vue svelte @sveltejs/kit nuxt astro vite @angular/core solid-js @remix-run/react"
+  local n pv hit=""
+  [ -e ./index.html ] && return 0
+  [ -f ./package.json ] || return 1
+  pv="$(python_version)"
+  if [ -n "$pv" ] && ver_ge "$pv" 3.9; then
+    if hit="$(python3 -c '
+import json, sys
+names = sys.argv[1:]
+d = json.load(open("package.json"))
+keys = set()
+for k in ("dependencies", "devDependencies"):
+    v = d.get(k)
+    if isinstance(v, dict):
+        keys.update(v)
+for n in names:
+    if n in keys:
+        print(n)
+        break
+' $names 2>/dev/null)"; then
+      # Only a name from the list counts; anything else printed is not an answer.
+      case " $names " in *" $hit "*) [ -n "$hit" ] && return 0 ;; esac
+      return 1
+    fi
+  fi
+  for n in $names; do
+    grep -q "\"$n\"[[:space:]]*:" ./package.json 2>/dev/null && return 0
+  done
+  return 1
+}
+
+python_version() {
+  command -v python3 >/dev/null 2>&1 || return 0
+  python3 -c 'import sys;print("%d.%d.%d"%sys.version_info[:3])' 2>/dev/null | head -n 1
+}
+
+# row <item> <found-or-empty> <needed> <ok 0|1> <why>
+row() {
+  local mark="✓" found="$2"
+  [ "$4" = 0 ] || mark="✗"
+  [ -n "$found" ] || found="missing"
+  printf '%s %-8s %-9s %-7s %s\n' "$mark" "$1" "$found" "$3" "$5"
+}
+
+# Sets MISSING_REQUIRED and MISSING_WEB (space-separated item names) and prints
+# the table.
+check_machine() {
+  local v ok web=0
+  MISSING_REQUIRED=""; MISSING_WEB=""
+  is_web_project && web=1
+  say "  item     found     needed  why"
+
+  v=""; ok=1
+  if command -v claude >/dev/null 2>&1; then
+    v="$(claude --version 2>/dev/null | head -n 1 | cut -d' ' -f1)"; ok=0; [ -n "$v" ] || v="found"
+  fi
+  row claude "$v" any "$ok" "runs the agent bendit plugs into"
+  [ "$ok" = 0 ] || MISSING_REQUIRED="$MISSING_REQUIRED claude"
+
+  v=""; ok=1
+  if command -v git >/dev/null 2>&1; then v="found"; ok=0; fi
+  row git "$v" any "$ok" "reads and records your changes"
+  [ "$ok" = 0 ] || MISSING_REQUIRED="$MISSING_REQUIRED git"
+
+  v="$(python_version)"; ok=1
+  [ -n "$v" ] && ver_ge "$v" 3.9 && ok=0
+  row python3 "$v" "3.9+" "$ok" "runs bendit's guards"
+  [ "$ok" = 0 ] || MISSING_REQUIRED="$MISSING_REQUIRED python3"
+
+  if [ "$web" = 1 ]; then
+    v=""; ok=1
+    if command -v node >/dev/null 2>&1; then
+      v="$(node --version 2>/dev/null | head -n 1)"; v="${v#v}"
+      [ -n "$v" ] && ver_ge "$v" "$NODE_MIN" && ok=0
+    fi
+    row node "$v" "$NODE_MIN+" "$ok" "drives the browser for a web app"
+    [ "$ok" = 0 ] || MISSING_WEB="$MISSING_WEB node"
+
+    ok=1; v=""
+    if find_chrome; then ok=0; v="found"; fi
+    row chrome "$v" any "$ok" "the browser bendit looks at your app with"
+    [ "$ok" = 0 ] || MISSING_WEB="$MISSING_WEB chrome"
+  fi
+  MISSING_REQUIRED="${MISSING_REQUIRED# }"; MISSING_WEB="${MISSING_WEB# }"
+  return 0
+}
+
 main() {
   local check=0 arg
   for arg in "$@"; do
@@ -61,8 +187,16 @@ main() {
     esac
   done
   check_os
+  [ -n "${HOME:-}" ] || die 2 "HOME is not set, so bendit cannot tell where your home folder is. Set HOME and run again."
   check_location
-  [ "$check" = 1 ] && say "Checking only; nothing will be installed."
+  check_machine
+  if [ "$check" = 1 ]; then
+    local all="$MISSING_REQUIRED $MISSING_WEB"
+    all="${all# }"; all="${all% }"
+    [ -z "$all" ] && { say "Nothing is missing."; exit 0; }
+    say "Missing: $all"
+    exit 1
+  fi
   return 0
 }
 

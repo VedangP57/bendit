@@ -33,6 +33,7 @@ functions defined earlier in the same command, and commands hidden behind
 variables (`$RM -rf x`) -- no static reader can see those.
 """
 import re
+import shlex
 from typing import Iterable, Iterator, List, NamedTuple, Optional
 
 SHELLS = frozenset({'sh', 'bash', 'zsh', 'dash', 'ksh', 'mksh', 'ash', 'fish'})
@@ -64,6 +65,7 @@ _WRAPPERS = {
     'nice': ({'-n', '--adjustment'}, 0, set()),
     'ionice': ({'-c', '-n', '-p', '-P', '-u', '--class', '--classdata'}, 0, set()),
     'timeout': ({'-s', '-k', '--signal', '--kill-after'}, 1, set()),
+    'gtimeout': ({'-s', '-k', '--signal', '--kill-after'}, 1, set()),
     'stdbuf': ({'-i', '-o', '-e'}, 0, set()),
     'xargs': ({'-I', '-L', '-n', '-P', '-s', '-d', '-E', '-a', '--arg-file',
                '--delimiter', '--max-args', '--max-procs', '--max-lines',
@@ -116,13 +118,20 @@ class Heredoc:
 
 class Cmd:
     """One simple command as written: its words and what is attached to it."""
-    __slots__ = ('words', 'seq', 'subshell', 'pipe', 'heredocs', 'herestrings')
+    __slots__ = ('words', 'seq', 'subshell', 'pipe', 'heredocs', 'herestrings',
+                 'cond', 'chain')
 
-    def __init__(self, seq, subshell, pipe):
+    def __init__(self, seq, subshell, pipe, cond=False, chain=0):
         self.words: List[Word] = []
         self.seq = seq
         self.subshell = subshell
         self.pipe = pipe
+        # Runs only on some paths: after `&&`/`||` in its list, or inside an
+        # if/while/until/for/case body. An assignment here may not happen.
+        self.cond = cond
+        # Commands joined only by `&&` share a chain id: each runs only if
+        # every earlier one in the chain did.
+        self.chain = chain
         self.heredocs: List[Heredoc] = []
         self.herestrings: List[str] = []
 
@@ -169,6 +178,7 @@ class _Lexer:
         self.heredocs: List[Heredoc] = []
         self.pending: List[Heredoc] = []
         self.seq = 0
+        self.chains = 0
         self.keep_for = frozenset(keep_for)
 
     # -- words ---------------------------------------------------------------
@@ -350,21 +360,27 @@ class _Lexer:
     def lex(self, i, end, closer, subshell):
         """Lex t[i:end]. With closer ')', stop past the matching paren."""
         t = self.t
-        state = {'cur': None, 'pipe': []}
+        self.chains += 1
+        state = {'cur': None, 'pipe': [], 'andor': False, 'chain': self.chains}
 
         def cur():
             if state['cur'] is None:
-                c = Cmd(self.seq, subshell, state['pipe'])
+                c = Cmd(self.seq, subshell, state['pipe'], state['andor'],
+                        state['chain'])
                 self.seq += 1
                 state['pipe'].append(c)
                 self.cmds.append(c)
                 state['cur'] = c
             return state['cur']
 
-        def end_cmd(new_pipe=True):
+        def end_cmd(new_pipe=True, andor=False, same_chain=False):
             state['cur'] = None
             if new_pipe:
                 state['pipe'] = []
+                state['andor'] = andor
+                if not same_chain:
+                    self.chains += 1
+                    state['chain'] = self.chains
 
         while i < end:
             c = t[i]
@@ -403,7 +419,7 @@ class _Lexer:
                 continue
             if t.startswith('&&', i) or t.startswith('||', i) or t.startswith(';;', i):
                 self._mark(i, i + 2)
-                end_cmd()
+                end_cmd(andor=t[i] != ';', same_chain=t.startswith('&&', i))
                 i += 2
                 continue
             if t.startswith('|&', i):
@@ -465,7 +481,30 @@ def lex(text: str, keep_for: Iterable[str] = SHELLS) -> Lexed:
     command reading it is in keep_for; an unquoted body always is."""
     lx = _Lexer(text, keep_for)
     lx.lex(0, len(text), None, False)
+    _mark_compound_bodies(lx.cmds)
     return Lexed(text, lx.cmds, lx.heredocs, lx.code)
+
+
+_OPENERS = frozenset({'if', 'while', 'until', 'for', 'select', 'case'})
+_CLOSERS = frozenset({'fi', 'done', 'esac'})
+
+
+def _mark_compound_bodies(cmds):
+    """Set .cond on every command inside an if/while/until/for/case: whether
+    it runs depends on a test. Read from each command's first word, which is
+    where this lexer leaves a reserved word (`then D=1` is one Cmd)."""
+    depth = 0
+    for c in cmds:
+        argv = c.argv
+        first = argv[0] if argv else ''
+        if first in _OPENERS:
+            depth += 1
+            c.cond = True
+            continue
+        if depth:
+            c.cond = True
+        if first in _CLOSERS:
+            depth = max(depth - 1, 0)
 
 
 def strip_quoted_heredocs(command: str, keep_for: Iterable[str] = SHELLS) -> str:
@@ -547,6 +586,17 @@ def unwrap(argv: List[str]) -> List[str]:
             a = a[1:]
             continue
         name = _command_name(w)
+        if name == 'env':
+            split = _env_split_string(a)
+            if split is not None:
+                a = split
+                continue
+        if name in ('docker', 'podman', 'nerdctl', 'docker-compose', 'kubectl', 'oc'):
+            inner = _container_exec(name, a)
+            if inner is None:
+                return [name] + a[1:]
+            a = inner
+            continue
         if name in _WRAPPERS:
             with_arg, positional, stop = _WRAPPERS[name]
             i = _skip_options(a, 1, with_arg, stop)
@@ -571,6 +621,83 @@ def unwrap(argv: List[str]) -> List[str]:
     return a
 
 
+# Container runners: `docker exec [opts] CTR cmd...`, `docker compose exec
+# [opts] SVC cmd...`, `kubectl exec [opts] POD -- cmd...`. The inner argv is
+# a command like any other -- `docker exec db psql -c "DROP TABLE x"` drops the
+# table -- so every rule must see it. Only `exec` is unwrapped: `docker run`
+# has too many options taking values to find its command reliably.
+_DOCKER_GLOBAL_WITH_ARG = frozenset({'-H', '--host', '--context', '-c', '--config',
+                                     '-l', '--log-level', '--tlscacert',
+                                     '--tlscert', '--tlskey'})
+_COMPOSE_GLOBAL_WITH_ARG = frozenset({'-f', '--file', '-p', '--project-name',
+                                      '--profile', '--env-file', '--ansi',
+                                      '--project-directory', '--parallel',
+                                      '--progress'})
+_EXEC_WITH_ARG = frozenset({'-e', '--env', '--env-file', '-u', '--user', '-w',
+                            '--workdir', '--detach-keys', '--index'})
+_KUBECTL_WITH_ARG = frozenset({'-n', '--namespace', '--context', '--cluster',
+                               '--kubeconfig', '-s', '--server', '--user',
+                               '-c', '--container', '-f', '--filename',
+                               '--pod-running-timeout', '--as', '--token'})
+
+
+def _container_exec(name, a):
+    """The argv a container runner executes, or None if it runs nothing we
+    can name (not `exec`, or no command after the target)."""
+    if name in ('docker', 'podman', 'nerdctl', 'docker-compose'):
+        if name == 'docker-compose':
+            i = _skip_options(a, 1, _COMPOSE_GLOBAL_WITH_ARG)
+        else:
+            i = _skip_options(a, 1, _DOCKER_GLOBAL_WITH_ARG)
+            if i is not None and i < len(a) and a[i] == 'compose':
+                i = _skip_options(a, i + 1, _COMPOSE_GLOBAL_WITH_ARG)
+        if i is None or i >= len(a) or a[i] != 'exec':
+            return None
+        i = _skip_options(a, i + 1, _EXEC_WITH_ARG)
+        if i is None or i + 1 >= len(a):
+            return None
+        return a[i + 1:]   # past the container / service name
+    if name in ('kubectl', 'oc'):
+        i = _skip_options(a, 1, _KUBECTL_WITH_ARG)
+        if i is None or i >= len(a) or a[i] != 'exec':
+            return None
+        rest = a[i + 1:]
+        if '--' in rest:
+            return rest[rest.index('--') + 1:] or None
+        j = _skip_options(rest, 0, _KUBECTL_WITH_ARG)
+        if j is None or j + 1 >= len(rest):
+            return None
+        return rest[j + 1:]
+    return None
+
+
+def _env_split_string(a):
+    """`env -S 'rm -rf x'` / `env --split-string=...`: the argv env runs, with
+    the split string in front of whatever follows it. None without -S."""
+    i = 1
+    while i < len(a):
+        x = a[i]
+        if x in ('-S', '--split-string'):
+            if i + 1 >= len(a):
+                return None
+            text, i = a[i + 1], i + 2
+        elif x.startswith('--split-string='):
+            text, i = x.split('=', 1)[1], i + 1
+        elif x.startswith('-S'):
+            text, i = x[2:], i + 1
+        elif x.startswith('-') and x != '-' and x != '--':
+            i += 2 if x in ('-u', '-C', '--unset', '--chdir') else 1
+            continue
+        else:
+            return None
+        try:
+            words = shlex.split(text)
+        except ValueError:
+            words = text.split()
+        return words + a[i:]
+    return None
+
+
 class Simple(NamedTuple):
     argv: List[str]       # after unwrap(); argv[0] is a bare command name
     cmd: Cmd              # the lexed command it came from
@@ -588,7 +715,9 @@ def shell_c_string(argv: List[str]) -> Optional[str]:
             i += 2
             continue
         if x.startswith('-') and not x.startswith('--') and 'c' in x[1:]:
-            return argv[i + 1] if i + 1 < len(argv) else None
+            # `bash -c -- 'script'`: `--` ends the options; the string follows.
+            j = i + 2 if argv[i + 1:i + 2] == ['--'] else i + 1
+            return argv[j] if j < len(argv) else None
         if x.startswith('-') or x.startswith('+'):
             i += 1
             continue

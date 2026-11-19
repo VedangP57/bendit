@@ -19,7 +19,7 @@ If this is genuinely required, ask the human to run it.
 === psql DROP TABLE
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, or DELETE with no WHERE).
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
 If this is genuinely required, ask the human to run it.
 
 === supabase db push
@@ -365,7 +365,7 @@ If this is genuinely required, ask the human to run it.
 === DROP DATABASE on its own line
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, or DELETE with no WHERE).
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
 If this is genuinely required, ask the human to run it.
 
 === supabase reset on its own line
@@ -795,13 +795,13 @@ If this is genuinely required, ask the human to run it.
 === psql <<'SQL' DROP TABLE
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, or DELETE with no WHERE).
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
 If this is genuinely required, ask the human to run it.
 
 === psql <<SQL unquoted, multi-line
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, or DELETE with no WHERE).
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
 If this is genuinely required, ask the human to run it.
 
 === cat <<'EOF' > file stays data
@@ -869,13 +869,13 @@ exit 0
 === DELETE without WHERE
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, or DELETE with no WHERE).
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
 If this is genuinely required, ask the human to run it.
 
 === lowercase delete without where
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, or DELETE with no WHERE).
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
 If this is genuinely required, ask the human to run it.
 
 === DELETE with WHERE
@@ -885,7 +885,7 @@ exit 0
 === second -c is unbounded
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, or DELETE with no WHERE).
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
 If this is genuinely required, ask the human to run it.
 
 === fine-grained GitHub PAT
@@ -917,6 +917,732 @@ BLOCKED by bendit safety hook: recursive force delete — run it yourself if you
 If this is genuinely required, ask the human to run it.
 
 === non-UTF-8 junk that is not JSON
+exit 0
+(silent)
+
+=== echo 'DROP TABLE' | psql
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== printf 'TRUNCATE TABLE' | psql
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== TRUNCATE without TABLE
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== truncate a list, lowercase
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== ALTER TABLE ... DROP COLUMN
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== ALTER TABLE ... DROP (COLUMN implied)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== DROP/**/TABLE
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== a WHERE only inside a -- comment
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== a WHERE only inside a /* */ comment
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: DELETE ... WHERE, then a comment
+exit 0
+(silent)
+
+=== CONTROL: ALTER TABLE ... DROP CONSTRAINT
+exit 0
+(silent)
+
+=== CONTROL: ALTER COLUMN ... DROP NOT NULL
+exit 0
+(silent)
+
+=== CONTROL: MySQL's TRUNCATE() number function
+exit 0
+(silent)
+
+=== CONTROL: echo a safe query into psql
+exit 0
+(silent)
+
+=== CONTROL: echo DROP TABLE into a file
+exit 0
+(silent)
+
+=== docker exec -i ... psql DROP
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== docker compose exec ... psql DROP
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== docker exec ... rm -rf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== docker exec -u -w ... rm -rf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== kubectl exec pod -- rm -rf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== kubectl -n ns exec -it -c -- rm -rf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== docker exec ... psql heredoc
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE).
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: docker exec ... ls
+exit 0
+(silent)
+
+=== CONTROL: docker exec ... rm -rf a temp folder
+exit 0
+(silent)
+
+=== CONTROL: docker logs
+exit 0
+(silent)
+
+=== npx prisma migrate reset
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `prisma migrate reset` / `prisma db push --force-reset` drops the database and every row in it — use `prisma migrate dev --create-only` to write the migration and let the human apply it.
+If this is genuinely required, ask the human to run it.
+
+=== pnpm prisma db push --force-reset
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `prisma migrate reset` / `prisma db push --force-reset` drops the database and every row in it — use `prisma migrate dev --create-only` to write the migration and let the human apply it.
+If this is genuinely required, ask the human to run it.
+
+=== yarn prisma migrate reset
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `prisma migrate reset` / `prisma db push --force-reset` drops the database and every row in it — use `prisma migrate dev --create-only` to write the migration and let the human apply it.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: prisma migrate dev
+exit 0
+(silent)
+
+=== CONTROL: prisma db push
+exit 0
+(silent)
+
+=== rm -rf the parent of the dir entered
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: this enters $T/w and then deletes $T, a folder above it, which leaves the shell with no working directory — every later command, and every hook, then fails with EPERM. Delete it from a subshell, or cd out first.
+If this is genuinely required, ask the human to run it.
+
+=== trap deletes the parent of the cwd
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: this enters $T/w and then deletes $T, a folder above it, which leaves the shell with no working directory — every later command, and every hook, then fails with EPERM. Delete it from a subshell, or cd out first.
+If this is genuinely required, ask the human to run it.
+
+=== same dir, literal cd vs var rm
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: this enters /tmp/scratch and then deletes it (as $D), which leaves the shell with no working directory — every later command, and every hook, then fails with EPERM. Delete it from a subshell, or cd out first.
+If this is genuinely required, ask the human to run it.
+
+=== same dir, var cd vs literal rm
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: this enters $D and then deletes it (as /tmp/scratch), which leaves the shell with no working directory — every later command, and every hook, then fails with EPERM. Delete it from a subshell, or cd out first.
+If this is genuinely required, ask the human to run it.
+
+=== literal ancestor, no -f
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: this enters /tmp/scratch/w/x and then deletes /tmp/scratch, a folder above it, which leaves the shell with no working directory — every later command, and every hook, then fails with EPERM. Delete it from a subshell, or cd out first.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: a sibling with a shared prefix
+exit 0
+(silent)
+
+=== CONTROL: a descendant of the cwd, via a var
+exit 0
+(silent)
+
+=== -e.env is a pattern, not flags
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git clean -f` deletes untracked (and with -x, ignored, .env included) files with no undo — run `git clean -n` to see the list, then run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== -enode_modules is not -n
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git clean -f` deletes untracked (and with -x, ignored, .env included) files with no undo — run `git clean -n` to see the list, then run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== --exclude=x is not a flag
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git clean -f` deletes untracked (and with -x, ignored, .env included) files with no undo — run `git clean -n` to see the list, then run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== --forc abbreviates --force
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git clean -f` deletes untracked (and with -x, ignored, .env included) files with no undo — run `git clean -n` to see the list, then run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== -c clean.requireForce=false
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git clean -f` deletes untracked (and with -x, ignored, .env included) files with no undo — run `git clean -n` to see the list, then run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: -n with an attached -e
+exit 0
+(silent)
+
+=== CONTROL: --dry abbreviates --dry-run
+exit 0
+(silent)
+
+=== CONTROL: requireForce=true, no -f
+exit 0
+(silent)
+
+=== git reset --hard
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git reset --hard` throws away every uncommitted change to tracked files, with no undo — run `git stash` instead (`git stash pop` brings it back), or `git reset --keep`, which refuses to overwrite local changes.
+If this is genuinely required, ask the human to run it.
+
+=== git reset --hard, bare
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git reset --hard` throws away every uncommitted change to tracked files, with no undo — run `git stash` instead (`git stash pop` brings it back), or `git reset --keep`, which refuses to overwrite local changes.
+If this is genuinely required, ask the human to run it.
+
+=== git checkout -- .
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git checkout .` / `git restore .` throws away EVERY uncommitted change in the working tree, with no undo — name the files you mean (`git restore path/to/file`), or `git stash` to set everything aside recoverably.
+If this is genuinely required, ask the human to run it.
+
+=== git checkout .
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git checkout .` / `git restore .` throws away EVERY uncommitted change in the working tree, with no undo — name the files you mean (`git restore path/to/file`), or `git stash` to set everything aside recoverably.
+If this is genuinely required, ask the human to run it.
+
+=== git restore .
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git checkout .` / `git restore .` throws away EVERY uncommitted change in the working tree, with no undo — name the files you mean (`git restore path/to/file`), or `git stash` to set everything aside recoverably.
+If this is genuinely required, ask the human to run it.
+
+=== git restore --staged --worktree .
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git checkout .` / `git restore .` throws away EVERY uncommitted change in the working tree, with no undo — name the files you mean (`git restore path/to/file`), or `git stash` to set everything aside recoverably.
+If this is genuinely required, ask the human to run it.
+
+=== git restore -SW :/
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git checkout .` / `git restore .` throws away EVERY uncommitted change in the working tree, with no undo — name the files you mean (`git restore path/to/file`), or `git stash` to set everything aside recoverably.
+If this is genuinely required, ask the human to run it.
+
+=== git push --mirror
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git push --mirror` / `--delete` / `:<branch>` deletes branches on the remote (--mirror: every remote branch you do not have locally), and other people's commits go with them — push your own branch, and leave deleting remote branches to the human.
+If this is genuinely required, ask the human to run it.
+
+=== git push origin --delete main
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git push --mirror` / `--delete` / `:<branch>` deletes branches on the remote (--mirror: every remote branch you do not have locally), and other people's commits go with them — push your own branch, and leave deleting remote branches to the human.
+If this is genuinely required, ask the human to run it.
+
+=== git push -d origin x
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git push --mirror` / `--delete` / `:<branch>` deletes branches on the remote (--mirror: every remote branch you do not have locally), and other people's commits go with them — push your own branch, and leave deleting remote branches to the human.
+If this is genuinely required, ask the human to run it.
+
+=== git push origin :main
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git push --mirror` / `--delete` / `:<branch>` deletes branches on the remote (--mirror: every remote branch you do not have locally), and other people's commits go with them — push your own branch, and leave deleting remote branches to the human.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: git reset --soft
+exit 0
+(silent)
+
+=== CONTROL: git reset a file
+exit 0
+(silent)
+
+=== CONTROL: git checkout -- one file
+exit 0
+(silent)
+
+=== CONTROL: git checkout a branch
+exit 0
+(silent)
+
+=== CONTROL: git restore one file
+exit 0
+(silent)
+
+=== CONTROL: git restore --staged . only unstages
+exit 0
+(silent)
+
+=== CONTROL: push src:dst refspec
+exit 0
+(silent)
+
+=== CONTROL: a message naming git reset --hard
+exit 0
+(silent)
+
+=== a temp var, then .. out of it
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== a temp var, quoted, then ..
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== a temp var, then a . segment glob
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== TMPDIR reassigned first
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== TMPDIR=... as a prefix
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== export TMPDIR=...
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== an assignment after &&
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== an assignment inside if
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== an assignment inside a subshell
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== unset drops it
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== a glob straight after a mktemp var
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== /tmp/./*
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== a conditional assignment, then ; rm
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: cd && S=tmp && rm -rf $S
+exit 0
+(silent)
+
+=== CONTROL: cd && T=mktemp && rm in chain
+exit 0
+(silent)
+
+=== CONTROL: the eval's real cleanup
+exit 0
+(silent)
+
+=== CONTROL: a glob under a literal temp var
+exit 0
+(silent)
+
+=== CONTROL: mktemp || exit, then rm
+exit 0
+(silent)
+
+=== CONTROL: a named file under a mktemp var
+exit 0
+(silent)
+
+=== gtimeout 60 rm -rf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== timeout -s KILL 60 rm -rf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== timeout --preserve-status -k 5 60
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== bash -c -- 'rm -rf'
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== env -S 'rm -rf'
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== env --split-string=...
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== npx rimraf src
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== pnpm dlx rimraf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== bare rimraf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: rimraf a temp folder
+exit 0
+(silent)
+
+=== node -e fs.rmSync recursive
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: a node/python one-liner that deletes a folder tree (fs.rmSync/rmdirSync with recursive, shutil.rmtree) — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== node -e fs.rmdirSync recursive
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: a node/python one-liner that deletes a folder tree (fs.rmSync/rmdirSync with recursive, shutil.rmtree) — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== python3 -c shutil.rmtree
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: a node/python one-liner that deletes a folder tree (fs.rmSync/rmdirSync with recursive, shutil.rmtree) — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== python3 -c os.system rm -rf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it (inside a python3 one-liner).
+If this is genuinely required, ask the human to run it.
+
+=== node -e execSync rm -rf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it (inside a node one-liner).
+If this is genuinely required, ask the human to run it.
+
+=== python3 -c subprocess list rm -rf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it (inside a python3 one-liner).
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: shutil.rmtree of a temp folder
+exit 0
+(silent)
+
+=== CONTROL: fs.rmSync of a temp folder
+exit 0
+(silent)
+
+=== CONTROL: fs.rmSync of one file
+exit 0
+(silent)
+
+=== CONTROL: os.system without a delete
+exit 0
+(silent)
+
+=== CONTROL: python -c that reads JSON
+exit 0
+(silent)
+
+=== CONTROL: a message naming shutil.rmtree
+exit 0
+(silent)
+
+=== require-verification.py --trust
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] --trust approves a harness to run unsandboxed; only the person may run it, in their own terminal.
+If this is genuinely required, ask the human to run it.
+
+=== --trust via a quoted plugin path
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] --trust approves a harness to run unsandboxed; only the person may run it, in their own terminal.
+If this is genuinely required, ask the human to run it.
+
+=== --trust behind env
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] --trust approves a harness to run unsandboxed; only the person may run it, in their own terminal.
+If this is genuinely required, ask the human to run it.
+
+=== --trust behind sudo
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] --trust approves a harness to run unsandboxed; only the person may run it, in their own terminal.
+If this is genuinely required, ask the human to run it.
+
+=== --trust behind timeout
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] --trust approves a harness to run unsandboxed; only the person may run it, in their own terminal.
+If this is genuinely required, ask the human to run it.
+
+=== --trust behind script
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] --trust approves a harness to run unsandboxed; only the person may run it, in their own terminal.
+If this is genuinely required, ask the human to run it.
+
+=== --trust inside expect -c
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] --trust approves a harness to run unsandboxed; only the person may run it, in their own terminal.
+If this is genuinely required, ask the human to run it.
+
+=== --trust inside bash -c
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] --trust approves a harness to run unsandboxed; only the person may run it, in their own terminal.
+If this is genuinely required, ask the human to run it.
+
+=== --trust inside eval
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] --trust approves a harness to run unsandboxed; only the person may run it, in their own terminal.
+If this is genuinely required, ask the human to run it.
+
+=== --trust inside python3 -c
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] --trust approves a harness to run unsandboxed; only the person may run it, in their own terminal.
+If this is genuinely required, ask the human to run it.
+
+=== --trust in a python heredoc
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] --trust approves a harness to run unsandboxed; only the person may run it, in their own terminal.
+If this is genuinely required, ask the human to run it.
+
+=== --trust echoed into bash
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] --trust approves a harness to run unsandboxed; only the person may run it, in their own terminal.
+If this is genuinely required, ask the human to run it.
+
+=== --trust through a variable
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] --trust approves a harness to run unsandboxed; only the person may run it, in their own terminal.
+If this is genuinely required, ask the human to run it.
+
+=== --trust, script path from the env
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] --trust approves a harness to run unsandboxed; only the person may run it, in their own terminal.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: require-verification without --trust
+exit 0
+(silent)
+
+=== CONTROL: a commit message about --trust
+exit 0
+(silent)
+
+=== CONTROL: echo that mentions --trust
+exit 0
+(silent)
+
+=== CONTROL: grep for --trust
+exit 0
+(silent)
+
+=== write the approval list with >
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] trusted-harnesses.json is the person's list of approved harnesses, and only the person changes it — reading it is fine.
+If this is genuinely required, ask the human to run it.
+
+=== append to it with >>
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] trusted-harnesses.json is the person's list of approved harnesses, and only the person changes it — reading it is fine.
+If this is genuinely required, ask the human to run it.
+
+=== tee into it
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] trusted-harnesses.json is the person's list of approved harnesses, and only the person changes it — reading it is fine.
+If this is genuinely required, ask the human to run it.
+
+=== cp over it
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] trusted-harnesses.json is the person's list of approved harnesses, and only the person changes it — reading it is fine.
+If this is genuinely required, ask the human to run it.
+
+=== mv it away
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] trusted-harnesses.json is the person's list of approved harnesses, and only the person changes it — reading it is fine.
+If this is genuinely required, ask the human to run it.
+
+=== rm it
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] trusted-harnesses.json is the person's list of approved harnesses, and only the person changes it — reading it is fine.
+If this is genuinely required, ask the human to run it.
+
+=== sed -i it
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] trusted-harnesses.json is the person's list of approved harnesses, and only the person changes it — reading it is fine.
+If this is genuinely required, ask the human to run it.
+
+=== python3 -c open(..., 'w')
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] trusted-harnesses.json is the person's list of approved harnesses, and only the person changes it — reading it is fine.
+If this is genuinely required, ask the human to run it.
+
+=== a variable naming it, then >
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] trusted-harnesses.json is the person's list of approved harnesses, and only the person changes it — reading it is fine.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: cat the approval list
+exit 0
+(silent)
+
+=== CONTROL: json.load it
+exit 0
+(silent)
+
+=== CONTROL: copy it somewhere to read
+exit 0
+(silent)
+
+=== CONTROL: jq it
 exit 0
 (silent)
 

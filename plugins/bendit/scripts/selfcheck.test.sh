@@ -244,7 +244,11 @@ has "  ...naming it" "new-guard-nobody-probed" "$(field systemMessage)"
 
 echo
 echo "IT CLEANS UP"
-chk "selfcheck's temp dirs are gone after every run above" "$(/bin/ls -A "$TMPDIR")" ""
+# DIRECTORIES only: selfcheck makes a temp dir per run. expect.sh keeps its own
+# capture FILE in $TMPDIR until expect_verify -- on Linux GNU mktemp puts it
+# here, on macOS it does not -- and counting it failed CI on Ubuntu only.
+chk "selfcheck's temp dirs are gone after every run above" \
+    "$(/usr/bin/find "$TMPDIR" -mindepth 1 -maxdepth 1 -type d | sed "s|^$TMPDIR/||")" ""
 
 if [ -z "$PY_GIVEN" ]; then
   echo

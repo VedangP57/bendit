@@ -321,6 +321,19 @@ python3 is missing or older than 3.9 (it runs bendit's guards).
   Run that now? [y/N] 
   python3 is ready.
 
+node is missing or older than 20 (it drives the browser for a web app).
+  To install it, bendit would run:
+    brew install node
+  Run that now? [y/N] 
+
+Chrome is missing (the browser bendit looks at your app with).
+  To install it, bendit would run:
+    brew install --cask google-chrome
+  Run that now? [y/N] 
+
+Skipping node chrome: the browser driver will be off, so bendit cannot look at
+your web app until that is installed. Everything else will work.
+
 This machine is ready.
 
 === stdin answers are ignored
@@ -335,6 +348,54 @@ Missing: python3
   python3: brew install python@3.13
 There is no terminal to ask on, so nothing was installed. Run the commands
 above yourself, or run this installer from a terminal.
+
+=== terminal n, stdin y
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  missing   3.9+    runs bendit's guards
+
+python3 is missing or older than 3.9 (it runs bendit's guards).
+  To install it, bendit would run:
+    brew install python@3.13
+  Run that now? [y/N] 
+
+python3 is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== empty terminal, stdin y
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  missing   3.9+    runs bendit's guards
+
+python3 is missing or older than 3.9 (it runs bendit's guards).
+  To install it, bendit would run:
+    brew install python@3.13
+  Run that now? [y/N] 
+
+python3 is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== inherited ASK_OPEN and fd 3
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  missing   3.9+    runs bendit's guards
+
+python3 is missing or older than 3.9 (it runs bendit's guards).
+  To install it, bendit would run:
+    brew install python@3.13
+  Run that now? [y/N] 
+
+python3 is required, so bendit cannot go on without it.
+Install it, then run this again.
 
 === linux, git missing, apt-get
 exit 1

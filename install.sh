@@ -7,6 +7,7 @@
 # Exit codes: 0 ready (or --check found nothing missing); 1 something required
 # is missing or failed; 2 usage error, refused location, unsupported OS.
 set -u
+ASK_OPEN=""  # never inherited: a caller must not choose which fd ask() reads
 
 BENDIT_VERSION="0.2.0"
 NODE_MIN=20

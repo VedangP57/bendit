@@ -209,11 +209,14 @@ run_installer "$C" --check >/dev/null 2>&1
 chk "a json.py in the project never runs" "$([ -e "$C/MARKER" ] && echo ran || echo never)" never
 
 # brew_fixes <dir> -- a brew stub that logs and drops a working python3 into bin.
+# The python3 it drops answers only the version query; anything else goes to the
+# machine's real python3, so a package.json is still parsed on the re-check.
 brew_fixes() {
+  local RP; RP="$(type -P python3)" || RP=""
   cat > "$1/bin/brew" <<EOF
 #!/bin/sh
 echo "brew \$*" >> "$1/calls.log"
-printf '#!/bin/sh\necho 3.12.1\n' > "$1/bin/python3"
+printf '#!/bin/sh\ncase "\$*" in *version_info*) echo 3.12.1 ;; *) exec "$RP" "\$@" ;; esac\n' > "$1/bin/python3"
 chmod +x "$1/bin/python3"
 EOF
   chmod +x "$1/bin/brew"
@@ -269,6 +272,9 @@ printf 'y\nn\nn\n' > "$I/ans"; printf '{"dependencies":{"next":"14"}}\n' > "$I/p
 BENDIT_TTY="$I/ans" expect_capture "answers are read one per question" run_installer "$I"
 chk "second answer was its own line"   "$(callsfor "$I" 'brew install python')" 1
 chk "then node and chrome declined, exit 0" "$EXPECT_CODE" 0
+chk "the web project is still web after python3 is installed" "$(nodots "$EXPECT_STDOUT" 'brew install node')" 1
+chk "chrome is asked too (third answer)" "$(nodots "$EXPECT_STDOUT" 'brew install --cask google-chrome')" 1
+chk "both declined are named"          "$(nodots "$EXPECT_STDOUT" 'Skipping node chrome:')" 1
 
 echo "ask: no terminal"
 I="$T/i5"; no_python "$I"; brew_fixes "$I"; printf 'y\n' > "$I/stdin"
@@ -277,6 +283,19 @@ chk "stdin y: nothing installed"       "$(callsfor "$I" brew)" 0
 chk "stdin y: exits 1"                 "$EXPECT_CODE" 1
 chk "stdin y: lists what is missing"   "$(nodots "$EXPECT_STDOUT" '^Missing: python3$')" 1
 chk "stdin y: shows the command"       "$(nodots "$EXPECT_STDOUT" 'brew install python@3.13')" 1
+# A readable terminal that says n, with y on stdin: stdin must not be consulted.
+I="$T/i5c"; no_python "$I"; brew_fixes "$I"; printf 'y\n' > "$I/stdin"; printf 'n\n' > "$I/ans"
+INSTALL_STDIN="$I/stdin" BENDIT_TTY="$I/ans" expect_capture "terminal n, stdin y" run_installer "$I"
+chk "tty n, stdin y: nothing installed" "$(callsfor "$I" brew)" 0
+chk "tty n, stdin y: exits 1"           "$EXPECT_CODE" 1
+# A terminal with no lines at all must not fall back to stdin.
+I="$T/i5d"; no_python "$I"; brew_fixes "$I"; printf 'y\n' > "$I/stdin"; : > "$I/ans"
+INSTALL_STDIN="$I/stdin" BENDIT_TTY="$I/ans" expect_capture "empty terminal, stdin y" run_installer "$I"
+chk "empty tty, stdin y: nothing installed" "$(callsfor "$I" brew)" 0
+# A caller must not choose the answer source through the environment.
+I="$T/i5e"; no_python "$I"; brew_fixes "$I"; printf 'n\n' > "$I/ans"; printf 'y\n' > "$I/fd3"
+ASK_OPEN=1 BENDIT_TTY="$I/ans" expect_capture "inherited ASK_OPEN and fd 3" run_installer "$I" 3< "$I/fd3"
+chk "inherited ASK_OPEN and fd 3 y: brew never ran" "$(callsfor "$I" brew)" 0
 
 echo "ask: Linux"
 I="$T/i6"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/git"

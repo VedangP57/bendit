@@ -95,7 +95,7 @@ is_web_project() {
   [ -f ./package.json ] || return 1
   pv="$(python_version)"
   if [ -n "$pv" ] && ver_ge "$pv" 3.9; then
-    if hit="$(python3 -c '
+    if hit="$(python3 -I -c '
 import json, sys
 names = sys.argv[1:]
 d = json.load(open("package.json"))
@@ -122,7 +122,7 @@ for n in names:
 
 python_version() {
   command -v python3 >/dev/null 2>&1 || return 0
-  python3 -c 'import sys;print("%d.%d.%d"%sys.version_info[:3])' 2>/dev/null | head -n 1
+  python3 -I -c 'import sys;print("%d.%d.%d"%sys.version_info[:3])' 2>/dev/null | head -n 1
 }
 
 # row <item> <found-or-empty> <needed> <ok 0|1> <why>
@@ -155,6 +155,8 @@ check_machine() {
 
   v="$(python_version)"; ok=1
   [ -n "$v" ] && ver_ge "$v" 3.9 && ok=0
+  # On PATH but silent: macOS's /usr/bin/python3 shim without Command Line Tools.
+  if [ -z "$v" ] && command -v python3 >/dev/null 2>&1; then v="found but did not run"; fi
   row python3 "$v" "3.9+" "$ok" "runs bendit's guards"
   [ "$ok" = 0 ] || MISSING_REQUIRED="$MISSING_REQUIRED python3"
 
@@ -174,6 +176,165 @@ check_machine() {
   fi
   MISSING_REQUIRED="${MISSING_REQUIRED# }"; MISSING_WEB="${MISSING_WEB# }"
   return 0
+}
+
+# ask <question> -- 0 only for y/yes, read from the terminal (BENDIT_TTY is a
+# test hook), never from stdin: stdin may be the script itself, piped from curl.
+# 1 for anything else; 3 when there is no terminal to ask on.
+ask() {
+  local a=""
+  have_tty || return 3
+  [ -n "${ASK_OPEN:-}" ] || { exec 3< "${BENDIT_TTY:-/dev/tty}"; ASK_OPEN=1; }
+  printf '%s' "$1"
+  IFS= read -r a <&3 || a=""
+  case "$a" in [Yy]|[Yy][Ee][Ss]) return 0 ;; esac
+  return 1
+}
+
+# 0 when the terminal can be opened for reading.
+have_tty() { ( : < "${BENDIT_TTY:-/dev/tty}" ) 2>/dev/null; }
+
+# install_cmd <item> -- the command for this machine, or nothing.
+install_cmd() {
+  local item="$1" pm=""
+  if [ "$item" = claude ]; then
+    command -v curl >/dev/null 2>&1 && say 'curl -fsSL https://claude.ai/install.sh | bash'
+    return 0
+  fi
+  case "$(uname -s)" in
+    Darwin)
+      command -v brew >/dev/null 2>&1 || return 0
+      case "$item" in
+        python3) say 'brew install python@3.13' ;;
+        git)     say 'brew install git' ;;
+        node)    say 'brew install node' ;;
+        chrome)  say 'brew install --cask google-chrome' ;;
+      esac ;;
+    Linux)
+      for pm in apt-get dnf pacman; do command -v "$pm" >/dev/null 2>&1 && break; pm=""; done
+      case "$pm:$item" in
+        apt-get:python3) say 'sudo apt-get install -y python3' ;;
+        apt-get:git)     say 'sudo apt-get install -y git' ;;
+        apt-get:node)    say 'sudo apt-get install -y nodejs' ;;
+        dnf:python3)     say 'sudo dnf install -y python3' ;;
+        dnf:git)         say 'sudo dnf install -y git' ;;
+        dnf:node)        say 'sudo dnf install -y nodejs' ;;
+        pacman:python3)  say 'sudo pacman -S --noconfirm python' ;;
+        pacman:git)      say 'sudo pacman -S --noconfirm git' ;;
+        pacman:node)     say 'sudo pacman -S --noconfirm nodejs' ;;
+      esac ;;
+  esac
+  return 0
+}
+
+manual_pointer() {
+  case "$1" in
+    python3) say "Get Python 3.9 or newer from https://www.python.org/downloads/" ;;
+    git)     say "Get git from https://git-scm.com/downloads" ;;
+    node)    say "Get Node.js $NODE_MIN or newer from https://nodejs.org/" ;;
+    chrome)  say "Get Chrome from https://www.google.com/chrome/" ;;
+    claude)  say "See https://code.claude.com/docs/en/setup" ;;
+  esac
+}
+
+why_missing() {
+  case "$1" in
+    python3) say "python3 is missing or older than 3.9 (it runs bendit's guards)." ;;
+    node)    say "node is missing or older than $NODE_MIN (it drives the browser for a web app)." ;;
+    chrome)  say "Chrome is missing (the browser bendit looks at your app with)." ;;
+    git)     say "git is missing (it reads and records your changes)." ;;
+    claude)  say "claude is missing (the agent bendit plugs into)." ;;
+  esac
+}
+
+# is_missing <item> -- re-runs the machine check quietly.
+is_missing() {
+  check_machine >/dev/null
+  case " $MISSING_REQUIRED $MISSING_WEB " in *" $1 "*) return 0 ;; esac
+  return 1
+}
+
+# offer <item> -- 0 installed and verified, 1 declined or no automatic route,
+# 2 the install ran but the item is still missing, 3 no terminal.
+offer() {
+  local item="$1" cmd rc tool
+  cmd="$(install_cmd "$item")"
+  why_missing "$item"
+  if [ -z "$cmd" ]; then
+    say "  bendit cannot install it automatically here. $(manual_pointer "$item")"
+    return 1
+  fi
+  say "  To install it, bendit would run:"
+  say "    $cmd"
+  ask "  Run that now? [y/N] "; rc=$?
+  [ "$rc" = 3 ] && return 3
+  say ""
+  [ "$rc" = 0 ] || return 1
+  eval "$cmd" < /dev/null; rc=$?
+  # claude installs to ~/.local/bin, which a fresh machine may not have on PATH yet.
+  if [ "$item" = claude ]; then
+    case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH" ;; esac
+  fi
+  hash -r 2>/dev/null
+  if ! is_missing "$item"; then say "  $item is ready."; return 0; fi
+  tool="${cmd#sudo }"; tool="${tool%% *}"
+  if [ "$rc" = 0 ]; then
+    say "  $tool said it worked, but $item is still not found."
+  else
+    say "  The install command failed (exit $rc), and $item is still not found."
+  fi
+  return 2
+}
+
+# Nothing can be asked: list what is missing and the commands, install nothing.
+no_terminal() {
+  local item cmd all="$MISSING_REQUIRED $MISSING_WEB"
+  all="${all# }"; all="${all% }"
+  say ""
+  say "Missing: $all"
+  for item in $all; do
+    cmd="$(install_cmd "$item")"
+    if [ -n "$cmd" ]; then say "  $item: $cmd"; else say "  $item: $(manual_pointer "$item")"; fi
+  done
+  say "There is no terminal to ask on, so nothing was installed. Run the commands"
+  say "above yourself, or run this installer from a terminal."
+  exit 1
+}
+
+# Asks about every missing item; installs only after a yes; re-checks each.
+install_missing() {
+  local item rc blocked="" web_off=""
+  have_tty || no_terminal
+  for item in $MISSING_REQUIRED; do
+    say ""
+    offer "$item"; rc=$?
+    [ "$rc" = 3 ] && no_terminal
+    [ "$rc" = 0 ] || blocked="$blocked $item"
+  done
+  if [ -n "$blocked" ]; then
+    say ""
+    for item in $blocked; do say "$item is required, so bendit cannot go on without it."; done
+    say "Install it, then run this again."
+    exit 1
+  fi
+  for item in $MISSING_WEB; do
+    say ""
+    offer "$item"; rc=$?
+    [ "$rc" = 3 ] && no_terminal
+    [ "$rc" = 0 ] || web_off="$web_off $item"
+  done
+  if [ -n "$web_off" ]; then
+    say ""
+    say "Skipping${web_off}: the browser driver will be off, so bendit cannot look at"
+    say "your web app until that is installed. Everything else will work."
+  fi
+  return 0
+}
+
+# Task 4 continues from here: fetch the kit and hand over.
+ready() {
+  say ""
+  say "This machine is ready."
 }
 
 main() {
@@ -197,6 +358,11 @@ main() {
     say "Missing: $all"
     exit 1
   fi
+  if [ -n "$MISSING_REQUIRED$MISSING_WEB" ]; then
+    install_missing
+    check_machine >/dev/null
+  fi
+  ready
   return 0
 }
 

@@ -37,13 +37,16 @@ sandbox() {
 }
 
 # stub <dir> <name> <exit> [stdout]  -- replaces <name> in the sandbox with a
-# script that logs "<name> <args>" to <dir>/calls.log.
+# script that logs "<name> [arg] [arg]..." to <dir>/calls.log: one bracketed
+# field per argument, so an argument split on a space logs differently from one
+# that arrived whole.
+LOGARGS='for a in "$@"; do printf " [%s]" "$a"; done; echo'
 stub() {
   local d="$1" n="$2" code="$3" out="${4:-}"
   rm -f "$d/bin/$n"
   {
     printf '#!/bin/sh\n'
-    printf 'echo "%s $*" >> "%s/calls.log"\n' "$n" "$d"
+    printf '{ printf %%s %s; %s; } >> "%s/calls.log"\n' "$n" "$LOGARGS" "$d"
     [ -n "$out" ] && printf 'printf "%%s\\n" "%s"\n' "$out"
     printf 'exit %s\n' "$code"
   } > "$d/bin/$n"
@@ -230,7 +233,7 @@ brew_fixes() {
   local RP; RP="$(type -P python3)" || RP=""
   cat > "$1/bin/brew" <<EOF
 #!/bin/sh
-echo "brew \$*" >> "$1/calls.log"
+{ printf %s brew; $LOGARGS; } >> "$1/calls.log"
 printf '#!/bin/sh\ncase "\$*" in *version_info*) echo 3.12.1 ;; *) exec "$RP" "\$@" ;; esac\n' > "$1/bin/python3"
 chmod +x "$1/bin/python3"
 EOF
@@ -238,7 +241,12 @@ EOF
 }
 # no_python <dir> -- the always-required tools, python3 absent, brew stubbed in.
 no_python() { sandbox "$1" chmod; ok_tools "$1"; rm -f "$1/bin/python3"; stub "$1" uname 0 Darwin; }
-callsfor() { { grep -c "^$2" "$1/calls.log" 2>/dev/null || true; } | head -n 1; }
+# callsfor <dir> <prefix> -- how many logged calls start with <prefix>, read as
+# literal text (the log's brackets would be a character class to grep).
+callsfor() {
+  [ -f "$1/calls.log" ] || { echo 0; return; }
+  awk -v p="$2" 'index($0, p) == 1 { n++ } END { print n + 0 }' "$1/calls.log"
+}
 
 echo "ask: python3 missing"
 I="$T/i1"; no_python "$I"; brew_fixes "$I"; printf 'n\n' > "$I/ans"
@@ -257,7 +265,7 @@ chk "only y or yes counts"             "$(callsfor "$I" brew)" 0
 I="$T/i2"; no_python "$I"; brew_fixes "$I"; printf 'y\n' > "$I/ans"
 stub "$I" uname 0 Darwin; real_git "$I"
 KIT_SOURCE="$KIT" BENDIT_TTY="$I/ans" expect_capture "install, answer yes, brew fixes it" run_installer "$I"
-chk "yes: brew ran once"               "$(callsfor "$I" 'brew install python@3.13')" 1
+chk "yes: brew ran once"               "$(callsfor "$I" 'brew [install] [python@3.13]')" 1
 chk "yes: the re-check passes, exit 0" "$EXPECT_CODE" 0
 chk "yes: says python3 is ready"       "$(nodots "$EXPECT_STDOUT" 'python3 is ready')" 1
 I="$T/i3"; no_python "$I"; stub "$I" brew 0; printf 'y\n' > "$I/ans"
@@ -286,7 +294,7 @@ I="$T/i4c"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/python3"; brew_fixe
 printf 'y\nn\nn\n' > "$I/ans"; printf '{"dependencies":{"next":"14"}}\n' > "$I/proj/package.json"
 real_git "$I"
 KIT_SOURCE="$KIT" BENDIT_TTY="$I/ans" expect_capture "answers are read one per question" run_installer "$I"
-chk "second answer was its own line"   "$(callsfor "$I" 'brew install python')" 1
+chk "second answer was its own line"   "$(callsfor "$I" 'brew [install] [python')" 1
 chk "then node and chrome declined, exit 0" "$EXPECT_CODE" 0
 chk "the web project is still web after python3 is installed" "$(nodots "$EXPECT_STDOUT" 'brew install node')" 1
 chk "chrome is asked too (third answer)" "$(nodots "$EXPECT_STDOUT" 'brew install --cask google-chrome')" 1
@@ -315,16 +323,35 @@ chk "inherited ASK_OPEN and fd 3 y: brew never ran" "$(callsfor "$I" brew)" 0
 
 echo "fetch and hand over"
 # ready_kit <dir> -- a machine that needs nothing, with the real git.
-ready_kit() { sandbox "$1"; ok_tools "$1"; real_git "$1"; }
+ready_kit() { sandbox "$1"; ok_tools "$1"; claude_reads "$1"; real_git "$1"; }
+# claude_reads <dir> -- a claude stub that, when handed over to, also logs the
+# first line of its stdin: the hand-over must give it the terminal, never the
+# script a curl pipe is feeding the installer.
+claude_reads() {
+  rm -f "$1/bin/claude"
+  {
+    printf '#!/bin/sh\n'
+    printf '{ printf %%s claude; %s; } >> "%s/calls.log"\n' "$LOGARGS" "$1"
+    printf 'case "$1" in\n'
+    printf '  --version) echo 2.1.328 ;;\n'
+    printf '  --plugin-dir) IFS= read -r l || l="<nothing>"; echo "claude stdin [$l]" >> "%s/calls.log" ;;\n' "$1"
+    printf 'esac\n'
+  } > "$1/bin/claude"
+  chmod +x "$1/bin/claude"
+}
+handed() { grep '^claude \[--plugin-dir\]' "$1/calls.log" | tail -n 1; }
+fed() { grep '^claude stdin ' "$1/calls.log" | tail -n 1; }
+F="$T/f1"; ready_kit "$F"; printf 'typed-at-terminal\n' > "$F/ans"; printf 'echo piped-script\n' > "$F/pipe"
 cache_of() { printf '%s/home/.cache/bendit' "$1"; }
 clones() { find "$(cache_of "$1")" -maxdepth 1 -name 'v*' 2>/dev/null | wc -l | tr -d ' '; }
-F="$T/f1"; ready_kit "$F"; : > "$F/ans"
 ( cd "$F/proj" && git init -q . )
-KIT_SOURCE="$KIT" BENDIT_TTY="$F/ans" expect_capture "ready, with a terminal" run_installer "$F"
+INSTALL_STDIN="$F/pipe" KIT_SOURCE="$KIT" BENDIT_TTY="$F/ans" expect_capture "ready, with a terminal" run_installer "$F"
 chk "ready: exits 0"                   "$EXPECT_CODE" 0
 chk "ready: one clone in the cache"    "$(clones "$F")" 1
 chk "ready: the clone is a git repo"   "$(git -C "$(cache_of "$F")/v$VERSION" rev-parse --verify HEAD >/dev/null 2>&1 && echo yes || echo no)" yes
-chk "ready: claude is the last call"   "$(tail -n 1 "$F/calls.log")" "claude --plugin-dir $(cache_of "$F")/v$VERSION/plugins/bendit /adopt"
+chk "ready: claude is handed over to"  "$(handed "$F")" "claude [--plugin-dir] [$(cache_of "$F")/v$VERSION/plugins/bendit] [/adopt]"
+chk "ready: claude reads the terminal, not the pipe" "$(fed "$F")" "claude stdin [typed-at-terminal]"
+chk "ready: the hand-over is the last thing" "$(tail -n 1 "$F/calls.log")" "claude stdin [typed-at-terminal]"
 chk "ready: nothing new in the project" "$(cd "$F/proj" && git status --porcelain | wc -l | tr -d ' ')" 0
 chk "ready: no temp folder left behind" "$(find "$(cache_of "$F")" -name '.fetch.*' | wc -l | tr -d ' ')" 0
 mkdir -p "$(cache_of "$F")/v$VERSION/marker-dir"
@@ -332,8 +359,8 @@ KIT_SOURCE="$T/gone" BENDIT_TTY="$F/ans" expect_capture "second run" run_install
 chk "second run: exits 0"              "$EXPECT_CODE" 0
 chk "second run: still one clone"      "$(clones "$F")" 1
 chk "second run: the source was not asked again" "$(find "$(cache_of "$F")/v$VERSION" -name marker-dir | wc -l | tr -d ' ')" 1
-chk "second run: same hand-over"       "$(tail -n 1 "$F/calls.log")" "claude --plugin-dir $(cache_of "$F")/v$VERSION/plugins/bendit /adopt"
-chk "second run: two claude calls in all" "$(callsfor "$F" "claude --plugin-dir")" 2
+chk "second run: same hand-over"       "$(handed "$F")" "claude [--plugin-dir] [$(cache_of "$F")/v$VERSION/plugins/bendit] [/adopt]"
+chk "second run: two claude calls in all" "$(callsfor "$F" "claude [--plugin-dir]")" 2
 chk "second run: no install calls"     "$(callsfor "$F" brew)" 0
 F="$T/f2"; ready_kit "$F"; : > "$F/ans"
 mkdir -p "$(cache_of "$F")/v$VERSION/plugins"; : > "$(cache_of "$F")/v$VERSION/stale"
@@ -362,19 +389,20 @@ chk "unreachable: exits 1"             "$EXPECT_CODE" 1
 chk "unreachable: says so"             "$(nodots "$EXPECT_STDERR" 'could not fetch bendit from')" 1
 chk "unreachable: no v folder left"    "$(clones "$F")" 0
 chk "unreachable: no temp folder left" "$(find "$(cache_of "$F")" -name '.fetch.*' | wc -l | tr -d ' ')" 0
-chk "unreachable: claude not called"   "$(callsfor "$F" "claude --plugin-dir")" 0
+chk "unreachable: claude not called"   "$(callsfor "$F" "claude [--plugin-dir]")" 0
 F="$T/f4"; ready_kit "$F"
 KIT_SOURCE="$KIT" BENDIT_TTY=/nonexistent expect_capture "ready, no terminal" run_installer "$F"
 chk "no terminal: exits 0"             "$EXPECT_CODE" 0
 chk "no terminal: prints the command"  "$(nodots "$EXPECT_STDOUT" '^  claude --plugin-dir .*/plugins/bendit "/adopt"$')" 1
-chk "no terminal: claude not called"   "$(callsfor "$F" "claude --plugin-dir")" 0
-F="$T/f5"; ready_kit "$F"; : > "$F/ans"
+chk "no terminal: claude not called"   "$(callsfor "$F" "claude [--plugin-dir]")" 0
+F="$T/f5"; ready_kit "$F"; printf 'typed-at-terminal\n' > "$F/ans"
 mkdir -p "$F/h ome" "$F/my app"; ( cd "$F/my app" && git init -q . )
 expect_capture "space in HOME, with a terminal" \
   env -i PATH="$F/bin" HOME="$F/h ome" BENDIT_TTY="$F/ans" BENDIT_SOURCE="$KIT" BENDIT_APP_DIRS="$F/noapps" \
   bash -c 'cd "$1" && bash "$2" </dev/null' _ "$F/my app" "$INSTALL"
 chk "space, terminal: exits 0"         "$EXPECT_CODE" 0
-chk "space, terminal: claude got the unsplit path" "$(tail -n 1 "$F/calls.log")" "claude --plugin-dir $F/h ome/.cache/bendit/v$VERSION/plugins/bendit /adopt"
+chk "space, terminal: claude got the unsplit path" "$(handed "$F")" "claude [--plugin-dir] [$F/h ome/.cache/bendit/v$VERSION/plugins/bendit] [/adopt]"
+chk "space, terminal: claude reads the terminal" "$(fed "$F")" "claude stdin [typed-at-terminal]"
 expect_capture "space in HOME, no terminal" \
   env -i PATH="$F/bin" HOME="$F/h ome" BENDIT_TTY=/nonexistent BENDIT_SOURCE="$KIT" BENDIT_APP_DIRS="$F/noapps" \
   bash -c 'cd "$1" && bash "$2" </dev/null' _ "$F/my app" "$INSTALL"

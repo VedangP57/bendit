@@ -21,7 +21,7 @@ cannot make it fail, it is not testing anything.
 
 When the evidence came from a command you wrote, that command is part of the
 claim. A green result from an unfalsified checker is evidence rung 1, not rung 4
-(see `prove-it-works`).
+(see `engineering-habits`).
 
 ## Shell traps that produce confident false passes
 

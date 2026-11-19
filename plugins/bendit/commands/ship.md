@@ -74,7 +74,7 @@ git diff -U0 "$MB" | grep -E "^\+.*$P"
 git ls-files -z --others --exclude-standard | while IFS= read -r -d '' f; do grep -nHIE "$P" -- "$f"; done
 ```
 
-Each new suppression needs an inline reason explaining why *the rule is wrong here*, not why the code is inconvenient, plus a line in the PR body. A suppression added to make a gate pass is a failure, not a fix (see `fix-root-causes`). Never disable a rule project-wide to clear a local violation.
+Each new suppression needs an inline reason explaining why *the rule is wrong here*, not why the code is inconvenient, plus a line in the PR body. A suppression added to make a gate pass is a failure, not a fix (see `engineering-habits`). Never disable a rule project-wide to clear a local violation.
 
 ## 4. Secrets
 

@@ -42,7 +42,7 @@ git ls-files -z --others --exclude-standard | while IFS= read -r -d '' f; do ech
 
 Open the review by stating the base, where it came from, the merge-base and the file counts from the `reviewing:` line.
 
-Give every finding as `file:line`, what is wrong, and the concrete consequence. Say "clean" per section when it is. State the evidence rung for anything you assert (see `prove-it-works`): a review that sounds right is worthless if it was not checked.
+Give every finding as `file:line`, what is wrong, and the concrete consequence. Say "clean" per section when it is. State the evidence rung for anything you assert (see `engineering-habits`): a review that sounds right is worthless if it was not checked.
 
 ---
 
@@ -55,7 +55,7 @@ Every new or modified request handler, RPC, job or CLI entry: does it check auth
 Any value compiled into a client bundle or shipped binary (public env-var prefixes, embedded config) that is used as a credential rather than as configuration. It is public in every build that shipped.
 
 ### A3. Errors reported as success
-`catch` blocks that return a success shape, defaults (`?? []`, `|| ''`, `or {}`) covering a value that should not be missing, and success status codes on a failed operation. Each converts a loud failure into a quiet wrong answer (see `fix-root-causes`).
+`catch` blocks that return a success shape, defaults (`?? []`, `|| ''`, `or {}`) covering a value that should not be missing, and success status codes on a failed operation. Each converts a loud failure into a quiet wrong answer (see `engineering-habits`).
 
 ### A4. New type escapes and suppressions
 Every added `any`, cast-to-silence, `@ts-ignore`, `# type: ignore`, `# noqa`, `eslint-disable`, `#[allow(...)]`, `//nolint`. Ask what the underlying rule was protecting. A suppression added to pass a gate is a defect.
@@ -67,7 +67,7 @@ Flag added comments that narrate a workaround, a fallback, a "for now" or a "saf
 For each factual claim the diff adds (a comment, doc, PR text, commit message), open the code it describes and confirm it. A claim with no `file:line` behind it is a question, not a fact.
 
 ### A7. Second implementations
-Does this add a second way to do something the project already does once: another formatter, date helper, logger, client, auth check? Name the existing one (see `subtract-before-you-add`).
+Does this add a second way to do something the project already does once: another formatter, date helper, logger, client, auth check? Name the existing one (see `engineering-habits`).
 
 ### A8. Dead or shadowed configuration
 New or edited config: is the file actually read (a second config of the same tool that wins, a key the tool reads from somewhere else, a value in the wrong unit)? Did an exclude/ignore list grow, taking files out of a gate?
@@ -76,7 +76,7 @@ New or edited config: is the file actually read (a second config of the same too
 Changes unrelated to the stated purpose? Tidying folded into a dependency bump is invisible to review. Call it out and suggest splitting.
 
 ### A10. Tests that cannot fail
-For every added test: would it still pass if the functions it calls returned `undefined`? Does any assertion pin behaviour that is itself wrong? (see `test-behavior-not-implementation`)
+For every added test: would it still pass if the functions it calls returned `undefined`? Does any assertion pin behaviour that is itself wrong? (see `engineering-habits`)
 
 ---
 

@@ -48,10 +48,18 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
    https://www.google.com/chrome/) *[no]*. A "no" turns that feature off with why
    `you declined <dep>` (e.g. `you declined Chrome`); it never stops adoption.
    If `ux-design-laws` is on, it needs the `bendit-web` add-on. Run
-   `claude plugin list` (read-only). If `bendit-web@bendit` is already enabled
-   at project scope here, skip the question and the install. Otherwise ask
-   *"Run `claude plugin install bendit-web@bendit --scope project` (writes
-   only this project's `.claude/settings.json`)? [no]"*. On a yes, run it now,
+   `claude plugin list --json` (read-only; the human `claude plugin list` shows
+   the project-scope installs of every project without saying which). It is a
+   list of objects with `id`, `scope`, `enabled` and, for project scope,
+   `projectPath`. Skip the question and the install only if one entry has
+   `id == "bendit-web@bendit"`, `scope == "project"`, `enabled == true` and
+   `projectPath == ROOT` (the project root). An entry for another project's
+   `projectPath`, or at `user` scope, does not count. If `--json` fails or
+   prints something that is not that list, treat the add-on as not installed
+   and ask. Otherwise ask
+   *"Run `claude plugin install bendit-web@bendit --scope project` (changes
+   this project's `.claude/settings.json`; Claude Code also records the
+   install in its own plugin registry)? [no]"*. On a yes, run it now,
    read its output, and show the `.claude/settings.json` diff. If it is declined,
    `ux-design-laws` is off with why `you declined bendit-web`. If it fails, show
    its output and record off with why `bendit-web install failed`.
@@ -64,6 +72,9 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
    python3 "$KIT/scripts/features.py" set "$ROOT" ls-guard off "type ls in zsh: ls is the real ls" &&
    python3 "$KIT/scripts/features.py" show "$ROOT"
    ```
+   The lines above are an example: substitute the state you detected and the
+   real why for each feature. Copied as-is they write false evidence into a
+   committed file.
    Re-running it on an unchanged project rewrites the same bytes.
 4. **Build the project layer.** Follow `references/project-layer.md`:
    `AGENTS.md` (which records the integration and production branches),
@@ -95,6 +106,7 @@ LIVE WIRING                       | PASS / FAIL / inconclusive / pending | 5
 
 FEATURES (.claude/bendit.json)    | on/off | why             | measured?
 <every feature>                   | on/off | <its source>    | not yet measured
+(an off feature: install its missing dependency or add-on, then re-run /adopt)
 
 ENFORCED (refuses, exit 2)        | proved by
 <guard>                           | prove.sh rows + live check

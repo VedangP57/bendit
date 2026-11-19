@@ -73,7 +73,7 @@ filters with the integration branch. A step with `continue-on-error: true` or
 
 `CLAUDE.md`, `AGENTS.md`, `.claude/settings.json`, `.claude/settings.local.json`
 (personal, usually untracked), `.claude/hooks/`, `.claude/commands/`,
-`.claude/skills/`, `.claude/verify-harness` and `.claude/vendor/bendit/VENDORED_FROM`
+`.claude/skills/`, `.claude/verify-harness`, `.claude/bendit.json` and `.claude/vendor/bendit/VENDORED_FROM`
 (a previous adoption: read them, and the `Integration branch:` line in
 `AGENTS.md`, and treat this run as an update), plus other agents'
 files (`.cursorrules`, `.github/copilot-instructions.md`) and git hooks

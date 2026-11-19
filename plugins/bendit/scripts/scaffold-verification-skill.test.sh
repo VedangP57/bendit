@@ -22,7 +22,21 @@ chk() { if [ "$2" = "$3" ]; then printf '  ok    %s\n' "$1"; pass=$((pass+1));
         else printf '  FAIL  %s (got [%s], wanted [%s])\n' "$1" "$2" "$3"; fail=$((fail+1)); fi; }
 has() { case "$3" in *"$2"*) chk "$1" y y;; *) chk "$1 (missing '$2' in: $3)" n y;; esac; }
 hasnt() { case "$3" in *"$2"*) chk "$1 (unexpected '$2' in: $3)" y n;; *) chk "$1" n n;; esac; }
-free_port() { python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1])'; }
+# A free port BELOW the kernel's ephemeral range. Port 0 hands out 49152+, and a
+# registry block based near 65500 leaves no room for the next one: ports.py
+# rightly refuses past 65535, which made later cases fail at random (seen
+# 2026-11-19, "no free block left ... would start at 65625").
+free_port() { python3 -c '
+import random, socket
+for p in random.sample(range(20000, 40000), 200):
+    s = socket.socket()
+    try:
+        s.bind(("127.0.0.1", p)); print(p); break
+    except OSError:
+        continue
+    finally:
+        s.close()
+'; }
 gcommit() { git -C "$1" add -A && git -C "$1" -c user.email=t@example.com -c user.name=t commit -qm "${2:-init}"; }
 
 . "$SD/expect.sh"
@@ -312,6 +326,11 @@ printf 'import unittest\nfrom pylib import add\nclass T(unittest.TestCase):\n   
 gcommit "$L"
 o=$(bash "$SCAF" "$L" 2>&1; echo "rc=$?"); has "a python library scaffolds cleanly" "rc=0" "$o"
 chk "  ...and writes NO app harness (nothing to launch)" "$([ -d "$L/.claude/skills" ] && echo y || echo n)" "n"
+# The Stop gate runs a harness only after the PERSON approves it; the scaffold
+# is where they first meet it, so it must say how, in their own terminal.
+has "  ...and tells the person to approve the harness" "will not run .claude/verify-harness until you approve it" "$o"
+has "  ...with the exact --trust command" "require-verification.py --trust" "$o"
+has "  ...to run in their own terminal, not via the agent" "YOUR OWN terminal" "$o"
 hasnt "  ...and takes no port (no registry key for it)" "$L" "$(cat "$T/cfg/ports.json")"
 o=$( (cd "$L" && sh .claude/verify-harness) 2>&1; echo "rc=$?"); has "the generated harness passes when the tests pass" "rc=0" "$o"
 has "  ...because it RAN them" "Ran 1 test" "$o"

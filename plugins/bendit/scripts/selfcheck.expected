@@ -1,0 +1,108 @@
+=== healthy kit
+exit 0
+(silent)
+
+=== healthy kit, --verbose (what /bendit:doctor prints)
+exit 0
+--- stdout
+bendit selfcheck: <kit>
+
+hook                           | event                                 | result
+-------------------------------+---------------------------------------+-------
+block-dangerous-bash.py        | PreToolUse Bash                       | ok
+block-zsh-wordsplit.py         | PreToolUse Bash                       | ok
+require-verification.py --pre  | PreToolUse Bash                       | ok
+path-contracts.py              | PreToolUse Write|Edit|MultiEdit       | ok
+post-edit-review.py --pre      | PreToolUse Write|Edit|MultiEdit       | ok
+post-edit-review.py            | PostToolUse Edit|Write|MultiEdit      | ok
+require-verification.py --mark | PostToolUse Edit|Write|MultiEdit|Bash | ok
+warn-suppressed-stderr.py      | PostToolUse Bash                      | ok
+require-verification.py        | Stop                                  | ok
+
+selfcheck: all 9 hooks answered their probe
+
+=== block-dangerous-bash replaced by exit 0
+exit 0
+--- stdout
+-- systemMessage (the person)
+bendit: 1 of 9 hooks is OFF -- it could not run, or let a known-bad call through, so that check is not protecting you this session. The rest still work.
+  - block-dangerous-bash.py (PreToolUse Bash): exit 0 on its known-bad probe: it no longer refuses `git push --force`
+    this guard is OFF. Fix: it runs but lets a known-bad call through: reinstall, or revert a local edit to it.
+After fixing, start a new session or run /bendit:doctor to re-check.
+-- hookEventName
+SessionStart
+-- additionalContext (the model)
+bendit self-check at session start: the hooks below are OFF (or could not be checked) this session, so their protection is NOT active:
+  - block-dangerous-bash.py: exit 0 on its known-bad probe: it no longer refuses `git push --force` -- fix: it runs but lets a known-bad call through: reinstall, or revert a local edit to it
+Tell the user in your first reply, and do not rely on these guards: run nothing destructive without their explicit go-ahead. /bendit:doctor re-checks.
+
+=== selfcheck.py has a syntax error (the hooks.json fallback)
+exit 0
+--- stdout
+-- systemMessage (the person)
+bendit: its session-start self-check could not run, so EVERY bendit guard is probably OFF (a hook that cannot start refuses nothing). Likely fix: put python3 (3.9+) on the PATH Claude Code runs with; on macOS, if the plugin folder became unreadable, give your terminal app Full Disk Access (System Settings > Privacy & Security), then restart it; otherwise reinstall: claude plugin install bendit@bendit. Then run /bendit:doctor.
+-- hookEventName
+SessionStart
+-- additionalContext (the model)
+bendit self-check could not run at session start, so its guards (refusing destructive commands, the verification Stop gate) are probably OFF this session. Tell the user in your first reply, and act as if no bendit guard protects this session: run nothing destructive without their explicit go-ahead. Likely cause: python3 not on PATH, or the plugin folder unreadable (macOS: Full Disk Access for the terminal app). /bendit:doctor re-checks.
+
+=== the probe table raises on import
+exit 0
+--- stdout
+-- systemMessage (the person)
+bendit: its self-check could not check everything; treat what it could not check as OFF.
+  - selfcheck: the probe table (scripts/probes.py) did not load: RuntimeError: synthetic; NO guard was checked
+    whether it works is UNKNOWN. Fix: reinstall (claude plugin install bendit@bendit).
+After fixing, start a new session or run /bendit:doctor to re-check.
+-- hookEventName
+SessionStart
+-- additionalContext (the model)
+bendit self-check at session start: the hooks below are OFF (or could not be checked) this session, so their protection is NOT active:
+  - selfcheck: the probe table (scripts/probes.py) did not load: RuntimeError: synthetic; NO guard was checked -- fix: reinstall (claude plugin install bendit@bendit)
+Tell the user in your first reply, and do not rely on these guards: run nothing destructive without their explicit go-ahead. /bendit:doctor re-checks.
+
+=== hooks.json is not valid JSON
+exit 0
+--- stdout
+-- systemMessage (the person)
+bendit: its self-check could not check everything; treat what it could not check as OFF.
+  - selfcheck: hooks/hooks.json could not be read: JSONDecodeError: Expecting value: line 1 column 27 (char 26); NO guard was checked
+    whether it works is UNKNOWN. Fix: reinstall (claude plugin install bendit@bendit).
+After fixing, start a new session or run /bendit:doctor to re-check.
+-- hookEventName
+SessionStart
+-- additionalContext (the model)
+bendit self-check at session start: the hooks below are OFF (or could not be checked) this session, so their protection is NOT active:
+  - selfcheck: hooks/hooks.json could not be read: JSONDecodeError: Expecting value: line 1 column 27 (char 26); NO guard was checked -- fix: reinstall (claude plugin install bendit@bendit)
+Tell the user in your first reply, and do not rely on these guards: run nothing destructive without their explicit go-ahead. /bendit:doctor re-checks.
+
+=== hooks.json declares no guards
+exit 0
+--- stdout
+-- systemMessage (the person)
+bendit: its self-check could not check everything; treat what it could not check as OFF.
+  - selfcheck: hooks/hooks.json declares no hook to check; NO guard was checked
+    whether it works is UNKNOWN. Fix: reinstall (claude plugin install bendit@bendit).
+After fixing, start a new session or run /bendit:doctor to re-check.
+-- hookEventName
+SessionStart
+-- additionalContext (the model)
+bendit self-check at session start: the hooks below are OFF (or could not be checked) this session, so their protection is NOT active:
+  - selfcheck: hooks/hooks.json declares no hook to check; NO guard was checked -- fix: reinstall (claude plugin install bendit@bendit)
+Tell the user in your first reply, and do not rely on these guards: run nothing destructive without their explicit go-ahead. /bendit:doctor re-checks.
+
+=== a hook selfcheck has no probe for
+exit 0
+--- stdout
+-- systemMessage (the person)
+bendit: its self-check could not check everything; treat what it could not check as OFF.
+  - new-guard-nobody-probed.py (PreToolUse): selfcheck has no probe for it in scripts/probes.py
+    whether it works is UNKNOWN. Fix: add a probe for it to scripts/probes.py.
+After fixing, start a new session or run /bendit:doctor to re-check.
+-- hookEventName
+SessionStart
+-- additionalContext (the model)
+bendit self-check at session start: the hooks below are OFF (or could not be checked) this session, so their protection is NOT active:
+  - new-guard-nobody-probed.py: selfcheck has no probe for it in scripts/probes.py -- fix: add a probe for it to scripts/probes.py
+Tell the user in your first reply, and do not rely on these guards: run nothing destructive without their explicit go-ahead. /bendit:doctor re-checks.
+

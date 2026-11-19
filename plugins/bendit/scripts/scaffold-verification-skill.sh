@@ -1044,6 +1044,13 @@ report
 if [ "$KIND" = web ] && git -C "$REPO" check-ignore -q .env.verify.example 2>/dev/null; then
   echo "  WARNING   : .env.verify.example is git-ignored here ($(git -C "$REPO" check-ignore -v .env.verify.example | cut -f1)); add '!.env.verify.example' to .gitignore so clones get it"
 fi
+# The Stop gate runs a harness only once the PERSON has approved its exact
+# content, so a cloned repo cannot get code run unasked. Say how, every time.
+echo
+echo "  approve   : the Stop gate will not run .claude/verify-harness until you approve it."
+echo "              In YOUR OWN terminal (not through the agent), run:"
+echo "                python3 $(printf '%q' "$SCRIPTS/require-verification.py") --trust $(printf '%q' "$REPO")"
+echo "              read the harness it shows, answer y. Re-run after any change to it."
 if [ -n "$TODOS" ]; then
   echo
   echo "scaffold: NOT DONE -- the harness refuses (exit 2) until each TODO above is replaced"

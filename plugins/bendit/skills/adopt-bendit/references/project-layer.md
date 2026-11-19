@@ -50,6 +50,14 @@ must exit non-zero when something breaks, and must not need a TTY or network
 credentials. For a web app, follow the `create-verification-skill` skill for the
 parts that need judgement (which flows matter, what "ready" means).
 
+**The person approves the harness; you never do.** The Stop gate runs
+`.claude/verify-harness` only once the person has approved its exact content
+(so a cloned repo cannot get code run unasked), and again after any change.
+The scaffold prints the command. Show it to the person and ask them to run it
+**in their own terminal**: the Bash guard refuses it when the agent tries, by
+design. Until they have, `prove.sh`'s "approved by you" row fails and adoption
+is NOT COMPLETE.
+
 ## 3. Where the facts go (and why there is no config file)
 
 Every fact detection and the interview settled is written where something

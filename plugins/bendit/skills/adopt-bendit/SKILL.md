@@ -43,7 +43,9 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
 4. **Build the project layer.** Follow `references/project-layer.md`:
    `AGENTS.md` (which records the integration and production branches),
    `.claude/verify-harness`, a verification skill if there is an app, CI if
-   absent. Facts are written only where something reads them.
+   absent. Facts are written only where something reads them. Then ask the
+   person to approve the harness in their own terminal with the command the
+   scaffold printed; you cannot, and must not try.
 5. **Prove it.** Follow `references/prove.md`. Run
    `bash "$KIT/scripts/prove.sh" <project root>`: it feeds every guard a
    known-bad and a known-good payload, dry-runs the Stop gate in a throwaway

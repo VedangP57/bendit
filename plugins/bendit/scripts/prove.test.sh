@@ -33,6 +33,19 @@ repo() {
   printf 'x = 1\n' > "$1/app.py"; printf '# rules\n' > "$1/AGENTS.md"
   if [ -n "$2" ]; then mkdir -p "$1/.claude"; printf '# what verifies this repo\n%s\n' "$2" > "$1/.claude/verify-harness"; fi
   git -C "$1" add -A && git -C "$1" -c user.email=t@example.com -c user.name=t commit -qm init
+  # A test repo's harness is approved, in a THROWAWAY approval list (below), so
+  # each case tests what it names. "unapproved" opts out to test that row.
+  [ -n "$2" ] && [ "${3:-}" != unapproved ] && approve "$1"
+  return 0
+}
+# The person's approval list, redirected so no test reads or writes the real one.
+export BENDIT_CONFIG_DIR="$T/trust"
+approve() { python3 - "$KIT/scripts/require-verification.py" "$1" <<'PY'
+import importlib.util, pathlib, sys
+spec = importlib.util.spec_from_file_location("rv", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+m.trust_add(pathlib.Path(sys.argv[2]))
+PY
 }
 # kitcopy <dir> -- a copy of this plugin to break one thing in
 kitcopy() { mkdir -p "$1"; cp -R "$KIT/." "$1/"; rm -rf "$1/scripts/__pycache__"; }
@@ -80,6 +93,24 @@ echo "NO HARNESS"
 N="$T/none"; repo "$N" ''
 expect_capture "no harness" bash "$SD/prove.sh" "$N"
 chk "no .claude/verify-harness is a failure, not a skip" "$EXPECT_CODE" "1"
+
+echo
+echo "A HARNESS THE PERSON HAS NOT APPROVED"
+# The Stop gate refuses to run an unapproved harness, so adoption is not done
+# until the person approves it -- in their own terminal, never via the agent.
+U="$T/unapproved"; repo "$U" 'exit 0' unapproved
+expect_capture "unapproved harness" bash "$SD/prove.sh" "$U"
+chk "an unapproved harness fails prove (exit 1)" "$EXPECT_CODE" "1"
+has "  ...on the approval row" "harness: approved by you for the Stop gate" "$EXPECT_STDOUT"
+has "  ...giving the person the exact command" "--trust" "$EXPECT_STDOUT"
+has "  ...and saying it is theirs to run" "YOUR OWN terminal" "$EXPECT_STDOUT"
+approve "$U"
+expect_capture "approved harness" bash "$SD/prove.sh" "$U"
+chk "CONTROL: once approved, the same repo passes (exit 0)" "$EXPECT_CODE" "0"
+printf 'exit 0 # edited\n' >> "$U/.claude/verify-harness"
+expect_capture "harness changed after approval" bash "$SD/prove.sh" "$U"
+chk "a harness changed after approval fails again (exit 1)" "$EXPECT_CODE" "1"
+has "  ...saying it changed" "changed since you approved it" "$EXPECT_STDOUT"
 
 echo
 echo "A BROKEN GUARD"

@@ -151,14 +151,19 @@ STUB="$T/stub"; mkdir -p "$STUB"
 # stub <json-file | ERROR> -- a `claude` that prints the file, or fails.
 stub() {
   if [ "$1" = ERROR ]; then printf '#!/bin/sh\necho "boom: not logged in" >&2\nexit 1\n' > "$STUB/claude"
-  else printf '#!/bin/sh\ncat "%s"\n' "$1" > "$STUB/claude"; fi
+  else # Like the real CLI, the answer depends on the cwd: from anywhere but the
+  # project root it lists nothing, so a check run from elsewhere cannot pass.
+  printf '#!/bin/sh\n[ "$(pwd -P)" = "%s" ] || { echo "[]"; exit 0; }\ncat "%s"\n' "$UXREAL" "$1" > "$STUB/claude"; fi
   chmod +x "$STUB/claude"
 }
 with_stub() { PATH="$STUB:$PATH" expect_capture "$@"; }
-printf '[{"id":"bendit-web@bendit","scope":"project","enabled":true,"projectPath":"%s/"}]\n' "$UXREAL" > "$T/ux-match.json"
-printf '[{"id":"bendit-web@bendit","scope":"project","enabled":true,"projectPath":"%s/elsewhere"}]\n' "$T" > "$T/ux-other.json"
-printf '[{"id":"bendit-web@bendit","scope":"user","enabled":true}]\n' > "$T/ux-user.json"
-printf '[{"id":"bendit-web@bendit","scope":"project","enabled":false,"projectPath":"%s"}]\n' "$UXREAL" > "$T/ux-disabled.json"
+# Every fixture carries both fields, as the real CLI emits them: `enabled` is
+# true for any installed entry; `projectEnabled` is the per-project signal.
+ux_json() { printf '[{"id":"bendit-web@bendit","scope":"%s","enabled":%s,"projectEnabled":%s,"projectPath":"%s"}]\n' "$1" "$2" "$3" "$4"; }
+ux_json project true true "$UXREAL/" > "$T/ux-match.json"
+ux_json project true true "$T/elsewhere" > "$T/ux-other.json"
+printf '[{"id":"bendit-web@bendit","scope":"user","enabled":true,"projectEnabled":false}]\n' > "$T/ux-user.json"
+ux_json project true false "$UXREAL" > "$T/ux-disabled.json"
 stub "$T/ux-match.json"
 with_stub "ux-design-laws installed here" bash "$SD/prove.sh" "$UX"
 chk "ux-design-laws: add-on enabled at project scope for this repo passes (exit 0)" "$EXPECT_CODE" "0"
@@ -174,7 +179,8 @@ chk "user scope alone fails: it does not prove THIS project has it (exit 1)" "$E
 has "  ...saying user scope only" "installed at user scope only" "$EXPECT_STDOUT"
 stub "$T/ux-disabled.json"
 with_stub "ux-design-laws installed but disabled" bash "$SD/prove.sh" "$UX"
-chk "an installed but DISABLED add-on fails (exit 1)" "$EXPECT_CODE" "1"
+chk "installed (enabled) but projectEnabled false fails (exit 1)" "$EXPECT_CODE" "1"
+has "  ...saying disabled" "installed for this project but disabled" "$EXPECT_STDOUT"
 stub ERROR
 with_stub "claude plugin list errors" bash "$SD/prove.sh" "$UX"
 chk "a claude CLI error fails (exit 1), never passes by silence" "$EXPECT_CODE" "1"

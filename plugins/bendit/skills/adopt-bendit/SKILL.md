@@ -48,12 +48,18 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
    https://www.google.com/chrome/) *[no]*. A "no" turns that feature off with why
    `you declined <dep>` (e.g. `you declined Chrome`); it never stops adoption.
    If `ux-design-laws` is on, it needs the `bendit-web` add-on. Run
-   `claude plugin list --json` (read-only; the human `claude plugin list` shows
-   the project-scope installs of every project without saying which). It is a
-   list of objects with `id`, `scope`, `enabled` and, for project scope,
-   `projectPath`. Skip the question and the install only if one entry has
-   `id == "bendit-web@bendit"`, `scope == "project"`, `enabled == true` and
-   `projectPath == ROOT` (the project root). An entry for another project's
+   `claude plugin list --json` **from the project root** (read-only; the human
+   `claude plugin list` shows the project-scope installs of every project
+   without saying which, and the JSON's per-project fields depend on the
+   directory it runs in). It is a list of objects with `id`, `scope`, `enabled`
+   (installed, whatever the project), `projectEnabled` (on for the current
+   project) and, for project scope, `projectPath`. `ROOT` is
+   `git rev-parse --show-toplevel`; resolve it and each `projectPath` the same
+   way (`cd "$p" && pwd -P`), no trailing slash. A `projectPath` that is
+   missing or does not resolve is not a match. Skip the question and the
+   install only if one entry has `id == "bendit-web@bendit"`,
+   `scope == "project"`, resolved `projectPath == ROOT` and
+   `projectEnabled == true`. An entry for another project's
    `projectPath`, or at `user` scope, does not count. If `--json` fails or
    prints something that is not that list, treat the add-on as not installed
    and ask. Otherwise ask

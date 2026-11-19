@@ -9,6 +9,9 @@ artifacts/
 
 # session state written by require-verification.py
 .claude/.bendit-state/
+# state other copies of the gate write when they run in this repo (the
+# private kit Bendit was extracted from uses .verify-state)
+.claude/.verify-state/
 
 # bytecode from the hook scripts, written whenever one imports another
 # (the guards import shell_text.py)

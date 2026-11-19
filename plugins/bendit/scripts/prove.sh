@@ -301,7 +301,42 @@ else:
 # check that proves the feature works when it is ON. Plan 3 fills it. A feature
 # that is on with no check here is a FAIL: prove.sh will not vouch for what it
 # cannot run.
-FEATURE_CHECKS = {}
+def _check_ux_design_laws(repo, kit):
+    """ON means the bendit-web add-on is installed for THIS project: an entry of
+    `claude plugin list --json` with id bendit-web@bendit, project scope,
+    enabled, and a projectPath that is this repo (realpaths compared). A
+    project-scope entry for another project, or user scope alone, proves
+    nothing about this one."""
+    def norm(path):
+        return os.path.realpath(path).rstrip('/')
+    try:
+        p = subprocess.run(['claude', 'plugin', 'list', '--json'], capture_output=True,
+                           text=True, timeout=60, stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f'could not check (claude plugin list failed: {type(e).__name__}: {e})'
+    if p.returncode != 0:
+        return False, f'could not check (claude plugin list failed: exit {p.returncode}: {short(p.stderr or p.stdout, 200)})'
+    try:
+        listed = json.loads(p.stdout)
+        if not isinstance(listed, list):
+            raise ValueError('not a list')
+        mine = [e for e in listed if isinstance(e, dict) and e.get('id') == 'bendit-web@bendit']
+    except ValueError as e:
+        return False, f'could not check (claude plugin list failed: unreadable output: {e})'
+    here = norm(repo)
+    for e in mine:
+        pp = e.get('projectPath')
+        if e.get('scope') == 'project' and e.get('enabled') is True and isinstance(pp, str) and norm(pp) == here:
+            return True, 'installed for this project'
+    if any(e.get('scope') == 'project' and e.get('enabled') is not True and isinstance(e.get('projectPath'), str)
+           and norm(e['projectPath']) == here for e in mine):
+        return False, 'bendit-web is installed for this project but disabled'
+    if any(e.get('scope') == 'user' for e in mine):
+        return False, 'bendit-web is installed at user scope only, not for this project'
+    return False, 'bendit-web is not installed here'
+
+
+FEATURE_CHECKS = {'ux-design-laws': _check_ux_design_laws}
 label = 'features: .claude/bendit.json readable'
 try:
     feats = F.load(repo)

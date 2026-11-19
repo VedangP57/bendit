@@ -140,6 +140,49 @@ F3="$T/feat-bad"; repo "$F3" 'exit 0'
 expect_capture "malformed bendit.json" bash "$SD/prove.sh" "$F3"
 chk "a malformed bendit.json fails prove" "$EXPECT_CODE" "1"
 has "  ...on the readable row" "features: .claude/bendit.json readable" "$EXPECT_STDOUT"
+
+# ux-design-laws: ON means the add-on is installed for THIS project. The check
+# asks `claude plugin list --json`; here `claude` is a stub on PATH that prints
+# fixture JSON (the real fields: id, scope, enabled, projectPath).
+BENDIT_JSON='{"version":1,"features":{"ux-design-laws":{"on":true,"why":"a web app"}}}'
+UX="$T/feat-ux"; repo "$UX" 'exit 0'; UXREAL=$(cd "$UX" && pwd -P)
+unset BENDIT_JSON
+STUB="$T/stub"; mkdir -p "$STUB"
+# stub <json-file | ERROR> -- a `claude` that prints the file, or fails.
+stub() {
+  if [ "$1" = ERROR ]; then printf '#!/bin/sh\necho "boom: not logged in" >&2\nexit 1\n' > "$STUB/claude"
+  else printf '#!/bin/sh\ncat "%s"\n' "$1" > "$STUB/claude"; fi
+  chmod +x "$STUB/claude"
+}
+with_stub() { PATH="$STUB:$PATH" expect_capture "$@"; }
+printf '[{"id":"bendit-web@bendit","scope":"project","enabled":true,"projectPath":"%s/"}]\n' "$UXREAL" > "$T/ux-match.json"
+printf '[{"id":"bendit-web@bendit","scope":"project","enabled":true,"projectPath":"%s/elsewhere"}]\n' "$T" > "$T/ux-other.json"
+printf '[{"id":"bendit-web@bendit","scope":"user","enabled":true}]\n' > "$T/ux-user.json"
+printf '[{"id":"bendit-web@bendit","scope":"project","enabled":false,"projectPath":"%s"}]\n' "$UXREAL" > "$T/ux-disabled.json"
+stub "$T/ux-match.json"
+with_stub "ux-design-laws installed here" bash "$SD/prove.sh" "$UX"
+chk "ux-design-laws: add-on enabled at project scope for this repo passes (exit 0)" "$EXPECT_CODE" "0"
+has "  ...on its own feature row, as PASS" "feature: ux-design-laws" "$EXPECT_STDOUT"
+chk "  ...with no failure listed" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -c '^failures:')" "0"
+stub "$T/ux-other.json"
+with_stub "ux-design-laws installed for another project" bash "$SD/prove.sh" "$UX"
+chk "a project-scope entry for a DIFFERENT project fails (exit 1)" "$EXPECT_CODE" "1"
+has "  ...saying it is not installed here" "bendit-web is not installed here" "$EXPECT_STDOUT"
+stub "$T/ux-user.json"
+with_stub "ux-design-laws user scope only" bash "$SD/prove.sh" "$UX"
+chk "user scope alone fails: it does not prove THIS project has it (exit 1)" "$EXPECT_CODE" "1"
+has "  ...saying user scope only" "installed at user scope only" "$EXPECT_STDOUT"
+stub "$T/ux-disabled.json"
+with_stub "ux-design-laws installed but disabled" bash "$SD/prove.sh" "$UX"
+chk "an installed but DISABLED add-on fails (exit 1)" "$EXPECT_CODE" "1"
+stub ERROR
+with_stub "claude plugin list errors" bash "$SD/prove.sh" "$UX"
+chk "a claude CLI error fails (exit 1), never passes by silence" "$EXPECT_CODE" "1"
+has "  ...saying it could not check" "could not check (claude plugin list failed:" "$EXPECT_STDOUT"
+printf 'not json\n' > "$T/ux-junk.json"; stub "$T/ux-junk.json"
+with_stub "claude plugin list prints junk" bash "$SD/prove.sh" "$UX"
+chk "unparseable output fails (exit 1)" "$EXPECT_CODE" "1"
+has "  ...saying it could not check" "could not check" "$EXPECT_STDOUT"
 unset BENDIT_JSON
 
 echo

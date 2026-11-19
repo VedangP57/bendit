@@ -80,6 +80,16 @@ chk "CONTROL: nine skills listed at 2799 are under the cap" "$(run)" "0"
 skill "sx" "abc"
 chk "the <plugin>:<name> prefix is counted" "$(run)" "1"
 
+# The listing prefix is the MEASURED plugin's name (its plugin.json beside the
+# --dir skills folder), not bendit's. "xy" is shorter than "bendit", so the
+# wrong prefix changes the printed row.
+rm -r "$T"; T=$(mktemp -d)
+mkdir -p "$T/x/.claude-plugin" "$T/x/skills/s"
+printf '{"name":"xy","version":"0.0.1"}\n' > "$T/x/.claude-plugin/plugin.json"
+printf -- '---\nname: s\ndescription: a\n---\n' > "$T/x/skills/s/SKILL.md"
+row="$("$PY" "$B" --dir "$T/x/skills" --commands "$T/no-commands" 2>&1 | awk '/xy:s$|bendit:s$/ {print $1, $2}')"
+chk "the prefix is the measured plugin's own name (xy:s, 4+1 chars)" "$row" "5 xy:s"
+
 # The real suite must be under budget, or CI is red for a reason nobody chose.
 chk "the SHIPPED skills are within budget" \
     "$("$PY" "$B" >/dev/null 2>&1; echo $?)" "0"

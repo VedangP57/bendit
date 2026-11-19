@@ -122,8 +122,9 @@ bendit/
 - `zshGuard` (boolean, default true): enables block-zsh-wordsplit when $SHELL is zsh.
 Per-project state lives in the project, never in the plugin folder, and only
 where something reads it (a config file nothing reads is failure class F1).
-There is one config file, `.claude/bendit.json`, read by: the session-brief and
-ls-guard hooks, `prove.sh`, `/doctor`; it records which optional features
+There is one config file, `.claude/bendit.json`, read by `prove.sh` (and so
+`/doctor`); the session-brief and ls-guard hooks will read it once they ship. It
+records which optional features
 (`browser-driver`, `ux-design-laws`, `session-brief`, `ls-guard`) are on and
 why, and `/adopt` writes it through `scripts/features.py`. For a web app,
 `/adopt` also installs the `bendit-web` add-on with `--scope project`, verified

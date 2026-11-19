@@ -47,21 +47,24 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
    google-chrome`; otherwise the download page, https://nodejs.org/ or
    https://www.google.com/chrome/) *[no]*. A "no" turns that feature off with why
    `you declined <dep>` (e.g. `you declined Chrome`); it never stops adoption.
-   If `ux-design-laws` is on, ask *"Install the bendit-web add-on for this
-   project only? [yes]"*; a no turns it off with why `you declined bendit-web`.
+   If `ux-design-laws` is on, it needs the `bendit-web` add-on. Run
+   `claude plugin list` (read-only). If `bendit-web@bendit` is already enabled
+   at project scope here, skip the question and the install. Otherwise ask
+   *"Run `claude plugin install bendit-web@bendit --scope project` (writes
+   only this project's `.claude/settings.json`)? [no]"*. On a yes, run it now,
+   read its output, and show the `.claude/settings.json` diff. If it is declined,
+   `ux-design-laws` is off with why `you declined bendit-web`. If it fails, show
+   its output and record off with why `bendit-web install failed`.
    Then show, get a yes, and run **one** Bash call that writes every feature to
    `.claude/bendit.json` (one permission prompt; `ROOT` is the project root):
    ```bash
    python3 "$KIT/scripts/features.py" set "$ROOT" browser-driver on "package.json:5 next" &&
    python3 "$KIT/scripts/features.py" set "$ROOT" ux-design-laws on "package.json:5 next" &&
    python3 "$KIT/scripts/features.py" set "$ROOT" session-brief on "git project (git rev-parse --show-toplevel)" &&
-   python3 "$KIT/scripts/features.py" set "$ROOT" ls-guard off "type ls in zsh: ls is /bin/ls" &&
+   python3 "$KIT/scripts/features.py" set "$ROOT" ls-guard off "type ls in zsh: ls is the real ls" &&
    python3 "$KIT/scripts/features.py" show "$ROOT"
    ```
-   Re-running it on an unchanged project rewrites the same bytes. Last, if
-   `ux-design-laws` is on (the person said yes above), run
-   `claude plugin install bendit-web@bendit --scope project`: it writes only
-   the project's `.claude/settings.json`; show that diff.
+   Re-running it on an unchanged project rewrites the same bytes.
 4. **Build the project layer.** Follow `references/project-layer.md`:
    `AGENTS.md` (which records the integration and production branches),
    `.claude/verify-harness`, a verification skill if there is an app, CI if

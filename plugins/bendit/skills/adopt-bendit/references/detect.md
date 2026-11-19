@@ -108,10 +108,10 @@ is that signal's source, written as you would cite it in the report.
 | `browser-driver` | web app: a `package.json` dependency key from the list below, or `index.html` at the root | `package.json:<line> <name>`, or `index.html` | Node 20+ and Chrome |
 | `ux-design-laws` | web app (same signal) | same as `browser-driver` | the `bendit-web` add-on (SKILL.md step 3b installs it) |
 | `session-brief` | a git project | `git project (git rev-parse --show-toplevel)` | nothing |
-| `ls-guard` | `ls` is not the real `ls` in the user's shell | `type ls in <shell>: <the ls is … line>` | nothing |
+| `ls-guard` | `ls` is not the real `ls` in the user's shell | `type ls in <shell>: ls is a shell function` or `…: ls is an alias` (`<shell>` is the basename of `$SHELL`) | nothing |
 
 A feature whose signal is absent is off, and its `why` says what was not found
-(`no web framework in package.json`, `not a git repository`, `ls is /bin/ls`).
+(`no web framework in package.json`, `not a git repository`, `type ls in zsh: ls is the real ls`).
 
 **Web app.** The names are the installer's (`is_web_project` in bendit's
 `install.sh`): `next react vue svelte @sveltejs/kit nuxt astro vite
@@ -154,13 +154,42 @@ done
 Chrome is found if either loop prints a line (the installer's `find_chrome`).
 A missing dependency does not turn the feature off here: SKILL.md step 3b asks.
 
-**`ls`.** Run `"$SHELL" -ic 'type ls'` and read the `ls is …` line on stdout;
-an interactive shell may print startup warnings on stderr, which are not the
-answer. A line containing `alias` (bash says `aliased`) or `function` means
-`ls` is not the real one: `ls-guard` on, why e.g. `type ls in zsh: ls is a
-shell function` (no `$` in it, so it survives double quotes). Leave out any
-`from <file>` tail (zsh names the rc file): it is a home path, and
-`.claude/bendit.json` is committed. A path (`ls is /bin/ls`) means off.
+**`ls`.** Ask the user's interactive shell what `ls` is. Its rc files run, and
+they can hang or prompt, so this runs with no stdin and a 5-second limit. The
+whole process group is killed on timeout, so a background child cannot hold
+the pipe open. It prints the state and the exact `why` to record, never the
+raw `type` output: zsh's `from <file>` names a home path, and
+`.claude/bendit.json` is committed.
+
+```bash
+python3 -I -c '
+import os, signal, subprocess
+sh = os.environ.get("SHELL") or "/bin/sh"
+name = os.path.basename(sh)
+p = subprocess.Popen([sh, "-ic", "type ls"], stdin=subprocess.DEVNULL,
+                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+try:
+    out, _err = p.communicate(timeout=5)
+except subprocess.TimeoutExpired:
+    os.killpg(p.pid, signal.SIGKILL)
+    out = None
+first = (out.decode("utf-8", "replace").splitlines() or [""])[0].strip() if out is not None else ""
+if out is not None and first.startswith("ls is") and "function" in first:
+    print("on  | type ls in %s: ls is a shell function" % name)
+elif out is not None and first.startswith("ls is") and "alias" in first:
+    print("on  | type ls in %s: ls is an alias" % name)
+elif first.startswith("ls is /") or first.startswith("ls is hashed (/"):
+    print("off | type ls in %s: ls is the real ls" % name)
+else:
+    print("off | could not inspect the shell")
+'
+```
+
+Only the first stdout line counts. Fish prints the whole function body after
+it, and stderr carries rc-file startup warnings. Bash says `aliased`, zsh
+`an alias for`, and fish `a function with definition`. A timeout, an empty
+answer or anything unrecognised is `ls-guard` off with why
+`could not inspect the shell`. Record the printed why exactly as it is.
 
 ## Output
 

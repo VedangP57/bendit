@@ -1,19 +1,19 @@
 === rm -rf /
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm -fr with reordered flags
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === chained rm -rf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === psql DROP TABLE
@@ -79,19 +79,19 @@ If this is genuinely required, ask the human to run it.
 === rm -rf on the heredoc opener line
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm -rf piped after heredoc ends
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === unquoted heredoc expands $( )
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === stripe live key in a heredoc
@@ -166,6 +166,44 @@ exit 0
 exit 0
 (silent)
 
+=== rm -r a folder in macOS's T dir
+exit 0
+(silent)
+
+=== rm -rf in /private/var/folders/.../T
+exit 0
+(silent)
+
+=== rm -rf macOS's T dir itself
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== rm -rf a glob straight under T
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== rm -rf the C (caches) sibling
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== rm -rf /var/folders itself
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== rm -rf .. out of macOS's T dir
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
 === rm -rf a folder in $TMPDIR
 exit 0
 (silent)
@@ -197,73 +235,73 @@ exit 0
 === rm -rf /tmp itself
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm -rf /tmp/ itself
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm -rf $TMPDIR itself
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm -rf a glob straight under /tmp
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm -rf .. out of /tmp
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm -rf a /tmp look-alike
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm -rf a $TMPDIR look-alike
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === a temp folder AND a real one
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === a var set to a real folder
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === an unassigned var
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === a temp var reassigned before rm
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === a var set to the temp root
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm without recursive+force
@@ -353,13 +391,13 @@ exit 0
 === delete on the second line
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === delete on the third line
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === DROP DATABASE on its own line
@@ -385,37 +423,37 @@ exit 0
 === delete on its own line AFTER a heredoc ends
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm -r -f (flags split across args)
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm -f -r (split, reversed)
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm --recursive --force
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm -rf (control, still blocks)
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm -Rf (control, capital R)
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm -f on a filename holding f..r
@@ -431,6 +469,196 @@ exit 0
 (silent)
 
 === plain rm
+exit 0
+(silent)
+
+=== the eval's escape: rm -r -- ./dist
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== rm -r a project folder
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== rm -R a project folder
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== rm --recursive
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== rm --rec (abbreviated long flag)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== rm -rv (verbose, no force)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== rm -ri (interactive, no tty here)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== rm build -r (flag after operand)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== rm -r of the temp root itself
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== rm -r of a glob under /tmp
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== rm -r, temp AND a real folder
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== sudo rm -r
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== env rm -r
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== \rm -r
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== /bin/rm -r
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== command rm -r
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== nohup rm -r
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== timeout 60 rm -r
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== xargs rm -r
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== find -exec rm -r {} +
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== bash -c 'rm -r build'
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== eval "rm -r build"
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== ( rm -r build )
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== if-then rm -r
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== docker exec ... rm -r
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== python3 -c os.system rm -r
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed (inside a python3 one-liner).
+If this is genuinely required, ask the human to run it.
+
+=== python3 -c subprocess list rm -r
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed (inside a python3 one-liner).
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: rm -r a folder in $TMPDIR
+exit 0
+(silent)
+
+=== CONTROL: rm -r a mktemp var
+exit 0
+(silent)
+
+=== CONTROL: rm -r two temp folders
+exit 0
+(silent)
+
+=== CONTROL: rmdir an empty folder
+exit 0
+(silent)
+
+=== CONTROL: rm one file, no -r
+exit 0
+(silent)
+
+=== CONTROL: rm -f files, no -r
+exit 0
+(silent)
+
+=== CONTROL: rm -r in a trap stays the cleanup idiom
 exit 0
 (silent)
 
@@ -476,9 +704,23 @@ exit 0
 exit 0
 (silent)
 
+=== SUBDIR of the cwd, not a temp folder
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== unrelated dir, not a temp folder
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
 === recursive delete with no cd
-exit 0
-(silent)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
 
 === rm -r then cd is allowed outright
 exit 0
@@ -487,6 +729,12 @@ exit 0
 === rm -r then cd, && separated
 exit 0
 (silent)
+
+=== rm -r of an unknown $S, then cd
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
 
 === rm -r a scratch dir, then enter it
 exit 0
@@ -519,109 +767,109 @@ If this is genuinely required, ask the human to run it.
 === sudo rm -rf /
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === sudo -u root rm -rf x
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === env rm -rf build
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === VAR=1 rm -rf build
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === command rm -rf build
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === backslash \rm -rf build
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === /bin/rm -rf build
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === time rm -rf x
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === nohup rm -rf x
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === xargs rm -rf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === xargs -0 -n 1 rm -rf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === bash -c 'rm -rf build'
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === sh -c "rm -rf build"
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === bash -lc combined flags
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === eval "rm -rf build"
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === ( rm -rf build )
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === { rm -rf build; }
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === if-then rm -rf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === find . -delete
@@ -633,49 +881,49 @@ If this is genuinely required, ask the human to run it.
 === find -exec rm -rf {} +
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === find -exec sh -c 'rm -rf'
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm build -rf (flags after operand)
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === rm -rf inside $( )
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === echo ... | bash
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === bash <<< here-string
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === hc exec ... -- sh -c 'x; rm -rf'
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === docker exec c sh -c 'rm -rf'
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === CONTROL: echo of sh -c text
@@ -777,19 +1025,19 @@ exit 0
 === bash <<'EOF' rm -rf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === sh -s <<'EOF' rm -rf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === cat <<'EOF' | bash
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === psql <<'SQL' DROP TABLE
@@ -815,19 +1063,19 @@ exit 0
 === <<'X' inside double quotes
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === <<'X' inside a comment
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === <<'X' inside single quotes
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === +refspec forces
@@ -901,6 +1149,12 @@ BLOCKED by bendit safety hook: Stripe LIVE restricted key in the command.
 If this is genuinely required, ask the human to run it.
 
 === cd in a subshell, then rm -r
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: cd in a subshell, then rm -r a temp var
 exit 0
 (silent)
 
@@ -913,7 +1167,7 @@ If this is genuinely required, ask the human to run it.
 === non-UTF-8 bytes in a JSON payload
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === non-UTF-8 junk that is not JSON
@@ -1013,25 +1267,25 @@ If this is genuinely required, ask the human to run it.
 === docker exec ... rm -rf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === docker exec -u -w ... rm -rf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === kubectl exec pod -- rm -rf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === kubectl -n ns exec -it -c -- rm -rf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === docker exec ... psql heredoc
@@ -1259,79 +1513,161 @@ exit 0
 === a temp var, then .. out of it
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === a temp var, quoted, then ..
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === a temp var, then a . segment glob
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === TMPDIR reassigned first
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === TMPDIR=... as a prefix
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === export TMPDIR=...
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === an assignment after &&
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
-=== an assignment inside if
+=== an assignment inside if, bare var
+exit 0
+(silent)
+
+=== an assignment inside if, then /sub
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === an assignment inside a subshell
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === unset drops it
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === a glob straight after a mktemp var
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === /tmp/./*
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === a conditional assignment, then ; rm
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== cd && S=temp; rm -rf "$S" (bare)
+exit 0
+(silent)
+
+=== cd && S=temp; rm -rf $S (unquoted)
+exit 0
+(silent)
+
+=== cd && S=temp; rm -rf ${S} (braced)
+exit 0
+(silent)
+
+=== cd && S=temp; rm -rf "${S}"
+exit 0
+(silent)
+
+=== cd || S=mktemp; rm -rf $S (bare)
+exit 0
+(silent)
+
+=== cd && S=temp; rm -r "$S" (no -f)
+exit 0
+(silent)
+
+=== cd && S=temp; rm -rf "$S/sub"
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== cd && S=temp; rm -rf "$S"/*
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== cd && S=temp; rm -rf $S/..
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== cd && S=temp; rm -rf ${S}x (suffix)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== cd && S=$HOME; rm -rf "$S"
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== S=$HOME first, then cd && S=temp
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== unset S first, then cd && S=temp
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== cd && HOME=temp; rm -rf "$HOME"
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== cd && PWD=temp; rm -rf $PWD
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === CONTROL: cd && S=tmp && rm -rf $S
@@ -1361,55 +1697,55 @@ exit 0
 === gtimeout 60 rm -rf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === timeout -s KILL 60 rm -rf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === timeout --preserve-status -k 5 60
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === bash -c -- 'rm -rf'
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === env -S 'rm -rf'
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === env --split-string=...
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === npx rimraf src
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === pnpm dlx rimraf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === bare rimraf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
 
 === CONTROL: rimraf a temp folder
@@ -1437,19 +1773,19 @@ If this is genuinely required, ask the human to run it.
 === python3 -c os.system rm -rf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it (inside a python3 one-liner).
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed (inside a python3 one-liner).
 If this is genuinely required, ask the human to run it.
 
 === node -e execSync rm -rf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it (inside a node one-liner).
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed (inside a node one-liner).
 If this is genuinely required, ask the human to run it.
 
 === python3 -c subprocess list rm -rf
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it (inside a python3 one-liner).
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed (inside a python3 one-liner).
 If this is genuinely required, ask the human to run it.
 
 === CONTROL: shutil.rmtree of a temp folder

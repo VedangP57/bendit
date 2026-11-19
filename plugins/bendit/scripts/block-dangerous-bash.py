@@ -66,12 +66,15 @@ from shell_text import SHELLS, SQL_CLIENTS, _match_close, lex, simple_commands, 
 #   * forging the state files other bendit hooks keep -- an agent set on that
 #     can edit any file it can write
 #
-# Allowed ON PURPOSE, and what that costs: `rm -r dir` without -f. In an
-# agent's non-interactive shell -f changes little (rm -r only stops on
-# write-protected files), so `rm -r dist` deletes as surely as `rm -rf dist`.
-# It stays allowed because routine cleanups (`rm -r node_modules`, a scratch
-# dir) are common and a guard that blocks normal work gets switched off. The
-# cd-then-delete rule below still catches `cd X && rm -r X`.
+# A RECURSIVE delete is refused with or without -f. `rm -r dir` used to be
+# allowed on purpose, so routine cleanups would not get the guard switched off.
+# The final eval sweep (2026-11-19) measured what that cost: told only to
+# "free up space", one of 12 agents ran `rm -r -- ./dist` and it went through
+# -- the only deletion of the sweep that did. In an agent's non-interactive
+# shell -f changes almost nothing (rm -r only stops on write-protected files),
+# so `rm -r dist` deletes as surely as `rm -rf dist`. A scratch folder inside a
+# temp location is still allowed, by the same rules as for rm -rf; `rm file`
+# (no -r) and `rmdir` are not touched.
 
 
 def rm_flags(args):
@@ -119,9 +122,14 @@ def rm_operands(args):
 # own `&&` chain, which runs only if it did), not a `VAR=x cmd` prefix
 # (that sets the variable for one command only), and not after `unset VAR`.
 # Any assignment to TMPDIR anywhere in the command voids the $TMPDIR roots.
+# ONE narrow exception (Vars.bare_safe): the BARE variable -- $S, "$S", ${S},
+# "${S}", nothing appended -- may rest on an assignment made only on some
+# paths (after `cd x &&`, `||`, inside if). On the other paths S is unset, and
+# `rm -rf ""` / `rm -rf` delete nothing; "$S/sub" would be `/sub`.
 # A glob straight after a variable (`"$D"/*`) needs D to be a literal temp
 # path: if `mktemp` failed, D is empty and the glob is `/*`.
 _TEMP_ROOTS = ('/tmp/', '/private/tmp/', '$TMPDIR/', '${TMPDIR}/')
+_MAC_TEMP = re.compile(r'^(?:/private)?/var/folders/[\w+-]+/[\w+-]+/T/')
 _VAR_REF = re.compile(r'^\$(?:\{(\w+)\}|(\w+))(/.*)?$')
 _ASSIGN = re.compile(r'^(\w+)=(.*)$', re.S)
 _DECLARERS = ('export', 'local', 'declare', 'readonly', 'typeset')
@@ -129,6 +137,10 @@ _LEADING = frozenset({'!', '{', 'then', 'do', 'else', 'elif', 'if', 'while', 'un
 _MKTEMP = re.compile(r'^(\$\(|`)\s*mktemp\b')
 _GLOB = re.compile(r'[*?\[]')
 _TMPDIR_WRITTEN = re.compile(r'(?<![\w${])TMPDIR\b')
+# Names a shell has a value for before the command runs, whatever the hook's
+# own environment says.
+_SHELL_SET = frozenset({'HOME', 'PWD', 'OLDPWD', 'TMPDIR', 'USER', 'LOGNAME',
+                        'SHELL', 'PATH', 'IFS', 'CDPATH', 'HOSTNAME', 'UID'})
 
 
 class Vars:
@@ -195,12 +207,41 @@ class Vars:
         value, scope = self._vals[name][k - 1]
         return value if scope is None or scope == chain else None
 
+    def bare_safe(self, name: str, seq: float) -> bool:
+        """True when `rm -rf "$name"` -- the BARE variable, nothing appended --
+        cannot reach anything but a temp folder, even through an assignment
+        that happened only on some paths (after `cd x &&` / `||`, inside if).
+        On the other paths the variable is UNSET, and `rm -rf ""` / `rm -rf`
+        delete nothing. That premise holds only if nothing else could have
+        left a value: every assignment before `seq` must be a temp path or a
+        $(mktemp ...), none may be an unset/read, and the name must not be one
+        the shell inherits or sets itself (HOME survives a failed cd).
+        Agreed from a 13,821-command replay in the sibling kit (2026-11-19):
+        real temp-folder cleanups were refused for it."""
+        if name in _SHELL_SET or name in os.environ:
+            return False
+        seqs = self._seqs.get(name)
+        if not seqs:
+            return False
+        k = bisect.bisect_left(seqs, seq)
+        if not k:
+            return False
+        for value, _scope in self._vals[name][:k]:
+            if value is None or not (_inside_temp(value) or _MKTEMP.match(value)):
+                return False
+        return True
+
 
 # The variable table of the command being inspected. Set by _judge().
 VARS = Vars('')
 
 
 def _inside_temp(path: str) -> bool:
+    # macOS's real per-user temp dir ($TMPDIR there): /var/folders/<xx>/<id>/T/.
+    # Only T (temporary items); C is caches. Both segments must be literal names.
+    mac = _MAC_TEMP.match(path)
+    if mac:
+        path = '/tmp/' + path[mac.end():]
     for root in _TEMP_ROOTS:
         if VARS.tmpdir_void and 'TMPDIR' in root:
             continue
@@ -225,21 +266,24 @@ def _temp_target(operand: str, seq: int, chain=None) -> bool:
         return False
     value = VARS.value(m.group(1) or m.group(2), seq, chain)
     if value is None:
-        return False
+        # Only the BARE variable may rest on an assignment that happened on
+        # some paths: unset, "$S" deletes nothing, but "$S/sub" is `/sub`.
+        return m.group(3) is None and VARS.bare_safe(m.group(1) or m.group(2), seq)
     if parts and _GLOB.search(parts[0]):
         return _inside_temp(value)   # an empty D would make this `/*`
     return _inside_temp(value) or bool(_MKTEMP.match(value))
 
 
-def rm_recursive_force(s):
+def rm_recursive(s):
     if s.argv[0] not in ('rm', 'rimraf') or s.deferred:
         # A trap body is the cleanup idiom (`trap 'rm -rf "$T"' EXIT`) and was
         # never refused; the cwd rule below is what guards a trap.
         return False
     if s.argv[0] == 'rm':
-        # rimraf is `rm -rf` by nature: no flags make it so.
-        recursive, force = rm_flags(s.argv[1:])
-        if not (recursive and force):
+        # rimraf is `rm -rf` by nature: no flags make it so. For rm, -r alone
+        # is enough: -f changes almost nothing in a shell with no tty.
+        recursive, _force = rm_flags(s.argv[1:])
+        if not recursive:
             return False
     operands = rm_operands(s.argv[1:])
     if operands and all(_temp_target(o, s.seq, s.cmd.chain) for o in operands):
@@ -584,7 +628,7 @@ def script_deletes_tree(s):
 # found is asked each rule in turn; the first rule any command trips gives the
 # reason.
 COMMAND_RULES = [
-    (rm_recursive_force, 'recursive force delete — run it yourself if you mean it'),
+    (rm_recursive, 'recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed'),
     (find_delete, '`find -delete` removes everything it matches — run it yourself if you mean it'),
     (destructive_sql, 'destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE)'),
     (supabase_push_or_reset, 'supabase db push/reset — use `supabase db diff` and let the human push'),

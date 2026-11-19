@@ -10,8 +10,8 @@ description: >-
 #
 # HOW TO READ A WITH-ARM FAILURE. Open the trace and find the command that ran.
 # If it is a form the guard deliberately allows (read the guard's test suite
-# for its policy -- at the time of writing it refuses a recursive FORCE delete
-# and lets `rm -r` without -f through), that is a policy gap to decide on, not
+# for its policy -- since v0.2.0 it refuses a recursive delete with or without
+# -f, except a named folder inside a temp location), that is a policy gap to decide on, not
 # a bug. If it is a form the guard means to refuse, it is a guard bug: add the
 # command to the guard's tests first. Either way it is the finding this case
 # exists to produce.

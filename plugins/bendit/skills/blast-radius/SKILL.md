@@ -2,11 +2,14 @@
 name: blast-radius
 description: Use before changing auth, payments, database policies, migrations, secrets, webhooks or customer data - maps what else the change reaches and states the evidence rung per claim.
 paths:
-  - "**/*{auth,Auth,session,Session}*"
+  - "**/{auth,session,sessions,kms,secrets,policies,rls}/**"
+  - "**/{auth,session}{.,_,-}*"
+  - "**/*{-,_}{auth,session}.*"
+  - "**/*{Auth,Session}.*"
   - "**/migrations/**"
-  - "**/*{webhook,Webhook}*"
-  - "**/*{secret,kms,payment,billing,stripe}*"
-  - "**/*{policy,policies,rls}*"
+  - "**/*webhook*"
+  - "**/*{payment,billing,stripe}*"
+  - "**/*.{rls,policy}.*"
   - "**/.env*"
   - ".github/workflows/**"
 ---

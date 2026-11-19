@@ -98,10 +98,45 @@ chk "the SHIPPED skills are within budget" \
 # files or clients is advice for that stack, not for every bendit user.
 BR="$SD/../skills/blast-radius"
 chk "blast-radius is shipped" "$([ -f "$BR/SKILL.md" ] && echo yes || echo no)" "yes"
-chk "blast-radius SKILL.md names no stack-specific term" \
-    "$(grep -rnE 'adminClient|stripeClient|supabase|NEXT_PUBLIC_\*|middleware\.ts|prove-it-works' "$BR" 2>/dev/null | grep -c . )" "0"
-chk "blast-radius reference exists and names no owner file" \
-    "$([ -f "$BR/references/database.md" ] && ! grep -rqE 'adminClient|stripeClient' "$BR" && echo yes || echo no)" "yes"
+chk "blast-radius reference is shipped" "$([ -f "$BR/references/database.md" ] && echo yes || echo no)" "yes"
+# grep exits 1 for "no match" and 2 for an error; only 1 is a pass, and stderr stays visible.
+grep -qiE 'adminClient|stripeClient|supabase|NEXT_PUBLIC_\*|middleware\.ts|prove-it-works' "$BR/SKILL.md"
+chk "blast-radius SKILL.md names no stack-specific term (grep exit 1 = no match)" "$?" "1"
+grep -rqiE 'adminClient|stripeClient' "$BR"
+chk "blast-radius names no owner file anywhere in its directory (grep exit 1)" "$?" "1"
+
+# Pin the `paths:` globs. The matcher is a small hand-written one, NOT Claude
+# Code's own: it expands {a,b}, treats `**/` as zero or more directories, `/**`
+# as everything below, `*` and `?` within one segment. Limits: no [classes], no
+# negation, no dotfile special-casing, case-sensitive.
+chk "blast-radius paths: globs match real files and skip look-alikes" \
+  "$("$PY" - "$BR/SKILL.md" <<'PYE'
+import re, sys
+def expand(g):
+    m = re.search(r'\{([^{}]*)\}', g)
+    if not m: return [g]
+    return [x for o in m.group(1).split(',') for x in expand(g[:m.start()] + o + g[m.end():])]
+def rx(g):
+    out, i = '', 0
+    while i < len(g):
+        if g.startswith('**/', i): out += '(?:.*/)?'; i += 3
+        elif g.startswith('/**', i) and i + 3 == len(g): out += '/.*'; i += 3
+        elif g[i] == '*': out += '[^/]*'; i += 1
+        elif g[i] == '?': out += '[^/]'; i += 1
+        else: out += re.escape(g[i]); i += 1
+    return re.compile('^' + out + '$')
+text = open(sys.argv[1]).read().split('---')[1]
+globs = re.findall(r'^\s+- "(.*)"$', text, re.M)
+pats = [rx(x) for g in globs for x in expand(g)]
+hit = lambda p: any(r.match(p) for r in pats)
+yes = ['src/auth/session.ts', 'supabase/migrations/001.sql', 'api/webhooks/stripe.ts',
+       'auth.ts', 'lib/user-auth.ts', '.env.local', '.github/workflows/ci.yml', 'db/users.rls.sql']
+no = ['docs/author.md', 'scripts/curls.sh', 'legal/privacy-policy.md', 'team/secretary.txt',
+      'src/oauth.ts', 'src/unauthorized.ts', 'README.md']
+bad = [p for p in yes if not hit(p)] + [p for p in no if hit(p)]
+print('ok' if globs and not bad else 'BAD ' + ' '.join(bad))
+PYE
+)" "ok"
 
 rm -r "$T"
 if [ -z "$PY_GIVEN" ] && [ -x /usr/bin/python3 ]; then

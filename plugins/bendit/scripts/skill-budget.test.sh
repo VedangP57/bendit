@@ -108,7 +108,9 @@ chk "blast-radius names no owner file anywhere in its directory (grep exit 1)" "
 # Pin the `paths:` globs. The matcher is a small hand-written one, NOT Claude
 # Code's own: it expands {a,b}, treats `**/` as zero or more directories, `/**`
 # as everything below, `*` and `?` within one segment. Limits: no [classes], no
-# negation, no dotfile special-casing, case-sensitive.
+# negation, no dotfile special-casing, case-sensitive. It pins the INTENDED
+# globs; Claude Code's own matcher (brace expansion, `**/` matching zero dirs,
+# dotfiles like .env.local) is assumed, not verified.
 chk "blast-radius paths: globs match real files and skip look-alikes" \
   "$("$PY" - "$BR/SKILL.md" <<'PYE'
 import re, sys
@@ -130,9 +132,12 @@ globs = re.findall(r'^\s+- "(.*)"$', text, re.M)
 pats = [rx(x) for g in globs for x in expand(g)]
 hit = lambda p: any(r.match(p) for r in pats)
 yes = ['src/auth/session.ts', 'supabase/migrations/001.sql', 'api/webhooks/stripe.ts',
-       'auth.ts', 'lib/user-auth.ts', '.env.local', '.github/workflows/ci.yml', 'db/users.rls.sql']
+       'auth.ts', 'lib/user-auth.ts', '.env.local', '.github/workflows/ci.yml', 'db/users.rls.sql',
+       'src/oauth.ts', 'lib/authService.ts', 'lib/authOptions.ts', 'lib/authMiddleware.ts',
+       'lib/sessionManager.ts', 'lib/secrets.ts', 'lib/secret.ts', 'config/kms.ts',
+       'db/policies.sql', 'db/rls.sql', 'middleware.ts']
 no = ['docs/author.md', 'scripts/curls.sh', 'legal/privacy-policy.md', 'team/secretary.txt',
-      'src/oauth.ts', 'src/unauthorized.ts', 'README.md']
+      'src/unauthorized.ts', 'README.md']
 bad = [p for p in yes if not hit(p)] + [p for p in no if hit(p)]
 print('ok' if globs and not bad else 'BAD ' + ' '.join(bad))
 PYE

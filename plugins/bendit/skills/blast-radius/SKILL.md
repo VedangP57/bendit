@@ -4,12 +4,17 @@ description: Use before changing auth, payments, database policies, migrations, 
 paths:
   - "**/{auth,session,sessions,kms,secrets,policies,rls}/**"
   - "**/{auth,session}{.,_,-}*"
+  - "**/{auth,session}{Service,Options,Middleware,Manager,Provider,Client,Config,Guard,Store,Token,Utils,Helpers}*"
   - "**/*{-,_}{auth,session}.*"
   - "**/*{Auth,Session}.*"
+  - "**/*{oauth,OAuth}*"
+  - "**/{secret,secrets,kms,policy,policies,rls}{.,_,-}*"
+  - "**/*{-,_}{secret,secrets,kms,rls,policies}.*"
+  - "**/*.{rls,policy,policies}.*"
+  - "**/middleware*"
   - "**/migrations/**"
   - "**/*webhook*"
   - "**/*{payment,billing,stripe}*"
-  - "**/*.{rls,policy}.*"
   - "**/.env*"
   - ".github/workflows/**"
 ---

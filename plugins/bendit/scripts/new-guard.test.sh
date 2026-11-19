@@ -40,6 +40,13 @@ for f in no-skip-hooks.py no-skip-hooks.test.sh shell_text.py expect.sh; do
   chk "wrote $f"                      "$([ -s "$H/$f" ] && echo yes || echo no)" yes
 done
 chk "no placeholder left behind"      "$(grep -l '__GUARD_NAME__' "$H"/no-skip-hooks.* | wc -l | tr -d ' ')" 0
+# Running a guard (or its tests) leaves __pycache__/ beside it; a live
+# /new-guard run did exactly that. The hooks dir ignores it from the start.
+chk "writes a .gitignore for __pycache__ in the hooks dir" \
+    "$(grep -qx '__pycache__/' "$H/.gitignore" 2>/dev/null && echo yes || echo no)" yes
+printf 'keep-me\n' > "$H/.gitignore"
+bash "$NG" another-guard --project "$P" >/dev/null 2>&1
+chk "  ...and leaves a .gitignore the project already has alone" "$(/bin/cat "$H/.gitignore")" "keep-me"
 chk "settings.json is byte-identical" "$(cmp -s "$P/.claude/settings.json" "$T/settings.before" && echo same || echo changed)" same
 chk "snippet names the project path"  "$(printf '%s' "$EXPECT_STDOUT" | grep -c 'CLAUDE_PROJECT_DIR/.claude/hooks/no-skip-hooks.py')" 1
 

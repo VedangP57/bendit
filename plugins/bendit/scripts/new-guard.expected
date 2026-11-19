@@ -3,6 +3,7 @@ exit 0
 --- stdout
 wrote <tmp>/proj/.claude/hooks/no-skip-hooks.py
 wrote <tmp>/proj/.claude/hooks/no-skip-hooks.test.sh
+wrote <tmp>/proj/.claude/hooks/.gitignore (ignores __pycache__/)
 wrote <tmp>/proj/.claude/hooks/shell_text.py (copied from bendit; shared by every guard in this directory)
 wrote <tmp>/proj/.claude/hooks/expect.sh (copied from bendit; shared by every guard in this directory)
 
@@ -35,6 +36,7 @@ exit 0
 --- stdout
 wrote <tmp>/elsewhere/outside-guard.py
 wrote <tmp>/elsewhere/outside-guard.test.sh
+wrote <tmp>/elsewhere/.gitignore (ignores __pycache__/)
 wrote <tmp>/elsewhere/shell_text.py (copied from bendit; shared by every guard in this directory)
 wrote <tmp>/elsewhere/expect.sh (copied from bendit; shared by every guard in this directory)
 

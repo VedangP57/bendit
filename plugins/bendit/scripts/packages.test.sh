@@ -47,16 +47,44 @@ fi
 echo; echo "WRAPPERS RUN THE BUNDLED INSTALLER"
 want="$(bash "$ROOT/install.sh" --version)"
 chk "install.sh --version names the version" "$want" "bendit installer ${v_sh:-?}"
+
+# A hermetic machine for the exit-1 case: only these tools, no claude, no git,
+# an empty HOME and project, so `--check` reports something missing and exits 1
+# without touching the network.
+SB="$T/sb"; mkdir -p "$SB/bin" "$SB/home" "$SB/proj"
+for t in bash cat grep sed head tr cut mkdir mktemp mv rm rmdir dirname uname env node python3; do
+  p="$(type -P "$t")" && ln -sf "$p" "$SB/bin/$t"
+done
+PYRUN() { PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$ROOT/packages/pypi/src" python3 -m bendit "$@"; }
+NPMRUN() { node "$ROOT/packages/npm/bin/bendit.js" "$@"; }
+
+check_wrapper() {  # <label> <function>
+  local label="$1" run="$2" got rc
+  got="$($run --version 2>"$T/e")"; rc=$?
+  chk "$label --version" "$got" "$want"; chk "$label --version exit" "$rc" 0
+  $run --bogus >"$T/o" 2>"$T/e"; rc=$?
+  chk "$label passes exit 2 for --bogus" "$rc" 2
+  $run "a b" >"$T/o" 2>"$T/e"; rc=$?
+  if grep -q -F -- 'Unknown option: a b (' "$T/o" "$T/e"; then good "$label passes the argument 'a b' whole"
+  else bad "$label did not pass 'a b' as one argument (installer said: $(cat "$T/o" "$T/e"))"; fi
+  (cd "$SB/proj" && HOME="$SB/home" PATH="$SB/bin" $run --check </dev/null >"$T/o" 2>"$T/e"); rc=$?
+  chk "$label passes exit 1 when something is missing" "$rc" 1
+}
+check_wrapper "python wrapper" PYRUN
+if [ "$have_node" = 1 ]; then check_wrapper "npm wrapper" NPMRUN; fi
+
+echo; echo "bendit needs bash (no bash on PATH)"
+EMPTY="$T/empty"; mkdir -p "$EMPTY"
+nobash_msg='bendit needs bash, and it was not found on PATH.'
+PYBIN="$(type -P python3)"; NODEBIN="$(type -P node)"
+PATH="$EMPTY" PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$ROOT/packages/pypi/src" "$PYBIN" -m bendit --version >"$T/o" 2>"$T/e"; rc=$?
+chk "python wrapper exits 2 without bash" "$rc" 2
+chk "python wrapper says it needs bash" "$(cat "$T/e")" "$nobash_msg"
 if [ "$have_node" = 1 ]; then
-  got="$(node "$ROOT/packages/npm/bin/bendit.js" --version 2>"$T/e")"; rc=$?
-  chk "npm wrapper --version" "$got" "$want"; chk "npm wrapper --version exit" "$rc" 0
-  node "$ROOT/packages/npm/bin/bendit.js" --bogus >"$T/o" 2>"$T/e"; rc=$?
-  chk "npm wrapper passes exit 2 for --bogus" "$rc" 2
+  PATH="$EMPTY" "$NODEBIN" "$ROOT/packages/npm/bin/bendit.js" --version >"$T/o" 2>"$T/e"; rc=$?
+  chk "npm wrapper exits 2 without bash" "$rc" 2
+  chk "npm wrapper says it needs bash" "$(cat "$T/e")" "$nobash_msg"
 fi
-got="$(PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$ROOT/packages/pypi/src" python3 -m bendit --version 2>"$T/e")"; rc=$?
-chk "python wrapper --version" "$got" "$want"; chk "python wrapper --version exit" "$rc" 0
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$ROOT/packages/pypi/src" python3 -m bendit --bogus >"$T/o" 2>"$T/e"; rc=$?
-chk "python wrapper passes exit 2 for --bogus" "$rc" 2
 
 echo; echo "NPM TARBALL"
 if [ "$have_node" = 1 ]; then
@@ -65,8 +93,9 @@ if [ "$have_node" = 1 ]; then
   chk "npm pack --dry-run exits 0" "$rc" 0
   [ "$rc" = 0 ] || sed 's/^/    /' "$T/pack.err"
   for f in install.sh bin/bendit.js package.json; do
-    if grep -q "\"path\": *\"$f\"" "$T/pack.json"; then good "tarball lists $f"
-    else bad "tarball does not list $f"; fi
+    node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
+      process.exit(j[0].files.some(x=>x.path===process.argv[2])?0:1)' "$T/pack.json" "$f" 2>"$T/e"; rc=$?
+    chk "tarball lists $f" "$rc" 0
   done
   after="$(cd "$ROOT" && git status --porcelain)"
   chk "npm pack --dry-run left the working tree unchanged" "$after" "$before"

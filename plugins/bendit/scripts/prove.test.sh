@@ -117,17 +117,17 @@ has "  ...saying it changed" "changed since you approved it" "$EXPECT_STDOUT"
 echo
 echo "PER-PROJECT FEATURES"
 expect_capture "no bendit.json" bash "$SD/prove.sh" "$G"
-chk "no bendit.json: exit 0 (OFF is not a failure)" "$EXPECT_CODE" "0"
-chk "  ...four features read OFF" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -c '^feature: .*| OFF ')" "4"
-has "  ...saying why" "OFF  not set up by /adopt yet" "$EXPECT_STDOUT"
-has "  ...and the summary counts them" "checks passed (4 off)" "$EXPECT_STDOUT"
+chk "no bendit.json: exit 0 (UNUSED is not a failure)" "$EXPECT_CODE" "0"
+chk "  ...four features read UNUSED" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -c '^feature: .*| UNUSED ')" "4"
+has "  ...saying why" "UNUSED  not set up by /adopt yet" "$EXPECT_STDOUT"
+has "  ...and the summary counts them" "checks passed (4 unused)" "$EXPECT_STDOUT"
 has "  ...readable row passes" "features: .claude/bendit.json readable" "$EXPECT_STDOUT"
 
 BENDIT_JSON='{"version":1,"features":{"browser-driver":{"on":false,"why":"you declined Chrome"}}}'
 F1="$T/feat-off"; repo "$F1" 'exit 0'
 expect_capture "feature declined" bash "$SD/prove.sh" "$F1"
-chk "a declined feature is OFF with its reason, exit 0" "$EXPECT_CODE" "0"
-has "  ...the reason is shown" "OFF  you declined Chrome" "$EXPECT_STDOUT"
+chk "a declined feature is UNUSED with its reason, exit 0" "$EXPECT_CODE" "0"
+has "  ...the reason is shown" "UNUSED  you declined Chrome" "$EXPECT_STDOUT"
 
 BENDIT_JSON='{"version":1,"features":{"ls-guard":{"on":true,"why":"zsh"}}}'
 F2="$T/feat-nocheck"; repo "$F2" 'exit 0'

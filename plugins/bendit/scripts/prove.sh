@@ -46,18 +46,14 @@ python3 - "$KIT" "$REPO" "$W" <<'PY'
 import json, os, signal, subprocess, sys
 
 kit, repo, w = sys.argv[1:4]
-rows = []          # (check, state, rung, detail); state is PASS, FAIL or OFF
+rows = []          # (check, state, rung, detail); state is PASS, FAIL or UNUSED
 RUNG = '4'         # every row here was RUN and its output read
 
 
 def row(check, state, detail=''):
-    # state: True/False are the PASS/FAIL of a check that ran; 'OFF' is a
-    # feature the project does not use (not a failure, not a pass).
-    if state is True:
-        state = 'PASS'
-    elif state is False:
-        state = 'FAIL'
-    assert state in ('PASS', 'FAIL', 'OFF'), state
+    # state: 'PASS' / 'FAIL' for a check that ran; 'UNUSED' for a feature the
+    # project does not use (not a failure, not a pass).
+    assert state in ('PASS', 'FAIL', 'UNUSED'), state
     rows.append((check, state, RUNG, detail))
 
 
@@ -89,30 +85,30 @@ def run_hook(script, args, data, timeout, env=None, cwd=probe):
 def refuses(label, script, args, data, timeout, env=None):
     rc, _out, err = run_hook(script, args, data, timeout, env)
     if rc != 2:
-        row(label, False, f'exit {rc}, wanted 2 (a refusal){"; stderr: " + short(err) if err.strip() else ""}')
+        row(label, 'FAIL', f'exit {rc}, wanted 2 (a refusal){"; stderr: " + short(err) if err.strip() else ""}')
     elif not err.strip():
-        row(label, False, 'exit 2 but nothing on stderr: the agent is refused with no reason')
+        row(label, 'FAIL', 'exit 2 but nothing on stderr: the agent is refused with no reason')
     elif not err.lstrip().startswith(P.PREFIXES):
-        row(label, False, 'refused, but stderr does not name bendit (it must begin '
+        row(label, 'FAIL', 'refused, but stderr does not name bendit (it must begin '
                           '"[bendit]" or "BLOCKED by bendit"): ' + short(err, 160))
     else:
-        row(label, True)
+        row(label, 'PASS')
 
 
 def allows(label, script, args, data, timeout, env=None):
     rc, _out, err = run_hook(script, args, data, timeout, env)
     if rc == 0:
-        row(label, True)
+        row(label, 'PASS')
     else:
-        row(label, False, f'exit {rc}, wanted 0{"; stderr: " + short(err) if err.strip() else ""}')
+        row(label, 'FAIL', f'exit {rc}, wanted 0{"; stderr: " + short(err) if err.strip() else ""}')
 
 
 def silent(label, script, args, data, timeout, env=None):
     rc, out, err = run_hook(script, args, data, timeout, env)
     if rc == 0 and not out.strip():
-        row(label, True)
+        row(label, 'PASS')
     else:
-        row(label, False, f'exit {rc}, wanted 0 and no output'
+        row(label, 'FAIL', f'exit {rc}, wanted 0 and no output'
             + (f'; stdout: {short(out)}' if out.strip() else '')
             + (f'; stderr: {short(err)}' if err.strip() else ''))
 
@@ -125,12 +121,12 @@ try:
     entries = P.hook_entries(kit)
 except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
     entries = []
-    row('hooks.json is readable', False, f'{type(e).__name__}: {e}')
+    row('hooks.json is readable', 'FAIL', f'{type(e).__name__}: {e}')
 timeouts, seen = {}, []
 for event, _matcher, cmd, timeout in entries:
     key = P.hook_key(cmd)
     if key is None:
-        row(f'{event} hook `{cmd[:50]}`', False, 'prove.sh cannot read which script this runs')
+        row(f'{event} hook `{cmd[:50]}`', 'FAIL', 'prove.sh cannot read which script this runs')
         continue
     timeouts[key] = timeout
     if key not in seen:
@@ -138,7 +134,7 @@ for event, _matcher, cmd, timeout in entries:
 for key in seen:
     table = P.PROBES.get(key)
     if table is None:
-        row(f'{" ".join((key[0],) + key[1])}: has a probe', False,
+        row(f'{" ".join((key[0],) + key[1])}: has a probe', 'FAIL',
             'hooks.json runs it, but scripts/probes.py has no known-bad/known-good payload for it -- add one')
         continue
     for pr in table:
@@ -190,27 +186,27 @@ if ('require-verification.py', ()) in seen:
     rc, _o, err = mark()
     pending = os.path.join(s, '.claude', '.bendit-state', f'pending-{sid}')
     if rc == 0 and os.path.isfile(pending):
-        row('Stop gate: --mark records a code edit', True)
+        row('Stop gate: --mark records a code edit', 'PASS')
     else:
-        row('Stop gate: --mark records a code edit', False,
+        row('Stop gate: --mark records a code edit', 'FAIL',
             f'exit {rc}, pending record {"present" if os.path.isfile(pending) else "NOT written"}'
             + (f'; stderr: {short(err)}' if err.strip() else ''))
     rc, _o, err = stop()
     label = 'Stop gate: refuses when the harness exits 1'
     if rc != 2:
-        row(label, False, f'exit {rc}, wanted 2' + (f'; stderr: {short(err)}' if err.strip() else ''))
+        row(label, 'FAIL', f'exit {rc}, wanted 2' + (f'; stderr: {short(err)}' if err.strip() else ''))
     elif not err.lstrip().startswith(P.PREFIXES):
-        row(label, False, 'refused, but stderr does not name bendit: ' + short(err, 160))
+        row(label, 'FAIL', 'refused, but stderr does not name bendit: ' + short(err, 160))
     else:
-        row(label, True)
+        row(label, 'PASS')
     harness('exit 0')
     mark()
     rc, out, err = stop()
     label = 'Stop gate: allows when the harness exits 0'
     if rc == 0 and 'verified by' in out:
-        row(label, True)
+        row(label, 'PASS')
     else:
-        row(label, False, f'exit {rc}, wanted 0 and "verified by ..." on stdout'
+        row(label, 'FAIL', f'exit {rc}, wanted 0 and "verified by ..." on stdout'
             + (f'; stdout: {short(out)}' if out.strip() else '')
             + (f'; stderr: {short(err)}' if err.strip() else ''))
 
@@ -224,12 +220,12 @@ def status():
 declared = os.path.join(repo, '.claude', 'verify-harness')
 label = 'harness: .claude/verify-harness exits 0'
 if not os.path.isfile(declared):
-    row(label, False, 'no .claude/verify-harness: the Stop gate has nothing to run for this repo')
+    row(label, 'FAIL', 'no .claude/verify-harness: the Stop gate has nothing to run for this repo')
 else:
     cmd = '\n'.join(l for l in open(declared, errors='replace').read().splitlines()
                     if l.strip() and not l.lstrip().startswith('#')).strip()
     if not cmd:
-        row(label, False, '.claude/verify-harness holds only comments: it would verify nothing')
+        row(label, 'FAIL', '.claude/verify-harness holds only comments: it would verify nothing')
     else:
         try:
             budget = float(os.environ.get('BENDIT_HARNESS_TIMEOUT') or 300)
@@ -252,14 +248,14 @@ else:
         after = status()
         tail = ' | '.join(l for l in (out or '').strip().splitlines()[-4:])
         if rc is None:
-            row(label, False, f'did not finish in {budget:.0f}s (the Stop gate would refuse every turn)')
+            row(label, 'FAIL', f'did not finish in {budget:.0f}s (the Stop gate would refuse every turn)')
         elif rc != 0:
-            row(label, False, f'exit {rc}: {tail[-400:]}' if tail else f'exit {rc}, no output')
+            row(label, 'FAIL', f'exit {rc}: {tail[-400:]}' if tail else f'exit {rc}, no output')
         elif before != after:
-            row(label, False, 'exit 0, but it changed the working tree: '
+            row(label, 'FAIL', 'exit 0, but it changed the working tree: '
                 + short('\n'.join(sorted(set(after.splitlines()) ^ set(before.splitlines())))))
         else:
-            row(label, True)
+            row(label, 'PASS')
 
     # The Stop gate runs this harness only once the PERSON has approved its exact
     # content. Read-only here: prove.sh never approves anything for the person.
@@ -277,12 +273,12 @@ else:
     state, _, how = (chk.stdout.strip() + '\n\n').partition('\n')
     how = how.strip()
     if chk.returncode != 0:
-        row(label, False, 'could not read the approval list: ' + short(chk.stderr))
+        row(label, 'FAIL', 'could not read the approval list: ' + short(chk.stderr))
     elif state == 'trusted':
-        row(label, True)
+        row(label, 'PASS')
     else:
         why = {'never': 'never approved', 'changed': 'changed since you approved it'}.get(state, state)
-        row(label, False, f'{why}: the gate will refuse instead of running it. '
+        row(label, 'FAIL', f'{why}: the gate will refuse instead of running it. '
             f'In YOUR OWN terminal (not through the agent), run: {how}')
 
 # --- the files adoption writes carry no personal data -------------------------------
@@ -293,11 +289,11 @@ ls = subprocess.run(['git', '-C', repo, 'ls-files', '--cached', '--others', '--e
 cands += [f for f in ls.stdout.splitlines() if f and os.path.isfile(os.path.join(repo, f))]
 label = 'privacy: agent-layer files carry no home path or email'
 if not cands:
-    row(label, False, 'no agent-layer files to scan (no AGENTS.md, CLAUDE.md, .claude/verify-harness)')
+    row(label, 'FAIL', 'no agent-layer files to scan (no AGENTS.md, CLAUDE.md, .claude/verify-harness)')
 else:
     p = subprocess.run(['python3', os.path.join(kit, 'scripts', 'privacy-scan.py'), *cands],
                        cwd=repo, capture_output=True, text=True, env=ENV)
-    row(label, p.returncode == 0,
+    row(label, 'PASS' if p.returncode == 0 else 'FAIL',
         '' if p.returncode == 0 else f'exit {p.returncode}: {short(p.stdout + p.stderr, 400)}')
 
 # --- the project's features (.claude/bendit.json) ---------------------------------
@@ -309,29 +305,29 @@ FEATURE_CHECKS = {}
 label = 'features: .claude/bendit.json readable'
 try:
     feats = F.load(repo)
-    row(label, True)
+    row(label, 'PASS')
 except F.FeaturesError as e:
     feats = None
-    row(label, False, str(e))
+    row(label, 'FAIL', str(e))
 else:
     for name in F.FEATURES:
         label = f'feature: {name}'
         if feats is None:
-            row(label, 'OFF', 'not set up by /adopt yet')
+            row(label, 'UNUSED', 'not set up by /adopt yet')
             continue
         entry = feats['features'].get(name)
         if entry is None:
-            row(label, 'OFF', 'not listed in .claude/bendit.json')
+            row(label, 'UNUSED', 'not listed in .claude/bendit.json')
         elif not entry['on']:
-            row(label, 'OFF', entry['why'])
+            row(label, 'UNUSED', entry['why'])
         elif name not in FEATURE_CHECKS:
-            row(label, False, f'no check for {name}')
+            row(label, 'FAIL', f'no check for {name}')
         else:
             try:
                 ok, detail = FEATURE_CHECKS[name](repo, kit)
             except Exception as e:  # a crashing check is a failed check
                 ok, detail = False, f'check crashed: {type(e).__name__}: {e}'
-            row(label, ok, detail)
+            row(label, 'PASS' if ok else 'FAIL', detail)
 
 # --- the table ------------------------------------------------------------------------
 width = max([len('check')] + [len(r[0]) for r in rows])
@@ -344,13 +340,13 @@ print(f'{"-" * width}-+--------+--------------')
 for i, (check, state, rung, _d) in enumerate(rows, 1):
     print(f'{check.ljust(width)} | {state.ljust(6)} | {rung}')
 failed = [(i, r) for i, r in enumerate(rows, 1) if r[1] == 'FAIL']
-off = [r for r in rows if r[1] == 'OFF']
+unused = [r for r in rows if r[1] == 'UNUSED']
 print()
-if off:
-    print('off (not failures -- the project does not use these):')
-    for check, _s, _r, detail in off:
+if unused:
+    print('unused features (not failures):')
+    for check, _s, _r, detail in unused:
         print(f'  {check}')
-        print(f'    OFF  {detail}')
+        print(f'    UNUSED  {detail}')
     print()
 if failed:
     print('failures:')
@@ -360,7 +356,7 @@ if failed:
     print()
     print(f'prove: {len(failed)} of {len(rows)} checks FAILED -- adoption is NOT complete')
 else:
-    print(f'prove: all {len(rows)} checks passed ({len(off)} off)')
+    print(f'prove: all {len(rows)} checks passed' + (f' ({len(unused)} unused)' if unused else ''))
 print('not proved by this script: live wiring -- that Claude Code runs these hooks in a real')
 print('session. Do the in-session check in references/prove.md (a refused force push whose')
 print('message names bendit).')

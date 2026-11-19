@@ -27,11 +27,10 @@ their results:
 | check | result | evidence rung | detail |
 |---|---|---|---|
 
-Every row is rung 4 (run, output read). `OFF` means two different things
-here, so say which: in selfcheck's rows it is a guard protecting nothing (a
-failure); in prove.sh's `feature:` rows it is a feature this project does not
-use, with the reason beside it (not a failure -- report the reason as given and
-do not call it broken). Under it, for each failing row, say
+Every row is rung 4 (run, output read). `OFF` (selfcheck) is a guard
+protecting nothing: a failure. `UNUSED` (prove.sh's `feature:` rows) is a
+feature this project does not use, with the reason beside it: not a failure,
+report the reason as given. Under it, for each failing row, say
 what it means and the fix the output names:
 
 - `Operation not permitted` -> macOS is blocking the terminal from the plugin

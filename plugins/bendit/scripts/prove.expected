@@ -27,22 +27,22 @@ harness: .claude/verify-harness exits 0                                | PASS   
 harness: approved by you for the Stop gate                             | PASS   | 4
 privacy: agent-layer files carry no home path or email                 | PASS   | 4
 features: .claude/bendit.json readable                                 | PASS   | 4
-feature: browser-driver                                                | OFF    | 4
-feature: ux-design-laws                                                | OFF    | 4
-feature: session-brief                                                 | OFF    | 4
-feature: ls-guard                                                      | OFF    | 4
+feature: browser-driver                                                | UNUSED | 4
+feature: ux-design-laws                                                | UNUSED | 4
+feature: session-brief                                                 | UNUSED | 4
+feature: ls-guard                                                      | UNUSED | 4
 
-off (not failures -- the project does not use these):
+unused features (not failures):
   feature: browser-driver
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ux-design-laws
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: session-brief
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ls-guard
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
 
-prove: all 24 checks passed (4 off)
+prove: all 24 checks passed (4 unused)
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -76,20 +76,20 @@ harness: .claude/verify-harness exits 0                                | FAIL   
 harness: approved by you for the Stop gate                             | PASS   | 4
 privacy: agent-layer files carry no home path or email                 | PASS   | 4
 features: .claude/bendit.json readable                                 | PASS   | 4
-feature: browser-driver                                                | OFF    | 4
-feature: ux-design-laws                                                | OFF    | 4
-feature: session-brief                                                 | OFF    | 4
-feature: ls-guard                                                      | OFF    | 4
+feature: browser-driver                                                | UNUSED | 4
+feature: ux-design-laws                                                | UNUSED | 4
+feature: session-brief                                                 | UNUSED | 4
+feature: ls-guard                                                      | UNUSED | 4
 
-off (not failures -- the project does not use these):
+unused features (not failures):
   feature: browser-driver
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ux-design-laws
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: session-brief
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ls-guard
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
 
 failures:
   harness: .claude/verify-harness exits 0
@@ -128,20 +128,20 @@ Stop gate: allows when the harness exits 0                             | PASS   
 harness: .claude/verify-harness exits 0                                | FAIL   | 4
 privacy: agent-layer files carry no home path or email                 | PASS   | 4
 features: .claude/bendit.json readable                                 | PASS   | 4
-feature: browser-driver                                                | OFF    | 4
-feature: ux-design-laws                                                | OFF    | 4
-feature: session-brief                                                 | OFF    | 4
-feature: ls-guard                                                      | OFF    | 4
+feature: browser-driver                                                | UNUSED | 4
+feature: ux-design-laws                                                | UNUSED | 4
+feature: session-brief                                                 | UNUSED | 4
+feature: ls-guard                                                      | UNUSED | 4
 
-off (not failures -- the project does not use these):
+unused features (not failures):
   feature: browser-driver
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ux-design-laws
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: session-brief
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ls-guard
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
 
 failures:
   harness: .claude/verify-harness exits 0
@@ -181,20 +181,20 @@ harness: .claude/verify-harness exits 0                                | PASS   
 harness: approved by you for the Stop gate                             | FAIL   | 4
 privacy: agent-layer files carry no home path or email                 | PASS   | 4
 features: .claude/bendit.json readable                                 | PASS   | 4
-feature: browser-driver                                                | OFF    | 4
-feature: ux-design-laws                                                | OFF    | 4
-feature: session-brief                                                 | OFF    | 4
-feature: ls-guard                                                      | OFF    | 4
+feature: browser-driver                                                | UNUSED | 4
+feature: ux-design-laws                                                | UNUSED | 4
+feature: session-brief                                                 | UNUSED | 4
+feature: ls-guard                                                      | UNUSED | 4
 
-off (not failures -- the project does not use these):
+unused features (not failures):
   feature: browser-driver
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ux-design-laws
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: session-brief
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ls-guard
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
 
 failures:
   harness: approved by you for the Stop gate
@@ -234,22 +234,22 @@ harness: .claude/verify-harness exits 0                                | PASS   
 harness: approved by you for the Stop gate                             | PASS   | 4
 privacy: agent-layer files carry no home path or email                 | PASS   | 4
 features: .claude/bendit.json readable                                 | PASS   | 4
-feature: browser-driver                                                | OFF    | 4
-feature: ux-design-laws                                                | OFF    | 4
-feature: session-brief                                                 | OFF    | 4
-feature: ls-guard                                                      | OFF    | 4
+feature: browser-driver                                                | UNUSED | 4
+feature: ux-design-laws                                                | UNUSED | 4
+feature: session-brief                                                 | UNUSED | 4
+feature: ls-guard                                                      | UNUSED | 4
 
-off (not failures -- the project does not use these):
+unused features (not failures):
   feature: browser-driver
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ux-design-laws
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: session-brief
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ls-guard
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
 
-prove: all 24 checks passed (4 off)
+prove: all 24 checks passed (4 unused)
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -283,20 +283,20 @@ harness: .claude/verify-harness exits 0                                | PASS   
 harness: approved by you for the Stop gate                             | FAIL   | 4
 privacy: agent-layer files carry no home path or email                 | PASS   | 4
 features: .claude/bendit.json readable                                 | PASS   | 4
-feature: browser-driver                                                | OFF    | 4
-feature: ux-design-laws                                                | OFF    | 4
-feature: session-brief                                                 | OFF    | 4
-feature: ls-guard                                                      | OFF    | 4
+feature: browser-driver                                                | UNUSED | 4
+feature: ux-design-laws                                                | UNUSED | 4
+feature: session-brief                                                 | UNUSED | 4
+feature: ls-guard                                                      | UNUSED | 4
 
-off (not failures -- the project does not use these):
+unused features (not failures):
   feature: browser-driver
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ux-design-laws
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: session-brief
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ls-guard
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
 
 failures:
   harness: approved by you for the Stop gate
@@ -336,22 +336,22 @@ harness: .claude/verify-harness exits 0                                | PASS   
 harness: approved by you for the Stop gate                             | PASS   | 4
 privacy: agent-layer files carry no home path or email                 | PASS   | 4
 features: .claude/bendit.json readable                                 | PASS   | 4
-feature: browser-driver                                                | OFF    | 4
-feature: ux-design-laws                                                | OFF    | 4
-feature: session-brief                                                 | OFF    | 4
-feature: ls-guard                                                      | OFF    | 4
+feature: browser-driver                                                | UNUSED | 4
+feature: ux-design-laws                                                | UNUSED | 4
+feature: session-brief                                                 | UNUSED | 4
+feature: ls-guard                                                      | UNUSED | 4
 
-off (not failures -- the project does not use these):
+unused features (not failures):
   feature: browser-driver
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ux-design-laws
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: session-brief
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ls-guard
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
 
-prove: all 24 checks passed (4 off)
+prove: all 24 checks passed (4 unused)
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -385,22 +385,22 @@ harness: .claude/verify-harness exits 0                                | PASS   
 harness: approved by you for the Stop gate                             | PASS   | 4
 privacy: agent-layer files carry no home path or email                 | PASS   | 4
 features: .claude/bendit.json readable                                 | PASS   | 4
-feature: browser-driver                                                | OFF    | 4
-feature: ux-design-laws                                                | OFF    | 4
-feature: session-brief                                                 | OFF    | 4
-feature: ls-guard                                                      | OFF    | 4
+feature: browser-driver                                                | UNUSED | 4
+feature: ux-design-laws                                                | UNUSED | 4
+feature: session-brief                                                 | UNUSED | 4
+feature: ls-guard                                                      | UNUSED | 4
 
-off (not failures -- the project does not use these):
+unused features (not failures):
   feature: browser-driver
-    OFF  you declined Chrome
+    UNUSED  you declined Chrome
   feature: ux-design-laws
-    OFF  not listed in .claude/bendit.json
+    UNUSED  not listed in .claude/bendit.json
   feature: session-brief
-    OFF  not listed in .claude/bendit.json
+    UNUSED  not listed in .claude/bendit.json
   feature: ls-guard
-    OFF  not listed in .claude/bendit.json
+    UNUSED  not listed in .claude/bendit.json
 
-prove: all 24 checks passed (4 off)
+prove: all 24 checks passed (4 unused)
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -434,18 +434,18 @@ harness: .claude/verify-harness exits 0                                | PASS   
 harness: approved by you for the Stop gate                             | PASS   | 4
 privacy: agent-layer files carry no home path or email                 | PASS   | 4
 features: .claude/bendit.json readable                                 | PASS   | 4
-feature: browser-driver                                                | OFF    | 4
-feature: ux-design-laws                                                | OFF    | 4
-feature: session-brief                                                 | OFF    | 4
+feature: browser-driver                                                | UNUSED | 4
+feature: ux-design-laws                                                | UNUSED | 4
+feature: session-brief                                                 | UNUSED | 4
 feature: ls-guard                                                      | FAIL   | 4
 
-off (not failures -- the project does not use these):
+unused features (not failures):
   feature: browser-driver
-    OFF  not listed in .claude/bendit.json
+    UNUSED  not listed in .claude/bendit.json
   feature: ux-design-laws
-    OFF  not listed in .claude/bendit.json
+    UNUSED  not listed in .claude/bendit.json
   feature: session-brief
-    OFF  not listed in .claude/bendit.json
+    UNUSED  not listed in .claude/bendit.json
 
 failures:
   feature: ls-guard
@@ -524,20 +524,20 @@ harness: .claude/verify-harness exits 0                                | PASS   
 harness: approved by you for the Stop gate                             | PASS   | 4
 privacy: agent-layer files carry no home path or email                 | PASS   | 4
 features: .claude/bendit.json readable                                 | PASS   | 4
-feature: browser-driver                                                | OFF    | 4
-feature: ux-design-laws                                                | OFF    | 4
-feature: session-brief                                                 | OFF    | 4
-feature: ls-guard                                                      | OFF    | 4
+feature: browser-driver                                                | UNUSED | 4
+feature: ux-design-laws                                                | UNUSED | 4
+feature: session-brief                                                 | UNUSED | 4
+feature: ls-guard                                                      | UNUSED | 4
 
-off (not failures -- the project does not use these):
+unused features (not failures):
   feature: browser-driver
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ux-design-laws
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: session-brief
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ls-guard
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
 
 failures:
   block-dangerous-bash: refuses `git push --force`
@@ -579,20 +579,20 @@ harness: .claude/verify-harness exits 0                                | PASS   
 harness: approved by you for the Stop gate                             | PASS   | 4
 privacy: agent-layer files carry no home path or email                 | PASS   | 4
 features: .claude/bendit.json readable                                 | PASS   | 4
-feature: browser-driver                                                | OFF    | 4
-feature: ux-design-laws                                                | OFF    | 4
-feature: session-brief                                                 | OFF    | 4
-feature: ls-guard                                                      | OFF    | 4
+feature: browser-driver                                                | UNUSED | 4
+feature: ux-design-laws                                                | UNUSED | 4
+feature: session-brief                                                 | UNUSED | 4
+feature: ls-guard                                                      | UNUSED | 4
 
-off (not failures -- the project does not use these):
+unused features (not failures):
   feature: browser-driver
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ux-design-laws
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: session-brief
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ls-guard
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
 
 failures:
   path-contracts: refuses a write to x.gen.ts
@@ -634,20 +634,20 @@ harness: .claude/verify-harness exits 0                                | PASS   
 harness: approved by you for the Stop gate                             | FAIL   | 4
 privacy: agent-layer files carry no home path or email                 | PASS   | 4
 features: .claude/bendit.json readable                                 | PASS   | 4
-feature: browser-driver                                                | OFF    | 4
-feature: ux-design-laws                                                | OFF    | 4
-feature: session-brief                                                 | OFF    | 4
-feature: ls-guard                                                      | OFF    | 4
+feature: browser-driver                                                | UNUSED | 4
+feature: ux-design-laws                                                | UNUSED | 4
+feature: session-brief                                                 | UNUSED | 4
+feature: ls-guard                                                      | UNUSED | 4
 
-off (not failures -- the project does not use these):
+unused features (not failures):
   feature: browser-driver
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ux-design-laws
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: session-brief
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ls-guard
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
 
 failures:
   Stop gate: --mark records a code edit
@@ -694,20 +694,20 @@ harness: .claude/verify-harness exits 0                                | PASS   
 harness: approved by you for the Stop gate                             | PASS   | 4
 privacy: agent-layer files carry no home path or email                 | PASS   | 4
 features: .claude/bendit.json readable                                 | PASS   | 4
-feature: browser-driver                                                | OFF    | 4
-feature: ux-design-laws                                                | OFF    | 4
-feature: session-brief                                                 | OFF    | 4
-feature: ls-guard                                                      | OFF    | 4
+feature: browser-driver                                                | UNUSED | 4
+feature: ux-design-laws                                                | UNUSED | 4
+feature: session-brief                                                 | UNUSED | 4
+feature: ls-guard                                                      | UNUSED | 4
 
-off (not failures -- the project does not use these):
+unused features (not failures):
   feature: browser-driver
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ux-design-laws
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: session-brief
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
   feature: ls-guard
-    OFF  not set up by /adopt yet
+    UNUSED  not set up by /adopt yet
 
 failures:
   new-guard-nobody-probed.py: has a probe

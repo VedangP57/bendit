@@ -136,13 +136,15 @@ Chromium), fetches bendit at the matching release tag into
 - **Read it first** if you prefer not to pipe into a shell:
 
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh -o install.sh
-  less install.sh
-  bash install.sh
+  curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh -o "${TMPDIR:-/tmp}/bendit-install.sh"
+  less "${TMPDIR:-/tmp}/bendit-install.sh"
+  bash "${TMPDIR:-/tmp}/bendit-install.sh"
   ```
 
-- **Check without installing:** `bash install.sh --check` prints what is
-  missing and installs nothing. Exit codes: 0 nothing is missing, 1 something is
+  (It is saved outside your project, so it leaves nothing there.)
+- **Check without installing:**
+  `curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh | bash -s -- --check`
+  prints what is missing and installs nothing. Exit codes: 0 nothing is missing, 1 something is
   missing or failed, 2 usage error, refused location (your home folder or `/`)
   or unsupported system (Windows is not supported yet). `--version` and
   `--help` also exist.

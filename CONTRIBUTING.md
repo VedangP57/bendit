@@ -55,12 +55,14 @@ When you report what you verified, use the evidence rungs:
    `packages/npm/package.json` and `packages/pypi/pyproject.toml`.
 2. Run `packages/sync.sh` (copies `install.sh` into both wrappers) and commit.
 3. `bash .github/workflows/ci.sh` must end `CI passed: ...`.
-4. Tag `vX.Y.Z` and push the tag. The installer fetches that tag, so it must
-   exist before anyone runs the new installer.
+4. Tag `vX.Y.Z`, then push main and the tag together:
+   `git push --atomic origin main vX.Y.Z`. The installer on main fetches that
+   tag, so neither may land without the other.
 5. Publish, **only after the repo is public**, by the owner, from their own
-   accounts: `npm publish` in `packages/npm`; `python3 -m build` then
-   `twine upload` in `packages/pypi`. Before uploading, check the wheel holds
-   the installer: `unzip -l dist/*.whl | grep bendit/install.sh`.
+   accounts: `npm publish` in `packages/npm`. For PyPI, in `packages/pypi`:
+   `python3 -m pip install build twine`, then `rm -rf dist`,
+   `python3 -m build`, check the wheel holds the installer
+   (`unzip -l dist/*.whl | grep bendit/install.sh`), and `twine upload dist/*`.
 
 ## Reporting bugs and ideas
 

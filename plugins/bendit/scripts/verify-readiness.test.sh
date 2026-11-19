@@ -49,13 +49,18 @@ cd "\$REPO" || exit 1
 PORT=\${PORT:-$port}
 case "\${1:-}" in
   up) exec python3 -c "
-import http.server, signal
+import http.server, signal, socketserver
 signal.alarm(20)           # exit on its own; never outlive the test
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(s):
         s.send_response($status); s.end_headers(); s.wfile.write(b'<title>fx</title>')
     def log_message(s, *a): pass
-http.server.HTTPServer(('127.0.0.1', \$PORT), H).serve_forever()
+# NOT http.server.HTTPServer: its server_bind() calls socket.getfqdn(), a
+# reverse-DNS lookup that hung on GitHub's macOS runners with the port bound
+# but not yet listening, so every probe timed out (stack dump, 2026-11-19).
+# A plain TCPServer binds and listens with no lookup.
+socketserver.TCPServer.allow_reuse_address = True
+socketserver.TCPServer(('127.0.0.1', \$PORT), H).serve_forever()
 " ;;
   doctor) echo 'ok    fixture doctor'; exit 0 ;;
   # The verdict comes FIRST and 200KB follow it -- a real driver's console and

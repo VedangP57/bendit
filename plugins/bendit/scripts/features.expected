@@ -57,10 +57,20 @@ exit 2
 --- stderr
 features: <tmp>/bad/.claude/bendit.json: feature 'ls-guard': "on" must be true or false, got 'yes'
 
+=== on missing
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'ls-guard': "on" must be true or false, got None
+
 === invalid JSON
 exit 2
 --- stderr
 features: <tmp>/bad/.claude/bendit.json: not valid JSON: Expecting property name enclosed in double quotes: line 1 column 14 (char 13)
+
+=== empty file
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: not valid JSON: Expecting value: line 1 column 1 (char 0)
 
 === version is not 1
 exit 2
@@ -72,35 +82,129 @@ exit 2
 --- stderr
 features: <tmp>/bad/.claude/bendit.json: "version" must be 1, got None
 
+=== version is true
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: "version" must be 1, got True
+
+=== version is 1.0
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: "version" must be 1, got 1.0
+
+=== features missing
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: "features" must be an object
+
+=== features is not an object
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: "features" must be an object
+
+=== a feature entry is not an object
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'ls-guard' must be an object
+
 === why empty
 exit 2
 --- stderr
 features: <tmp>/bad/.claude/bendit.json: feature 'ls-guard': "why" must be a non-empty string
 
-=== an unknown key on a feature
+=== why is not a string
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'ls-guard': "why" must be a non-empty string
+
+=== why missing
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'ls-guard': "why" must be a non-empty string
+
+=== brief on a feature that has none
 exit 2
 --- stderr
 features: <tmp>/bad/.claude/bendit.json: feature 'ls-guard': unknown key 'brief'
+
+=== brief is not an object
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'session-brief': 'brief' must be an object
+
+=== an unknown key on a feature
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'ls-guard': unknown key 'colour'
+
+=== extra top-level key
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: unknown top-level key 'extra' (only "version" and "features")
 
 === top level is a list
 exit 2
 --- stderr
 features: <tmp>/bad/.claude/bendit.json: top level must be an object
 
+=== bad UTF-8
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: cannot be read: 'utf-8' codec can't decode byte 0xff in position 27: invalid start byte
+
+=== .claude is a file
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: cannot be read: [Errno 20] Not a directory: '<tmp>/bad/.claude/bendit.json'
+
+=== 1000000 levels of nesting
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: nested too deeply to be a bendit.json
+
 === set refuses to overwrite a malformed file
 exit 2
 --- stderr
 features: <tmp>/bad/.claude/bendit.json: top level must be an object
+
+=== set on a file with an extra top-level key
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: unknown top-level key 'extra' (only "version" and "features")
 
 === set unknown feature
 exit 2
 --- stderr
 features: unknown feature 'lsguard' (known: browser-driver, ux-design-laws, session-brief, ls-guard)
 
+=== get unknown feature
+exit 2
+--- stderr
+features: unknown feature 'lsguard' (known: browser-driver, ux-design-laws, session-brief, ls-guard)
+
+=== set with an empty why
+exit 2
+--- stderr
+features: <tmp>/none/.claude/bendit.json: feature 'ls-guard': "why" must be a non-empty string
+
+=== set with a bad on|off token
+exit 2
+--- stderr
+usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <root>
+
 === no arguments
 exit 2
 --- stderr
 usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <root>
+
+=== show on a malformed file
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: unknown feature 'lsguard' (known: browser-driver, ux-design-laws, session-brief, ls-guard)
+
+=== rewrite a 0664 file
+exit 0
+(silent)
 
 === write into a read-only .claude
 exit 2

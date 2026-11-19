@@ -53,32 +53,99 @@ chk "other features and the brief object are kept; the why is updated" "$got" "[
 fmt=$("$PY" -c 'import sys; t=open(sys.argv[1]).read(); print(t.startswith("{\n  \"features\""), t.endswith("}\n") and not t.endswith("\n\n"), t.index("ls-guard") < t.index("session-brief") < t.index("ux-design-laws"))' "$T/merge/.claude/bendit.json")
 chk "file is sorted keys, 2-space indent, one trailing newline" "$fmt" "True True True"
 cap "show after merges" show "$T/merge"
-chk "no temp file left behind" "$(/usr/bin/find "$T/merge/.claude" -name '*.tmp')" ""
 
 echo; echo "MALFORMED FILES FAIL CLOSED"
-bad() { # <label> <content> <needle>
-  proj bad "$2"
-  cap "$1" get "$T/bad" browser-driver
+# A refusal is: exit 2, the "features: " prefix, the file named, the problem
+# named, and nothing on stdout. Exit 2 alone proves nothing (python exits 2 for
+# a missing script), so every check ties the code to the message.
+refused() { # <label> <needle> -- judges the last cap
   chk "$1 -> exit 2" "$EXPECT_CODE" "2"
+  case "$EXPECT_STDERR" in "features: "*) chk "  ...features: prefix" y y;; *) chk "  ...features: prefix (stderr: $EXPECT_STDERR)" n y;; esac
   has "  ...names the file" "$T/bad/.claude/bendit.json" "$EXPECT_STDERR"
-  has "  ...names the problem" "$3" "$EXPECT_STDERR"
-  chk "  ...prints no on/off" "$EXPECT_STDOUT" ""
+  has "  ...names the problem" "$2" "$EXPECT_STDERR"
+  chk "  ...prints nothing on stdout" "$EXPECT_STDOUT" ""
+}
+bad() { # <label> <content> <needle>
+  proj bad; printf '%s' "$2" > "$T/bad/.claude/bendit.json"
+  cap "$1" get "$T/bad" browser-driver
+  refused "$1" "$3"
 }
 bad "unknown feature" '{"version":1,"features":{"lsguard":{"on":true,"why":"x"}}}' "lsguard"
 bad "on is not a bool" '{"version":1,"features":{"ls-guard":{"on":"yes","why":"x"}}}' '"on"'
+bad "on missing" '{"version":1,"features":{"ls-guard":{"why":"x"}}}' '"on"'
 bad "invalid JSON" '{"version":1,' "not valid JSON"
+bad "empty file" '' "not valid JSON"
 bad "version is not 1" '{"version":2,"features":{}}' "version"
 bad "version missing" '{"features":{}}' "version"
+bad "version is true" '{"version":true,"features":{}}' "version"
+bad "version is 1.0" '{"version":1.0,"features":{}}' "version"
+bad "features missing" '{"version":1}' '"features"'
+bad "features is not an object" '{"version":1,"features":[]}' '"features"'
+bad "a feature entry is not an object" '{"version":1,"features":{"ls-guard":true}}' "ls-guard"
 bad "why empty" '{"version":1,"features":{"ls-guard":{"on":true,"why":" "}}}' "why"
-bad "an unknown key on a feature" '{"version":1,"features":{"ls-guard":{"on":true,"why":"x","brief":{}}}}' "brief"
+bad "why is not a string" '{"version":1,"features":{"ls-guard":{"on":true,"why":5}}}' "why"
+bad "why missing" '{"version":1,"features":{"ls-guard":{"on":true}}}' "why"
+bad "brief on a feature that has none" '{"version":1,"features":{"ls-guard":{"on":true,"why":"x","brief":{}}}}' "brief"
+bad "brief is not an object" '{"version":1,"features":{"session-brief":{"on":true,"why":"x","brief":[1]}}}' "brief"
+bad "an unknown key on a feature" '{"version":1,"features":{"ls-guard":{"on":true,"why":"x","colour":1}}}' "colour"
+bad "extra top-level key" '{"version":1,"features":{},"extra":1}' "extra"
 bad "top level is a list" '[]' "object"
-cap "set refuses to overwrite a malformed file" set "$T/bad" ls-guard on x
-chk "set on a malformed file -> exit 2" "$EXPECT_CODE" "2"
+printf '{"version":1,"features":{}}\xff\xfe' > "$T/bad/.claude/bendit.json"
+cap "bad UTF-8" get "$T/bad" ls-guard; refused "bad UTF-8" "cannot be read"
+proj bad; rmdir "$T/bad/.claude"; printf 'x' > "$T/bad/.claude"
+cap ".claude is a file" get "$T/bad" ls-guard
+chk ".claude is a file -> exit 2" "$EXPECT_CODE" "2"
+has "  ...names the file" "$T/bad/.claude/bendit.json" "$EXPECT_STDERR"
+has "  ...cannot be read" "cannot be read" "$EXPECT_STDERR"
+rm -f "$T/bad/.claude"
+# Deep nesting: json.loads raises RecursionError; it must still be exit 2.
+proj bad; "$PY" -c 'import sys; sys.stdout.write("["*1000000 + "]"*1000000)' > "$T/bad/.claude/bendit.json"
+cap "1000000 levels of nesting" get "$T/bad" ls-guard; refused "deep nesting" "nested too deeply"
+# A NUL byte in the root path: ValueError from open().
+nulrc=$("$PY" - "$SD" <<'PYE'
+import sys
+sys.path.insert(0, sys.argv[1])
+import features
+try:
+    features.load('/tmp/a\0b')
+    print('NO ERROR')
+except features.FeaturesError as e:
+    print('raised', '\x00' in str(e))
+PYE
+)
+chk "NUL in the path -> FeaturesError (not ValueError), message has no raw NUL" "$nulrc" "raised False"
+# set paths
+proj bad '[]'
+cap "set refuses to overwrite a malformed file" set "$T/bad" ls-guard on x; refused "set on a malformed file" "object"
 chk "  ...and leaves it as it was" "$(cat "$T/bad/.claude/bendit.json")" "[]"
+proj bad '{"version":1,"features":{},"extra":1}'
+cap "set on a file with an extra top-level key" set "$T/bad" ls-guard on x; refused "set on extra top-level key" "extra"
+chk "  ...file untouched (the key is not silently erased)" "$(cat "$T/bad/.claude/bendit.json")" '{"version":1,"features":{},"extra":1}'
 cap "set unknown feature" set "$T/none" lsguard on x
-chk "set of an unknown name -> exit 2" "$EXPECT_CODE" "2"
-cap "no arguments" 
-chk "usage -> exit 2" "$EXPECT_CODE" "2"
+chk "set of an unknown name -> exit 2" "$EXPECT_CODE" "2"; has "  ...names it" "lsguard" "$EXPECT_STDERR"
+cap "get unknown feature" get "$T/none" lsguard
+chk "get of an unknown name -> exit 2" "$EXPECT_CODE" "2"; has "  ...names it" "lsguard" "$EXPECT_STDERR"
+cap "set with an empty why" set "$T/none" ls-guard on ""
+chk "empty why -> exit 2" "$EXPECT_CODE" "2"; has "  ...names why" "why" "$EXPECT_STDERR"
+cap "set with a bad on|off token" set "$T/none" ls-guard maybe x
+chk "bad token -> exit 2" "$EXPECT_CODE" "2"; has "  ...says usage" "usage:" "$EXPECT_STDERR"
+cap "no arguments"
+chk "usage -> exit 2" "$EXPECT_CODE" "2"; has "  ...says usage" "usage:" "$EXPECT_STDERR"
+proj bad '{"version":1,"features":{"lsguard":{"on":true,"why":"x"}}}'
+cap "show on a malformed file" show "$T/bad"; refused "show on a malformed file" "lsguard"
+ls_none=$(/usr/bin/find "$T/none" -name '*.tmp'); chk "no stray temp files after the refusals" "$ls_none" ""
+
+echo; echo "FILE MODE"
+proj mode '{"version":1,"features":{"ls-guard":{"on":true,"why":"old"}}}'
+chmod 664 "$T/mode/.claude/bendit.json"
+cap "rewrite a 0664 file" set "$T/mode" ls-guard off new
+chk "an existing file keeps its mode" "$("$PY" -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777))' "$T/mode/.claude/bendit.json")" "0o664"
+proj fresh
+( umask 022; "$PY" "$F" set "$T/fresh" ls-guard on new )
+chk "a new file is 0666 & ~umask (umask 022 -> 0644)" "$("$PY" -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777))' "$T/fresh/.claude/bendit.json")" "0o644"
+proj fresh2
+( umask 002; "$PY" "$F" set "$T/fresh2" ls-guard on new )
+chk "  ...and follows the umask (002 -> 0664)" "$("$PY" -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777))' "$T/fresh2/.claude/bendit.json")" "0o664"
 
 echo; echo "INTERRUPTED WRITE LEAVES THE OLD FILE INTACT"
 proj ro '{"version":1,"features":{"ls-guard":{"on":true,"why":"old"}}}'
@@ -90,28 +157,46 @@ else
   cap "write into a read-only .claude" set "$T/ro" ls-guard off new
   chk "read-only .claude -> exit 2" "$EXPECT_CODE" "2"
   has "  ...says the old file is untouched" "untouched" "$EXPECT_STDERR"
+  has "  ...names the file" "$T/ro/.claude/bendit.json" "$EXPECT_STDERR"
 fi
 chmod u+w "$T/ro/.claude"
-chk "old file intact after the refused write" "$(cat "$T/ro/.claude/bendit.json")" "$before"
-chk "no temp file left" "$(/usr/bin/find "$T/ro/.claude" -name '*.tmp')" ""
-# Hermetic equivalent that does not depend on file modes: the rename itself fails.
+chk "old file intact after the refused write (nothing could be created)" "$(cat "$T/ro/.claude/bendit.json")" "$before"
+# Hermetic equivalent, independent of file modes, and the only case that
+# actually CREATES a temp file: the rename itself fails.
 out=$("$PY" - "$SD" "$T/ro" <<'PYE'
 import os, sys
 sys.path.insert(0, sys.argv[1])
 import features
 root = sys.argv[2]
-def boom(a, b): raise OSError('simulated crash before the rename')
+real = os.replace
+seen = []
+def boom(a, b):
+    seen.append(os.path.exists(a))   # the temp file exists at the moment of failure
+    raise OSError('simulated crash before the rename')
 os.replace = boom
 try:
     features.write(root, {'ls-guard': {'on': False, 'why': 'new'}})
     print('NO ERROR')
 except features.FeaturesError as e:
+    print('raised', seen)
+PYE
+)
+chk "a failing os.replace raises FeaturesError, after a temp file existed" "$out" "raised [True]"
+chk "  ...old file intact" "$(cat "$T/ro/.claude/bendit.json")" "$before"
+chk "  ...temp file cleaned up" "$(/usr/bin/find "$T/ro/.claude" -name '*.tmp')" ""
+# An unserialisable value: write must raise FeaturesError, not TypeError.
+out=$("$PY" - "$SD" "$T/ro" <<'PYE'
+import sys
+sys.path.insert(0, sys.argv[1])
+import features
+try:
+    features.write(sys.argv[2], {'session-brief': {'on': True, 'why': 'x', 'brief': {'p': object()}}})
+    print('NO ERROR')
+except features.FeaturesError:
     print('raised')
 PYE
 )
-chk "a failing os.replace raises FeaturesError" "$out" "raised"
-chk "  ...old file intact" "$(cat "$T/ro/.claude/bendit.json")" "$before"
-chk "  ...no temp file left" "$(/usr/bin/find "$T/ro/.claude" -name '*.tmp')" ""
+chk "an unserialisable value -> FeaturesError, file untouched" "$out $(cat "$T/ro/.claude/bendit.json" | head -c 0)$([ "$(cat "$T/ro/.claude/bendit.json")" = "$before" ] && echo same)" "raised same"
 
 echo; echo "MODULE API"
 api=$(CLAUDE_PROJECT_DIR= "$PY" - "$SD" "$T" <<'PYE'

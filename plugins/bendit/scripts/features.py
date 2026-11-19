@@ -41,6 +41,9 @@ def path(root):
 def _validate(data, where):
     if not isinstance(data, dict):
         raise FeaturesError('%s: top level must be an object' % where)
+    for k in data:
+        if k not in ('version', 'features'):
+            raise FeaturesError('%s: unknown top-level key %r (only "version" and "features")' % (where, k))
     if type(data.get('version')) is not int or data.get('version') != VERSION:
         raise FeaturesError('%s: "version" must be %d, got %r' % (where, VERSION, data.get('version')))
     feats = data.get('features')
@@ -75,10 +78,12 @@ def load(root):
             text = f.read()
     except FileNotFoundError:
         return None
-    except (OSError, UnicodeDecodeError) as e:
-        raise FeaturesError('%s: cannot be read: %s' % (p, e))
+    except (OSError, ValueError) as e:  # ValueError: bad UTF-8, NUL byte in the path
+        raise FeaturesError('%s: cannot be read: %s' % (p.replace('\0', '\\0'), e))
     try:
         data = json.loads(text)
+    except RecursionError:
+        raise FeaturesError('%s: nested too deeply to be a bendit.json' % p)
     except ValueError as e:
         raise FeaturesError('%s: not valid JSON: %s' % (p, e))
     return _validate(data, p)
@@ -98,18 +103,30 @@ def write(root, features):
     """Atomically write {"version": 1, "features": features}; the old file survives a failure."""
     p = path(root)
     data = _validate({'version': VERSION, 'features': features}, p)
-    text = json.dumps(data, indent=2, sort_keys=True) + '\n'
+    try:
+        text = json.dumps(data, indent=2, sort_keys=True) + '\n'
+    except (TypeError, ValueError, RecursionError) as e:
+        raise FeaturesError('%s: value cannot be written as JSON: %s' % (p, e))
     d = os.path.dirname(p)
     tmp = None
     try:
+        # Keep the old file's mode (mkstemp makes 0600, which would tighten a
+        # shared file); a new file gets what open() would: 0666 & ~umask.
+        try:
+            mode = os.stat(p).st_mode & 0o7777
+        except FileNotFoundError:
+            um = os.umask(0)
+            os.umask(um)
+            mode = 0o666 & ~um
         os.makedirs(d, exist_ok=True)
         fd, tmp = tempfile.mkstemp(prefix='.bendit.json.', suffix='.tmp', dir=d)
+        os.chmod(tmp, mode)
         with os.fdopen(fd, 'w', encoding='utf-8') as f:
             f.write(text)
         os.replace(tmp, p)
         tmp = None
-    except OSError as e:
-        raise FeaturesError('%s: could not be written (the old file is untouched): %s' % (p, e.strerror or e))
+    except (OSError, ValueError) as e:
+        raise FeaturesError('%s: could not be written (the old file is untouched): %s' % (p, getattr(e, 'strerror', None) or e))
     finally:
         if tmp is not None:
             try:
@@ -156,6 +173,9 @@ def _main(argv):
             return 2
     except FeaturesError as e:
         print('features: %s' % e, file=sys.stderr)
+        return 2
+    except Exception as e:  # exit 1 is non-blocking to a hook: never leak one
+        print('features: unexpected %s: %s' % (type(e).__name__, e), file=sys.stderr)
         return 2
     return 0
 

@@ -162,6 +162,110 @@ exit 0
 exit 0
 (silent)
 
+=== rm -rf a folder in /tmp
+exit 0
+(silent)
+
+=== rm -rf a folder in $TMPDIR
+exit 0
+(silent)
+
+=== rm -rf ${TMPDIR}/x
+exit 0
+(silent)
+
+=== rm -rf a var set to a TMPDIR path
+exit 0
+(silent)
+
+=== rm -rf a var set from mktemp
+exit 0
+(silent)
+
+=== export D=$(mktemp -d), then rm
+exit 0
+(silent)
+
+=== rm -rf two temp folders
+exit 0
+(silent)
+
+=== rm -rf a subpath of a temp var
+exit 0
+(silent)
+
+=== rm -rf /tmp itself
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== rm -rf /tmp/ itself
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== rm -rf $TMPDIR itself
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== rm -rf a glob straight under /tmp
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== rm -rf .. out of /tmp
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== rm -rf a /tmp look-alike
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== rm -rf a $TMPDIR look-alike
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== a temp folder AND a real one
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== a var set to a real folder
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== an unassigned var
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== a temp var reassigned before rm
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== a var set to the temp root
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive force delete — run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
 === rm without recursive+force
 exit 0
 (silent)

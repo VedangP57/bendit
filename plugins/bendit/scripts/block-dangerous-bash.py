@@ -20,7 +20,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from shell_text import SQL_CLIENTS, simple_commands  # noqa: E402
+from shell_text import SQL_CLIENTS, lex, simple_commands  # noqa: E402
 
 # HOW COMMANDS ARE FOUND. An earlier version made every rule a regex anchored
 # at a command boundary (start, newline, `;|&`, backtick, `$(`, then/do/else).
@@ -83,13 +83,73 @@ def rm_operands(args):
     return out
 
 
+# A SCRATCH FOLDER INSIDE A TEMP LOCATION may be force-deleted. In a skill
+# eval the agent, told to make its new check fail once, built a scratch copy
+# under $TMPDIR; refusing the `rm -rf "$d"` cleanup ran it out of turns.
+# Only a folder INSIDE the temp root counts: the root itself, a glob straight
+# under it, a `..` segment and look-alikes (/tmpfoo, $TMPDIRX) do not.
+_TEMP_ROOTS = ('/tmp/', '/private/tmp/', '$TMPDIR/', '${TMPDIR}/')
+_VAR_REF = re.compile(r'^\$(?:\{(\w+)\}|(\w+))(/.*)?$')
+_ASSIGN = re.compile(r'^(\w+)=(.*)$', re.S)
+_DECLARERS = ('export', 'local', 'declare', 'readonly', 'typeset')
+
+
+def _inside_temp(path: str) -> bool:
+    for root in _TEMP_ROOTS:
+        if path.startswith(root):
+            rest = path[len(root):].strip('/')
+            parts = [p for p in rest.split('/') if p]
+            if not parts or '..' in parts:
+                return False
+            # the first segment must name something, not glob everything
+            return bool(re.search(r'[^*?\[\]]', parts[0]))
+    return False
+
+
+def temp_vars(command: str, before_seq: int) -> set:
+    """Names whose LAST assignment before `before_seq` is a temp path or a
+    $(mktemp ...). Later reassignment to anything else drops the name."""
+    value_of = {}
+    for c in lex(command).cmds:
+        if c.seq >= before_seq:
+            continue
+        words = c.argv
+        if words and words[0] in _DECLARERS:
+            words = words[1:]
+        for w in words:
+            m = _ASSIGN.match(w)
+            if not m:
+                break   # assignments come first; the rest is the command
+            value_of[m.group(1)] = m.group(2)
+    return {n for n, v in value_of.items()
+            if _inside_temp(v) or re.match(r'^(\$\(|`)\s*mktemp\b', v)}
+
+
+def _temp_target(operand: str, tvars: set) -> bool:
+    if _inside_temp(operand):
+        return True
+    m = _VAR_REF.match(operand)
+    return bool(m) and (m.group(1) or m.group(2)) in tvars
+
+
+# The command being inspected, for rules that need to see sibling commands
+# (an assignment two commands earlier). Set by inspect().
+_COMMAND = ''
+
+
 def rm_recursive_force(s):
     if s.argv[0] != 'rm' or s.deferred:
         # A trap body is the cleanup idiom (`trap 'rm -rf "$T"' EXIT`) and was
         # never refused; the cwd rule below is what guards a trap.
         return False
     recursive, force = rm_flags(s.argv[1:])
-    return recursive and force
+    if not (recursive and force):
+        return False
+    operands = rm_operands(s.argv[1:])
+    tvars = temp_vars(_COMMAND, s.seq)
+    if operands and all(_temp_target(o, tvars) for o in operands):
+        return False
+    return True
 
 
 def find_delete(s):
@@ -315,6 +375,8 @@ def inspect(raw: str) -> int:
     if not command.strip():
         return 0
 
+    global _COMMAND
+    _COMMAND = command
     simples = simple_commands(command)
     doomed = deletes_the_directory_it_enters(simples)
     if doomed is not None:

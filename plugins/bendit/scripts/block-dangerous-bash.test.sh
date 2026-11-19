@@ -67,9 +67,9 @@ run 2 "github PAT"                      'gh auth login --with-token ghp_A1b2C3d4
 
 # Positive controls for the heredoc carve-out below: only the BODY of a QUOTED
 # heredoc stops being read as commands. Everything else still blocks.
-run 2 "rm -rf on the heredoc opener line" $'cat <<\'EOF\' > note.txt && rm -rf /tmp/x\nharmless\nEOF'
-run 2 "rm -rf piped after heredoc ends"   $'cat > note.txt <<\'EOF\'\nharmless\nEOF\ncat note.txt | rm -rf /tmp/x'
-run 2 "unquoted heredoc expands \$( )"    $'cat > note.txt <<EOF\n$(rm -rf /tmp/x)\nEOF'
+run 2 "rm -rf on the heredoc opener line" $'cat <<\'EOF\' > note.txt && rm -rf ./build\nharmless\nEOF'
+run 2 "rm -rf piped after heredoc ends"   $'cat > note.txt <<\'EOF\'\nharmless\nEOF\ncat note.txt | rm -rf ./build'
+run 2 "unquoted heredoc expands \$( )"    $'cat > note.txt <<EOF\n$(rm -rf ./build)\nEOF'
 run 2 "stripe live key in a heredoc"      $'cat > .env <<\'EOF\'\nSTRIPE=sk_live_51Hq9ZxAbCdEfGhIjKlMnOpQr\nEOF'
 
 echo
@@ -89,6 +89,31 @@ run 0 "git clean -n is a dry run"        'git clean -n -d'
 run 0 "git clean --dry-run"              'git clean --dry-run -fdx'
 run 0 "git clean with no force deletes nothing" 'git clean -d'
 run 0 "a message mentioning git clean"   'git commit -m "docs: never run git clean -fdx here"'
+# A SCRATCH FOLDER INSIDE A TEMP LOCATION may be force-deleted. Measured in a
+# skill eval: following "make the check fail once", the agent built a scratch
+# copy in $TMPDIR, the guard refused its `rm -rf "$d"` cleanup, and the run
+# ran out of turns. Only a folder INSIDE the temp root counts, and every
+# target must be one; the temp root, globs, `..` and look-alikes stay refused.
+run 0 "rm -rf a folder in /tmp"          'rm -rf /tmp/scratch'
+run 0 "rm -rf a folder in \$TMPDIR"      'rm -rf "$TMPDIR/guardcheck"'
+run 0 "rm -rf \${TMPDIR}/x"              'rm -rf "${TMPDIR}/x/y"'
+run 0 "rm -rf a var set to a TMPDIR path" 'd="$TMPDIR/guardcheck" && mkdir -p "$d" && rm -rf "$d"'
+run 0 "rm -rf a var set from mktemp"     'D=$(mktemp -d); touch "$D/a"; rm -rf "$D"'
+run 0 "export D=\$(mktemp -d), then rm"  'export D=$(mktemp -d); rm -rf "$D"'
+run 0 "rm -rf two temp folders"          'rm -rf /tmp/a /private/tmp/b'
+run 0 "rm -rf a subpath of a temp var"   'd=$(mktemp -d) && rm -rf "$d/out"'
+run 2 "rm -rf /tmp itself"               'rm -rf /tmp'
+run 2 "rm -rf /tmp/ itself"              'rm -rf /tmp/'
+run 2 "rm -rf \$TMPDIR itself"           'rm -rf "$TMPDIR"'
+run 2 "rm -rf a glob straight under /tmp" 'rm -rf /tmp/*'
+run 2 "rm -rf .. out of /tmp"            'rm -rf /tmp/../home/me'
+run 2 "rm -rf a /tmp look-alike"         'rm -rf /tmpfoo'
+run 2 "rm -rf a \$TMPDIR look-alike"     'rm -rf "$TMPDIRX/x"'
+run 2 "a temp folder AND a real one"     'rm -rf /tmp/a ./build'
+run 2 "a var set to a real folder"       'd=./build; rm -rf "$d"'
+run 2 "an unassigned var"                'rm -rf "$d"'
+run 2 "a temp var reassigned before rm"  'd="$TMPDIR/x"; d=./src; rm -rf "$d"'
+run 2 "a var set to the temp root"       'd="$TMPDIR"; rm -rf "$d"'
 run 0 "rm without recursive+force"       'rm ./tmp/output.log'
 run 0 "supabase db diff"                 'supabase db diff -f add_policies'
 run 0 "a test-mode stripe key"           'stripe listen --api-key sk_test_51Hq9ZxAbCdEfGhIjKlMnOpQr'
@@ -124,10 +149,10 @@ echo "COMMAND SEPARATORS — a newline separates commands just as ; and | do"
 # more real destructive commands than it caught: multi-line commands are one of
 # the most common shapes an agent sends.
 run 2 "delete on the second line"          'echo hi
-rm -rf /tmp/canary'
+rm -rf ./canary'
 run 2 "delete on the third line"           'set -e
 echo a
-rm -rf /tmp/canary'
+rm -rf ./canary'
 run 2 "DROP DATABASE on its own line"      'echo start
 psql "$DSN" -c "DROP DATABASE scratch;"'
 run 2 "supabase reset on its own line"     'cd repo
@@ -144,17 +169,17 @@ EOF'
 run 2 "delete on its own line AFTER a heredoc ends"    'cat > note.md <<'"'"'EOF'"'"'
 harmless text
 EOF
-rm -rf /tmp/canary'
+rm -rf ./canary'
 
 echo
 echo "rm FLAGS — recursive AND force, however they are spelled"
 # Flags are read from flag TOKENS only, so a filename can never arm the rule,
 # while split, reversed and long spellings all still count.
-run 2 "rm -r -f (flags split across args)"  'rm -r -f /tmp/canary'
-run 2 "rm -f -r (split, reversed)"          'rm -f -r /tmp/canary'
-run 2 "rm --recursive --force"              'rm --recursive --force /tmp/canary'
-run 2 "rm -rf (control, still blocks)"      'rm -rf /tmp/canary'
-run 2 "rm -Rf (control, capital R)"         'rm -Rf /tmp/canary'
+run 2 "rm -r -f (flags split across args)"  'rm -r -f ./canary'
+run 2 "rm -f -r (split, reversed)"          'rm -f -r ./canary'
+run 2 "rm --recursive --force"              'rm --recursive --force ./canary'
+run 2 "rm -rf (control, still blocks)"      'rm -rf ./canary'
+run 2 "rm -Rf (control, capital R)"         'rm -Rf ./canary'
 run 0 "rm -f on a filename holding f..r"    'rm -f features/scenarios/snap.json'
 run 0 "rm -f foobar.txt"                    'rm -f foobar.txt'
 run 0 "rm -r without force"                 'rm -r /tmp/dir'

@@ -94,6 +94,15 @@ chk "the prefix is the measured plugin's own name (xy:s, 4+1 chars)" "$row" "5 x
 chk "the SHIPPED skills are within budget" \
     "$("$PY" "$B" >/dev/null 2>&1; echo $?)" "0"
 
+# blast-radius ships, and stays stack-neutral: a port that names one stack's
+# files or clients is advice for that stack, not for every bendit user.
+BR="$SD/../skills/blast-radius"
+chk "blast-radius is shipped" "$([ -f "$BR/SKILL.md" ] && echo yes || echo no)" "yes"
+chk "blast-radius SKILL.md names no stack-specific term" \
+    "$(grep -rnE 'adminClient|stripeClient|supabase|NEXT_PUBLIC_\*|middleware\.ts|prove-it-works' "$BR" 2>/dev/null | grep -c . )" "0"
+chk "blast-radius reference exists and names no owner file" \
+    "$([ -f "$BR/references/database.md" ] && ! grep -rqE 'adminClient|stripeClient' "$BR" && echo yes || echo no)" "yes"
+
 rm -r "$T"
 if [ -z "$PY_GIVEN" ] && [ -x /usr/bin/python3 ]; then
   echo

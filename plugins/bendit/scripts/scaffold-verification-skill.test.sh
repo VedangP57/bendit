@@ -405,6 +405,24 @@ done
 expect_capture "node-two-locks with --pm yarn" bash "$SCAF" "$T/fx/node-two-locks" --pm yarn --dry-run
 expect_capture "node-watch-dev with --kind library" bash "$SCAF" "$T/fx/node-watch-dev" --kind library --dry-run
 chk "--dry-run wrote nothing" "$(/usr/bin/find "$T/fx" -path '*/.claude/*' | wc -l | tr -d ' ')" "0"
+
+echo
+echo "THE SMOKE SCENARIO PROBES THE APP'S HEALTH ROUTE WHEN IT HAS ONE"
+# Measured in a live /adopt run on a monorepo: the app served only /health, the
+# generated smoke probed / (404), and the harness failed on a correct app. An
+# API with no root page is common; a health route in the source is the signal.
+HA="$T/healthapp"; mkdir -p "$HA/apps/web"; git -C "$HA" init -q
+echo "require('http').createServer((q,r)=>{if(q.url==='/health'){return r.end('ok')}r.statusCode=404;r.end('no')}).listen(+process.env.PORT,'127.0.0.1')" > "$HA/apps/web/server.js"
+printf '{"name":"healthapp","scripts":{"dev":"node apps/web/server.js"},"dependencies":{"express":"1"}}\n' > "$HA/package.json"
+gcommit "$HA"
+o=$(bash "$SCAF" "$HA" 2>&1; echo "rc=$?")
+smoke="$HA/.claude/skills/verify-healthapp/scenarios/smoke.sh"
+has "an app that serves only /health gets a smoke on /health" "expect_ok /health" "$(/bin/cat "$smoke" 2>/dev/null)"
+has "  ...and the report says where the route was found" "smoke path: /health (route found in apps/web/server.js" "$o"
+# CONTROL: the first web app (serves /, no health route) still probes /.
+hasnt "CONTROL: an app with no health route keeps the root probe" "expect_ok /health" "$(/bin/cat "$R/.claude/skills/verify-repo/scenarios/smoke.sh")"
+has "CONTROL:   ...it probes /" "expect_ok /" "$(/bin/cat "$R/.claude/skills/verify-repo/scenarios/smoke.sh")"
+
 expect_verify || fail=$((fail+1))
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"

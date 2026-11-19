@@ -448,6 +448,38 @@ if [ -z "$NAME" ]; then
 fi
 
 lines() { [ -n "$1" ] && printf '%s\n' "$1" | sed "s/^/$2/"; return 0; }
+# A health-route literal in the project's own source, as "<path>\t<file>", or
+# nothing. A function, not a heredoc inside $( ): bash 3.2 cannot parse a
+# heredoc with quotes and backticks inside command substitution.
+find_health_route() {
+  python3 - "$1" <<'PY'
+import os, re, sys
+root = sys.argv[1]
+skip = {'.git', 'node_modules', 'dist', 'build', '.next', 'target', 'vendor', '.venv', 'venv', '.claude'}
+exts = {'.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx', '.py', '.go', '.rs', '.rb', '.java', '.kt', '.php'}
+pat = re.compile(r'''["'`](/(?:api/)?(?:healthz?|readyz?|livez?|status|ping))["'`]''')
+found = []
+for d, dirs, files in os.walk(root):
+    dirs[:] = sorted(x for x in dirs if x not in skip)
+    for f in sorted(files):
+        if os.path.splitext(f)[1] not in exts:
+            continue
+        p = os.path.join(d, f)
+        try:
+            text = open(p, errors='replace').read(200000)
+        except OSError:
+            continue
+        m = pat.search(text)
+        if m:
+            found.append((m.group(1), os.path.relpath(p, root)))
+# Prefer a plain health route over status/ping; shortest path first.
+rank = lambda r: (0 if 'health' in r[0] else 1 if 'ready' in r[0] or 'live' in r[0] else 2, len(r[0]))
+if found:
+    path, where = sorted(found, key=rank)[0]
+    print(f'{path}\t{where}')
+PY
+}
+
 report() {
   echo "  name      : $NAME ($NAME_WHY)"
   echo "  kind      : $KIND${KIND_WHY:+ ($KIND_WHY)}"
@@ -938,13 +970,23 @@ check() {
 }
 PROBEEOF
 
+  # WHICH PATH THE SMOKE PROBES. An API often has no root page: a live /adopt
+  # on a monorepo generated `expect_ok /`, the app answered 404 there and only
+  # served /health, and the harness failed on a correct app. A health route
+  # literal in the project's own source is the signal; otherwise the root page.
+  SMOKE_PATH=/
+  SMOKE_WHY='no health route found in the source, so the root page'
+  hr=$(find_health_route "$REPO")
+  if [ -n "$hr" ]; then SMOKE_PATH=${hr%%	*}; SMOKE_WHY="route found in ${hr#*	}"; fi
+  echo "  smoke path: $SMOKE_PATH ($SMOKE_WHY)"
   if [ -z "$(/bin/ls -A "$SK/scenarios" 2>/dev/null)" ]; then
-    cat > "$SK/scenarios/smoke.sh" <<'SCEOF'
-# Smoke: the app serves its root page. Generated -- a floor, not a proof that a
-# feature works. Add one scenario per behaviour you need to trust (see SKILL.md).
-. "$PROBE"
-expect_ok /
-SCEOF
+    {
+      printf '# Smoke: the app answers on %s (%s). Generated -- a floor, not\n' "$SMOKE_PATH" "$SMOKE_WHY"
+      printf '# a proof that a feature works. Add one scenario per behaviour you need to\n'
+      printf '# trust (see SKILL.md).\n'
+      printf '. "$PROBE"\n'
+      printf 'expect_ok %s\n' "$SMOKE_PATH"
+    } > "$SK/scenarios/smoke.sh"
   fi
 
   FW="${FRAMEWORKS:-unknown framework}"

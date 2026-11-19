@@ -135,7 +135,8 @@ yes = ['src/auth/session.ts', 'supabase/migrations/001.sql', 'api/webhooks/strip
        'auth.ts', 'lib/user-auth.ts', '.env.local', '.github/workflows/ci.yml', 'db/users.rls.sql',
        'src/oauth.ts', 'lib/authService.ts', 'lib/authOptions.ts', 'lib/authMiddleware.ts',
        'lib/sessionManager.ts', 'lib/secrets.ts', 'lib/secret.ts', 'config/kms.ts',
-       'db/policies.sql', 'db/rls.sql', 'middleware.ts']
+       'db/policies.sql', 'db/rls.sql', 'middleware.ts',
+       'lib/AuthService.ts', 'lib/AuthMiddleware.ts', 'src/SessionManager.ts', 'src/Middleware.ts']
 no = ['docs/author.md', 'scripts/curls.sh', 'legal/privacy-policy.md', 'team/secretary.txt',
       'src/unauthorized.ts', 'README.md']
 bad = [p for p in yes if not hit(p)] + [p for p in no if hit(p)]

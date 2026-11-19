@@ -166,12 +166,18 @@ python3 -I -c '
 import os, signal, subprocess
 sh = os.environ.get("SHELL") or "/bin/sh"
 name = os.path.basename(sh)
-p = subprocess.Popen([sh, "-ic", "type ls"], stdin=subprocess.DEVNULL,
-                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
-try:
-    out, _err = p.communicate(timeout=5)
-except subprocess.TimeoutExpired:
-    os.killpg(p.pid, signal.SIGKILL)
+try:  # a missing or non-executable $SHELL raises OSError: could not inspect
+    p = subprocess.Popen([sh, "-ic", "type ls"], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+    try:
+        out, _err = p.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        out = None
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except OSError:
+            pass
+except OSError:
     out = None
 first = (out.decode("utf-8", "replace").splitlines() or [""])[0].strip() if out is not None else ""
 if out is not None and first.startswith("ls is") and "function" in first:

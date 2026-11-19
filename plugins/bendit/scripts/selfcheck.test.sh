@@ -287,6 +287,24 @@ BP="$T/badproj"; mkdir -p "$BP/.claude"; printf '{"version": 1, "features": [' >
 fe "$T/stub-user" "$BP"
 chk "malformed bendit.json: exit 1" "$FE_RC" 1
 has "  ...naming the file" "bendit.json" "$FE_OUT"
+has "  ...and still says the add-on scope" "add-on scope:" "$FE_OUT"
+case "$FE_OUT" in *"features: features:"*) o=doubled ;; *) o=once ;; esac
+chk "  ...and does not print the 'features:' prefix twice" "$o" once
+# From a SUBDIRECTORY of a git repo whose ROOT file is malformed: the root is
+# resolved like prove.sh does, so this fails (not four "off | (not set)" rows).
+SR="$T/subrepo"; mkdir -p "$SR/.claude" "$SR/pkg/deep"; git -C "$SR" init -q
+printf '{"version": 1, "features": [' > "$SR/.claude/bendit.json"
+FE_OUT="$(cd "$SR/pkg/deep" && PATH="$T/stub-user:$PATH" "$PY" "$KIT/scripts/selfcheck.py" --features . 2>&1)"; FE_RC=$?
+chk "subdirectory of a repo with a malformed root bendit.json: exit 1" "$FE_RC" 1
+has "  ...names the root file it read" "$SR/.claude/bendit.json" "$FE_OUT"
+case "$FE_OUT" in *"(not set)"*) o=off ;; *) o=failed ;; esac
+chk "  ...and does not read it as everything off" "$o" failed
+# A good root file is found from the subdirectory too.
+rm "$SR/.claude/bendit.json"
+"$PY" "$SD/features.py" set "$SR" ls-guard off "declined by the person"
+FE_OUT="$(cd "$SR/pkg/deep" && PATH="$T/stub-user:$PATH" "$PY" "$KIT/scripts/selfcheck.py" --features . 2>&1)"; FE_RC=$?
+chk "subdirectory, good root file: exit 0" "$FE_RC" 0
+has "  ...shows the root file's row" "declined by the person" "$FE_OUT"
 
 echo
 echo "IT CLEANS UP"

@@ -243,16 +243,40 @@ def addon_scope_line():
     return f'add-on scope: ok ({ADDON} is not enabled at user scope)'
 
 
-def features_report(root):
-    """The features table for <root>, then the add-on scope line. 1 when
-    bendit.json is unreadable (reported, never read as everything off)."""
+def project_root(given):
+    """The project root, resolved like prove.sh: the git toplevel of <given>,
+    else $CLAUDE_PROJECT_DIR, else <given> itself. Absolute."""
+    given = os.path.abspath(given)
+    try:
+        p = subprocess.run(['git', '-C', given, 'rev-parse', '--show-toplevel'],
+                           capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL)
+        top = p.stdout.strip()
+        if p.returncode == 0 and top:
+            return top
+    except (OSError, subprocess.SubprocessError):
+        pass
+    env = os.environ.get('CLAUDE_PROJECT_DIR', '')
+    if env and os.path.isdir(env):
+        return os.path.abspath(env)
+    return given
+
+
+def features_report(given):
+    """The features table for the project root of <given>, then the add-on
+    scope line. 1 when bendit.json is unreadable (reported, never read as
+    everything off)."""
+    root = project_root(given)
+    path = os.path.join(root, '.claude', 'bendit.json')
     p = subprocess.run([sys.executable, os.path.join(KIT, 'scripts', 'features.py'), 'show', root],
                        capture_output=True, text=True)
     if p.returncode != 0:
-        print(f'features: {first_line(p.stderr) or "could not read .claude/bendit.json"}')
+        msg = first_line(p.stderr) or f'{path}: could not read it'
+        print(msg if msg.startswith('features:') else f'features: {msg}')
         print('fix: repair or delete .claude/bendit.json, then run /adopt')
+        print()
+        print(addon_scope_line())
         return 1
-    print(f'bendit features: {os.path.join(root, ".claude", "bendit.json")}')
+    print(f'bendit features: {path}')
     print()
     print(p.stdout.rstrip('\n'))
     print()

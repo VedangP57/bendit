@@ -15,7 +15,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/prove.sh" .
 1. **selfcheck** fires one known-bad probe at every hook in `hooks/hooks.json`,
    run the way Claude Code runs it. A row marked `OFF` is a guard protecting
    nothing: it could not start, crashed, or let the probe through.
-2. **selfcheck --features** prints this project's `.claude/bendit.json` as a
+2. **selfcheck --features** prints this project's `.claude/bendit.json` (found from the git root, so it works from a subfolder; the path used is printed) as a
    table (`feature | on/off | why`), then one `add-on scope:` line. When that
    line says `bendit-web is installed for every project, not only this one`,
    the add-on is enabled at user scope: report it as a warning and give its
@@ -53,4 +53,4 @@ what it means and the fix the output names:
   The guards still work without it; the Stop gate has nothing to run.
 
 None of the scripts proves Claude Code actually runs the hooks in this session. Say
-so, and end with: all green, or which guards are OFF right now.
+so, and end with: all green, or which guards are OFF and which features FAIL right now.

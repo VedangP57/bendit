@@ -707,17 +707,37 @@ def runs_trust_approval(command: str, simples) -> bool:
         if (_INTERPRETERS.match(s.argv[0]) and len(s.argv) > 1
                 and s.argv[1].startswith('$') and '--trust' in s.argv):
             return True
-    if 'require-verification' not in command or '--trust' not in command:
+    if 'require-verification' not in command:
+        return False
+    return _live_mention(command, '--trust')
+
+
+def _live_mention(command: str, needle: str) -> bool:
+    """`needle` appears anywhere except inside a command that only shows text."""
+    if needle not in command:
         return False
     inert, live = [], []
     for c in lex(command).cmds:
         spans = [(w.start, w.end) for w in c.words]
         (inert if _inert(unwrap(c.argv), c) else live).extend(spans)
-    for m in re.finditer(r'--trust', command):
+    for m in re.finditer(re.escape(needle), command):
         at = m.start()
         if any(a <= at < b for a, b in live) or not any(a <= at < b for a, b in inert):
             return True   # in code, in a heredoc body, or in a running string
     return False
+
+
+# THE INSTALLER'S QUESTIONS ARE FOR THE PERSON. install.sh reads its yes/no from
+# $BENDIT_TTY (a test hook); an agent that sets it answers "yes" to installing
+# software on the person's machine. Blunt on purpose, like --trust: the name
+# anywhere in code, through env/sudo/export/bash -c, is refused; naming it in a
+# commit message or an echo is fine.
+INSTALLER_REASON = ('[bendit] pre-answering the bendit installer — its questions '
+                    'are for the person; run it yourself')
+
+
+def preanswers_installer(command: str) -> bool:
+    return _live_mention(command, 'BENDIT_TTY')
 
 
 _WRITE_IN_SCRIPT = re.compile(
@@ -919,6 +939,8 @@ def _judge(command: str):
             return TRUST_REASON
         if writes_trust_file(command, simples):
             return TRUST_FILE_REASON
+        if preanswers_installer(command):
+            return INSTALLER_REASON
         for rule, reason in COMMAND_RULES:
             for s in simples:
                 hit = rule(s)

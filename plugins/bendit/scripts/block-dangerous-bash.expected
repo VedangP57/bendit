@@ -1982,3 +1982,41 @@ exit 0
 exit 0
 (silent)
 
+=== agent pre-answers the installer
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] pre-answering the bendit installer — its questions are for the person; run it yourself.
+If this is genuinely required, ask the human to run it.
+
+=== pre-answers the installer via env
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] pre-answering the bendit installer — its questions are for the person; run it yourself.
+If this is genuinely required, ask the human to run it.
+
+=== pre-answers the installer via sudo
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] pre-answering the bendit installer — its questions are for the person; run it yourself.
+If this is genuinely required, ask the human to run it.
+
+=== pre-answers the installer via export
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] pre-answering the bendit installer — its questions are for the person; run it yourself.
+If this is genuinely required, ask the human to run it.
+
+=== pre-answers the installer in bash -c
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: [bendit] pre-answering the bendit installer — its questions are for the person; run it yourself.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: the word in a commit message
+exit 0
+(silent)
+
+=== CONTROL: installer run without it
+exit 0
+(silent)
+

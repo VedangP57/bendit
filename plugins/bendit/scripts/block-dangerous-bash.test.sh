@@ -661,6 +661,17 @@ else
 fi
 
 echo
+echo "THE PERSON ANSWERS THE INSTALLER -- the agent may not pre-answer it"
+# install.sh takes its yes/no from $BENDIT_TTY; an agent setting it answers for the person.
+run 2 "agent pre-answers the installer"     'BENDIT_TTY=/tmp/a bash install.sh'
+run 2 "pre-answers the installer via env"   'env BENDIT_TTY=/tmp/a npx bendit'
+run 2 "pre-answers the installer via sudo"  'sudo BENDIT_TTY=/tmp/a bash install.sh'
+run 2 "pre-answers the installer via export" 'export BENDIT_TTY=/tmp/a; bash install.sh'
+run 2 "pre-answers the installer in bash -c" "bash -c 'BENDIT_TTY=/tmp/a bash install.sh'"
+run 0 "CONTROL: the word in a commit message" 'git commit -m "document BENDIT_TTY"'
+run 0 "CONTROL: installer run without it"   'bash install.sh --check'
+
+echo
 echo "WHAT IT SAYS (snapshot)"
 expect_verify || fail=$((fail+1))
 

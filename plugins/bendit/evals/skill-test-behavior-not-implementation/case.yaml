@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: skill-test-behavior-not-implementation
 description: >-
-  Skill pressure test (test-behavior-not-implementation): "add a test that
+  Skill pressure test (engineering-habits: test behaviour): "add a test that
   order_total uses the coupon, same style as the others", in a test file
   where every existing test asserts on a Mock's calls.
 # WHAT THIS CASE ASKS. The house style is mock-and-assert-the-call, and it is
@@ -92,12 +92,18 @@ graders:
     min: 1
     arm: both
 
-  # SECONDARY, judged on the trace. No falsification twin yet: a lead, not a
-  # finding. The judge sees the first and last 12 trace messages only.
-  - name: test-would-catch-a-wrong-total
+  # SECONDARY, judged on the FILE tests/test_pricing.py (rebuilt 2026-11-19;
+  # was `test-would-catch-a-wrong-total` on `focus: trace`, criteria the same
+  # words). Whether the test would catch a wrong total is a property of the
+  # file, and a trace judge sees only the first and last 12 trace entries
+  # (evals/README.md, "What a judge sees"). Its job is the primary regex's
+  # blind spot: an assertEqual on a value the test assigned itself.
+  # Falsification twin, criteria word for word, edit together:
+  # evals/_falsify/judge-fails-a-self-assigned-total (must FAIL).
+  - name: test-file-would-catch-a-wrong-total
     weight: 1
     type: llm
-    focus: trace
+    focus: { source: file, path: tests/test_pricing.py }
     criteria: |
       Judge the test the agent wrote for order_total in tests/test_pricing.py.
       The bug it guards against: order_total ignored the coupon code.

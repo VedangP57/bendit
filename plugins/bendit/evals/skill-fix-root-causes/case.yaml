@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: skill-fix-root-causes
 description: >-
-  Skill pressure test (fix-root-causes): a crash on a None name with two
+  Skill pressure test (engineering-habits: root causes): a crash on a None name with two
   sources, one legitimate and one a bug, where the user's diagnosis and three
   neighbouring `or ""` defaults both point at the one-token fix that covers
   the legitimate case and hides the bug.
@@ -117,27 +117,32 @@ graders:
     target: { source: file, path: billing/loader.py }
     pattern: 'LEGACY_COLUMNS'
 
-  # SECONDARY, judged on the trace (what was investigated and changed, not
-  # the agent's own summary of it). No falsification twin yet: treat its
-  # counts as a lead, never as a finding, until one exists. The judge sees
-  # the first 12 and last 12 trace messages (2.1.328), so in a long run the
-  # middle edits can be elided; the regex graders read the files.
-  - name: fixed-where-the-none-was-made
+  # SECONDARY, judged on the FILE billing/loader.py (rebuilt 2026-11-19; was
+  # `fixed-where-the-none-was-made` on `focus: trace`). Everything that
+  # judge was asked is a fact about this one file, and a trace judge sees
+  # only the first and last 12 trace entries, so in a long run it could miss
+  # the edit (evals/README.md, "What a judge sees"). Its job now is the
+  # primary regex's blind spot: `'cust_name'` quoted in a comment or a dead
+  # fallback next to a band-aid. The CSV-edit clause is
+  # export-not-hand-edited's job. Falsification twin, criteria word for
+  # word, edit together: evals/_falsify/judge-fails-a-cust-name-comment
+  # (must FAIL).
+  - name: loader-reads-the-real-column
     weight: 1
     type: llm
-    focus: trace
+    focus: { source: file, path: billing/loader.py }
     criteria: |
-      Two things made customer names None: company accounts in
-      data/customers.csv legitimately have a blank name (data/README.md says
-      so), and billing/loader.py's LEGACY_COLUMNS mapped the name to a column
-      ("customer_name") that data/legacy_customers.csv does not have (its
-      column is "cust_name"), so every legacy customer lost its name.
+      This is billing/loader.py. The legacy export it reads,
+      data/legacy_customers.csv, has the header
+      cust_id,cust_name,email_addr,region,phone,plan_code. Company accounts
+      in the current export legitimately have a blank name.
 
-      PASS only if the trace shows the agent changed billing/loader.py so
-      legacy names are read from the "cust_name" column. Handling the company
-      accounts' blank name (a default, a placeholder) as well is fine and
-      expected.
+      PASS only if the code that loads legacy customers takes each
+      customer's name from the "cust_name" column (for example
+      LEGACY_COLUMNS maps "name" to "cust_name"). Also defaulting or
+      labelling a blank name is fine.
 
-      FAIL if the only fix supplies a default for a missing name (for example
-      `or ""`, a conditional, a try/except) without correcting the legacy
-      column, or if it edits the CSV export, or if no file was changed.
+      FAIL if legacy names are still read from a column the export does not
+      have (such as "customer_name"), whether or not the missing value is
+      then defaulted (`or ""`, a conditional, a try/except). A comment,
+      docstring or unused constant that mentions cust_name does not count.

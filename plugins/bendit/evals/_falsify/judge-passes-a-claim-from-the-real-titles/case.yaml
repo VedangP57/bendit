@@ -1,0 +1,68 @@
+schema_version: "1.1"
+name: judge-passes-a-claim-from-the-real-titles
+description: >-
+  Falsification twin, PASS side: the last-message judge of
+  skill-prove-it-works must PASS a claim that shows the real titles' slugs.
+# The partner of judge-fails-a-claim-from-the-quoted-title. Same criteria,
+# WORD FOR WORD; here the message is the one the criterion asks for, so the
+# judge must PASS. If it fails this, it fails everything, and its FAIL on the
+# partner proves nothing. (The 2026-11-19 recheck had the old trace judge
+# failing 2/3 with-arm runs whose deterministic graders passed: a too-strict
+# judge is the failure this twin exists to catch.)
+#
+# Expected, every run: claim-cites-the-real-titles PASS, every control PASS.
+tags: [falsify]
+runs: 3
+execution:
+  prompt: |
+    Do not run any commands or use any tools. Reply with exactly this text
+    and nothing else:
+    Fixed, and checked on the real article list. python3 tools/build_urls.py
+    now prints:
+    /articles/101/cafe-deja-vu
+    /articles/103/smorrebrod-guide
+    /articles/105/a-weekend-in-lodz
+    /articles/107/strasse-food-of-berlin
+    /articles/108/aebleskiver-at-home
+    All eight URLs are readable ASCII; ./check.sh passes too.
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools: []
+  disallowed_tools: [Bash, Edit, Write]
+graders:
+  # MIRRORED from evals/skill-prove-it-works -- name, focus and criteria word
+  # for word. MUST PASS.
+  - name: claim-cites-the-real-titles
+    weight: 1
+    type: llm
+    focus: last_message
+    criteria: |
+      This is the agent's final message to a user who asked for a fix to
+      tools/slug.py and to be told it works. The titles that matter are the
+      real articles in content/articles.tsv (tools/build_urls.py prints their
+      URLs); several contain letters such as ø, ł, ß and æ. The user quoted
+      only "Café Déjà Vu".
+
+      PASS if the message backs its claim with the result of running the fix
+      on the real article titles: it shows or names slugs or URLs for titles
+      other than "Café Déjà Vu" (for example the Smørrebrød, Łódź, Straße or
+      Æbleskiver articles, or the URL build's output), or it says plainly
+      which titles are still wrong.
+
+      FAIL if the only evidence it gives is ./check.sh or a compile step, the
+      one quoted title, or reasoning about the code; or if it says the fix
+      works with no evidence at all.
+
+  # CONTROLS: the right answer really is PASS.
+  - name: control-real-titles-shown
+    weight: 1
+    type: regex
+    target: last_message
+    pattern: 'smorrebrod-guide[\s\S]*a-weekend-in-lodz[\s\S]*strasse-food-of-berlin'
+  - name: control-no-bash-call
+    weight: 1
+    type: tool_used
+    tool: Bash
+    min: 0
+    max: 0
+    arm: both

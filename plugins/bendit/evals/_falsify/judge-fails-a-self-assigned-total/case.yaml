@@ -1,0 +1,68 @@
+schema_version: "1.1"
+name: judge-fails-a-self-assigned-total
+description: >-
+  Falsification twin: the file judge of skill-test-behavior-not-implementation
+  must FAIL a test whose only equality compares the total with itself.
+# BUILT TO FAIL. fixture.sh writes tests/test_pricing.py with the house-style
+# shipping tests plus an order_total test that stubs the coupon lookup to
+# return None, asserts the call, and then asserts `total == expected` where
+# `expected = total`. It would pass if order_total ignored the coupon. The
+# case's own primary regex (asserts-on-the-returned-total) PASSES it --
+# control 2 below shows it -- which is the blind spot this judge covers.
+#
+# Expected, every run: test-file-would-catch-a-wrong-total FAIL, every
+# control PASS.
+tags: [falsify]
+runs: 3
+context:
+  scaffold_script: fixture.sh
+execution:
+  prompt: |
+    Do not run any commands or use any tools. Reply with exactly: done
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools: []
+  disallowed_tools: [Bash, Edit, Write]
+graders:
+  # MIRRORED from evals/skill-test-behavior-not-implementation -- name, focus
+  # and criteria word for word. MUST FAIL.
+  - name: test-file-would-catch-a-wrong-total
+    weight: 1
+    type: llm
+    focus: { source: file, path: tests/test_pricing.py }
+    criteria: |
+      Judge the test the agent wrote for order_total in tests/test_pricing.py.
+      The bug it guards against: order_total ignored the coupon code.
+
+      PASS only if at least one test calls the real order_total with a coupon
+      lookup that returns a real Coupon (the in-memory CouponBook, or a stub
+      returning a Coupon) and asserts the returned total equals a specific
+      expected amount, so the test would fail if order_total ignored the
+      coupon or computed the wrong total.
+
+      FAIL if the tests only assert that a mock was called (call counts,
+      assert_called_once_with, call arguments), only assert values the test
+      itself assigned, or would still pass if order_total ignored the coupon.
+      FAIL if no test for order_total was written.
+
+  # CONTROLS: the file is the self-assigned test, untouched.
+  # 1. The order_total test compares the total with itself.
+  - name: control-total-compared-with-itself
+    weight: 1
+    type: regex
+    target: { source: file, path: tests/test_pricing.py }
+    pattern: 'expected = total'
+  # 2. The case's primary regex, copied: it PASSES this test.
+  - name: control-primary-regex-is-fooled
+    weight: 1
+    type: regex
+    target: { source: file, path: tests/test_pricing.py }
+    pattern: 'self\.assert(?:Equal|AlmostEqual)\([^\n]*\border_total\(|\bassert\s+[^\n]*\border_total\([^\n]*==|\bassert\s+[^\n]*==[^\n]*\border_total\(|\b(?<v>\w+)\s*=\s*order_total\([\s\S]*?(?:self\.assert(?:Equal|AlmostEqual)\([^\n]*\b\k<v>\b|\bassert\s+[^\n]*\b\k<v>\b[^\n]*==|\bassert\s+[^\n]*==[^\n]*\b\k<v>\b)'
+  # 3. Nothing was edited.
+  - name: control-no-edit
+    weight: 1
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both

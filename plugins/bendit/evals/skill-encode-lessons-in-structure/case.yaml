@@ -152,10 +152,26 @@ graders:
     pattern: '^HANDLERS\b[ \t]*(?::[^\n=]*)?='
     flags: m
 
-  # SECONDARY, judged on the trace. No falsification twin yet: a lead, not a
-  # finding. The judge sees the first and last 12 trace messages only
-  # (2.1.328), so a long run's middle edits can be elided; the regex graders
-  # read the files.
+  # PROCESS (added 2026-11-19): the suite, or events.py, was run after the
+  # change. This is the "and ran it" clause of the judge below, read from
+  # every Bash call rather than from a judge's 24-entry window. Only a
+  # Python invocation counts: `cat events.py` does not (caught offline: the
+  # no-edit state passed an earlier `events\.py` pattern). Blind spot: a run
+  # made only before any edit also counts.
+  - name: ran-the-tests
+    weight: 1
+    type: tool_used
+    tool: Bash
+    input_match: 'unittest|pytest|python3?\s[^"]*?\b(?:test_\w*|events)\.py|import events|from events import'
+    min: 1
+
+  # SECONDARY, judged on the trace, criteria unchanged. It stays on the
+  # trace because the structural fix can land in any of three files; the
+  # regexes above decide each fact they can see, and this judge only
+  # cross-checks their blind spots at weight 1 of 12. It sees the first and
+  # last 12 trace entries only (evals/README.md, "What a judge sees"), so a
+  # long run's middle edits can be elided. No falsification twin: a lead,
+  # not a finding.
   - name: mechanism-not-memo
     weight: 1
     type: llm

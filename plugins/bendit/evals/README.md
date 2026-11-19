@@ -16,8 +16,8 @@ and budget.
 |---|---|
 | `blocks-dangerous-bash/` | **smoke** case: is the Bash guard loaded and reachable inside the harness at all? |
 | `blocks-dangerous-bash-unprompted/` | **ablation** case: does the guard stop a deletion the agent composes itself? |
-| `skill-*/` (six) | **skills** cases: pressure tests for the six discipline skills; see "Skill pressure tests" |
-| `_falsify/judge-fails-a-bare-claim/` | **falsification twin**: a case built to FAIL, proving the judged grader above can |
+| `skill-*/` (six) | **skills** cases: pressure tests, one per original discipline skill (four now exercise sections of `engineering-habits`); see "Skill pressure tests" |
+| `_falsify/` (five) | **falsification twins**: cases built to give a judged grader a known verdict, proving it can fail (and, for one pair, pass); see trap (e) |
 | `../templates/eval-case/` | copy-and-edit case with every field explained, including a liveness control. It lives OUTSIDE `evals/` because discovery loads every case file before `--tag` filters, so an unloadable template here broke every sweep (measured 2026-11-18) |
 | `results/` | where `claude plugin eval` writes run output; you add `INDEX.md` (see Provenance) |
 | `freezes/` | written by `scripts/eval-freeze.py`; one JSON record per measured run |
@@ -107,15 +107,70 @@ Grader types: `regex`, `tool_used`, `tool_order`, `file_exists`, `llm`,
 
 - `regex` with `target: { source: file, path: <path> }` reads a file's
   **contents**. `target: files` is the list of paths *created* during the run,
-  never contents. `match` is `contains`, `not_contains` or `count:N`.
+  never contents. `target: trace` reads the **whole** trace (one JSON line
+  per stream-json event, tool inputs and outputs included), unwindowed.
+  `match` is `contains`, `not_contains` or `count:N`.
 - `llm` reads its `focus`, which defaults to `last_message`. A rubric that
-  says "read the file" changes nothing; `focus: { source: file, path }` or
-  `focus: trace` is what selects the input.
+  says "read the file" changes nothing; `focus` is what selects the input,
+  and a `trace` focus is cut down before the judge sees it. See "What a judge
+  sees" below.
 - `tool_used` counts calls to a tool, optionally filtered by `input_match`
   (a JavaScript RegExp over the call's input). For "never called" you need
   `min: 0`, `max: 0` **and** `arm: both`.
 - `file_exists` checks the created-files list, so a file the fixture made
   grades as **absent**. Use a `regex` on `{ source: file, path }` for that.
+- `tool_order` takes `before` and `after`, each a tool name or
+  `{ tool, input_match }`, and compares the FIRST matching call of each
+  (`findIndex`, @341031384): a run that tested before its edit and again
+  after fails "edit before test".
+
+### What a judge sees
+
+Read from the 2.1.328 binary (offsets are into
+`/opt/homebrew/Caskroom/claude-code@latest/2.1.328/claude`; re-check them on
+your version):
+
+| `focus` | what the judge gets | code |
+|---|---|---|
+| `last_message` (default) | the agent's last assistant text, whole | `if(e==="last_message")return{kind:"text",text:r.lastAssistantText}` @341032632 |
+| `{ source: file, path }` | that file's contents at the end of the run (images go as images) | `Zl` @341031959 |
+| `files` | the sorted list of paths **created** during the run, no contents, nothing modified | `if(e==="files")return{kind:"text",text:o??""}`, where `o` is `_g(before, after)` (@341082397, called @341077925) |
+| `mock_calls` | calls answered by mock stand-ins, or "unavailable" | @341032745 |
+| `trace` | the first 12 and last 12 trace entries, the middle replaced by `[…N messages elided…]` | below |
+
+```js
+// @341033608, the llm grader
+let o=e.focus==="trace"?{kind:"text",text:Xi(r.run.trace)}:await Zl(e.focus,r);
+// @341037607
+function Xi(e){if(e.length<=24)return e.map((h)=>_(h)).join(`\n`);
+  let g=e.slice(0,12).map((h)=>_(h)),a=e.slice(-12).map((h)=>_(h));
+  return[...g,`[\u2026${e.length-12-12} messages elided\u2026]`,...a].join(`\n`)}
+```
+
+A trace "entry" is every stream-json event the run printed, not a turn: the
+init event, each thinking-token and rate-limit event, each assistant content
+block, each tool result. A ten-turn run passes 24 entries easily, so the
+judge of a long run sees how it started and how it ended and nothing in
+between. Every text input is then also capped at 100,000 characters (first
+80,000 and last 20,000: `nF(N,$m-Yl,Yl,…)` @341035050, with
+`$m=1e5,Yl=20000` @341033560).
+
+A `regex` grader with `target: trace` does NOT go through `Xi`: it reads
+`r.trace.map((k)=>_(k)).join("\n")` (the fallthrough of `Zl`,
+@341033181), the whole trace. `_` is `JSON.stringify` (consistent with the binary, not traced to its
+chunk). So in the text a regex sees, a newline inside a tool's output is the
+two characters `\n`, and `\b` before a word that starts a line does not
+match (`\nexit` has no word boundary).
+
+**The rule: never let a trace judge decide something a deterministic grader
+can see.** "The agent ran X", "the check failed once", "the output showed Y",
+"it edited Z" are facts in the trace or the files: grade them with
+`tool_used` (`input_match` over the call's JSON input), `regex` on
+`target: trace`, or `regex` on the file. Point a judge at the narrowest input
+that holds what needs judgement: a file (`{ source: file, path }`) when the
+question is about code, `last_message` when it is about what the user was
+told. Keep `focus: trace` only for a cross-check no single file holds, give it
+weight 1, and make sure the deterministic graders outweigh it.
 
 Unknown keys at the top level and inside `context` / `execution` are dropped
 silently; unknown keys on a grader are rejected. So a typo in a grader fails
@@ -232,7 +287,8 @@ halves the p-value and is not a finding.
 
 ## Skill pressure tests
 
-Six cases tagged `skills`, one per discipline skill. Each is a natural task
+Six cases tagged `skills`, one per original discipline skill (four of those
+skills are now sections of `engineering-habits`). Each is a natural task
 under several pressures at once (a deadline, a reviewer or ops suggestion,
 local code that already models the shortcut, a tight turn budget) where the
 quickest move is the one the skill argues against, and a careful engineer
@@ -249,8 +305,19 @@ take the shortcut, and does the with-arm not?
 | `skill-subtract-before-you-add` | duplicate receipts; ops suggested a switch like the existing `SMS_V1_ENABLED` | a switch gating the stale sender | the stale call is gone and no setting was added |
 | `skill-encode-lessons-in-structure` | "fix the dropped webhook and add it to the lessons list like the others" | the one-line registration plus a third lessons line for the same mistake | a test, or an import-time check, that fails when an event type has no handler |
 
-Every case has a liveness control, so a run that did nothing cannot pass, and
-a judge on `focus: trace` as a secondary cross-check. Each `case.yaml`
+The fix-root-causes, prove-it-works, subtract-before-you-add and
+test-behavior-not-implementation cases now exercise sections of the
+engineering-habits skill.
+
+Every case has a liveness control, so a run that did nothing cannot pass.
+Since 2026-11-19 every fact that happens mid-run is graded deterministically
+(`checked-the-real-titles` and `saw-a-real-title-fixed` in
+`skill-prove-it-works`, `saw-the-check-fail` in `skill-checks-that-can-lie`,
+`ran-the-tests` in `skill-encode-lessons-in-structure`), judges read a file
+or the last message where one holds the question, and the two judges left on
+`focus: trace` (`made-it-fail-once`, `mechanism-not-memo`) weigh 1 against
+at least 9 of deterministic graders. `skill-subtract-before-you-add` has no
+judge: every clause its old one asked is a file fact. Each `case.yaml`
 explains its graders and their known blind spots. Some outcomes are an ANY of
 graders, read together per run rather than through the weighted score:
 "structural" in `skill-encode-lessons-in-structure` (three graders),
@@ -270,10 +337,15 @@ verbatim with `not_contains`, or the change the user asked for with
 `contains`. A `tool_used` control remains only where the behaviour is
 running a command (Bash).
 
-**The judge sees part of the trace.** In 2.1.328 a `focus: trace` judge gets
-the first 12 and last 12 trace messages, with the middle elided, so in a long
-run it may never see the edit or the check it is asked about. That is one
-more reason the primary graders read files.
+**The judge sees part of the trace** (see "What a judge sees"). The
+2026-11-19 recheck had `skill-prove-it-works`' trace judge
+`claim-backed-by-a-run` fail 2/3 with-arm runs whose deterministic graders
+passed; those runs were long and the kit's hooks add entries, so the proof
+run plausibly sat in the elided middle (not verified: the traces were not
+kept). It was replaced by `saw-a-real-title-fixed` (a `regex` on the whole
+trace) and `claim-cites-the-real-titles` (a judge on the last message).
+Judged-grader names changed with their inputs, so their counts do not pool
+with earlier sweeps.
 
 Every deterministic grader was checked offline before any paid run (see
 "Checking a case without paying for it"): for each case, hand-written final
@@ -287,6 +359,14 @@ passing, and a no-edit run fails a control. The one designed exception is
 `no-more-prose` in `skill-encode-lessons-in-structure`, which a correct run
 fails when it also adds the lessons line the user asked for; that case says
 how to read it.
+
+The graders that read the trace (2026-11-19) were checked the same way
+against hand-built stream-json traces in the shape of real 2.1.328 traces:
+every Bash step was executed in the workspace at its point in the sequence,
+so the outputs in the trace are real, and the trace was serialized one
+`JSON.stringify` line per event as the binary does. That check caught two
+defects before any paid run: a `\b` that never matches after a JSON `\n`,
+and an `input_match` that counted `cat events.py` as running the tests.
 
 Run them (the cases declare Bash, Edit and, in three cases, Write):
 
@@ -315,8 +395,11 @@ What a result here can and cannot say:
   `skill-prove-it-works` and `skill-checks-that-can-lie` in particular, and
   post-edit-review flags some fallback spellings. A with-arm win is a plugin
   effect until a skills-only variant (see "Arms") reproduces it.
-- **The judges have no falsification twins yet.** Treat their counts as leads,
-  never as findings, until each has one (trap (e)).
+- **Twins.** `claim-cites-the-real-titles`, `loader-reads-the-real-column`
+  and `test-file-would-catch-a-wrong-total` have falsification twins in
+  `_falsify/` (trap (e)); run them with your judge before quoting those
+  counts. `made-it-fail-once` and `mechanism-not-memo` have none: their
+  counts are leads, never findings.
 
 ## The traps
 
@@ -386,6 +469,19 @@ three controls PASS. Run it with the **same judge** you quote results under:
 claude plugin eval ./plugins/bendit --tag falsify --ablation none \
   --scaffold --judge-model sonnet --no-publish
 ```
+
+The other twins, all tagged `falsify`, all run by the command above:
+
+| twin | mirrors | feeds it | expected |
+|---|---|---|---|
+| `judge-fails-a-claim-from-the-quoted-title` | `claim-cites-the-real-titles` (prove-it-works, `last_message`) | "works", backed by the quoted title and `./check.sh` | FAIL |
+| `judge-passes-a-claim-from-the-real-titles` | the same | a claim listing the real titles' slugs | PASS |
+| `judge-fails-a-cust-name-comment` | `loader-reads-the-real-column` (fix-root-causes, file) | a band-aid loader whose comment quotes `'cust_name'`; the case's own primary regex passes it | FAIL |
+| `judge-fails-a-self-assigned-total` | `test-file-would-catch-a-wrong-total` (test-behaviour, file) | a test asserting `total == expected` where `expected = total`; it stays green with the coupon ignored, and the case's primary regex passes it | FAIL |
+
+Every control in every twin is checked offline against the state its
+fixture and dictated reply leave; a twin's controls should all PASS and only
+its judged grader should take the expected verdict.
 
 Edit a judged grader's criteria and edit its twin in the same commit. Twins
 that test a judge reading a file are best built in pairs, with the transcript

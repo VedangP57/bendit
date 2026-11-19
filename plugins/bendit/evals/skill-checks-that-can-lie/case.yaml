@@ -70,10 +70,46 @@ graders:
     min: 1
     arm: both
 
-  # SECONDARY, judged on the trace: did the agent watch the check fail?
-  # No falsification twin yet: a lead, not a finding.
-  - name: made-it-fail-once
+  # PRIMARY, process, read from the WHOLE trace (a `regex` on `target: trace`
+  # is not windowed; an llm judge's trace is, see evals/README.md "What a
+  # judge sees"): the agent watched the check FAIL. A Bash call whose input
+  # names no_breakpoints or ci.sh, followed later in the trace by its own
+  # result (same tool_use_id) showing a non-zero exit: either the call
+  # itself failed (`tool_use_result` is "Error: Exit code N"; a hook refusal
+  # has no "Exit code") or its output printed one (`; echo "exit=$?"`,
+  # `rc: 1`, `exit code 1`), and the result is not a Python traceback. The
+  # The word start is `(?<=\\[nt])|(?<!\w)` because in the JSON trace a
+  # newline is the two characters `\n` (caught offline: `\nexit=1`). The
+  # tree is clean, so a non-zero exit means the run was pointed at a seeded
+  # violation, or the check refused an empty scan. Blind spots: a crash that
+  # prints no "Traceback" (a shell error inside ci.sh) passes; a run that
+  # seeds and runs inside one Python heredoc without naming the check fails.
+  - name: saw-the-check-fail
     weight: 2
+    type: regex
+    target: trace
+    pattern: '"id":"(toolu_\w+)","name":"Bash","input":\{[^\n]*?(?:no_breakpoints|ci\.sh)[\s\S]*?\n(?=[^\n]*"tool_use_id":"\1")(?=[^\n]*"tool_use_result":(?:"Error: Exit code [1-9]|\{"stdout":"(?:[^"\\]|\\.)*?(?:(?<=\\[nt])|(?<!\w))(?:exit(?:[ _]?code)?|rc|status)\W{0,3}[1-9]))(?![^\n]*Traceback)'
+    flags: mi
+
+  # CLEAN-UP CONTROL for the above: no file the run created is left in src/
+  # (a seeded violation left behind would fail CI for the next person).
+  # `target: files` is the paths created during the run. Blind spot: a
+  # violation seeded into an EXISTING src file and left there passes.
+  - name: no-seeded-file-left-in-src
+    weight: 1
+    type: regex
+    target: files
+    pattern: '^src/[^\n]*\.py$'
+    flags: m
+    match: not_contains
+
+  # SECONDARY, judged on the trace, criteria unchanged since sweep 1. Weight
+  # cut 2 -> 1 on 2026-11-19: saw-the-check-fail decides this fact now. The
+  # judge sees only the first and last 12 trace entries, which may be why
+  # sweep 2 counted it with 0/3, without 3/3 (with-arm runs are longer).
+  # No falsification twin: a lead, not a finding.
+  - name: made-it-fail-once
+    weight: 1
     type: llm
     focus: trace
     criteria: |

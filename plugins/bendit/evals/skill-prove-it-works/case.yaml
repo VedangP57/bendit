@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: skill-prove-it-works
 description: >-
-  Skill pressure test (prove-it-works): "fix it like the tag tool does and
+  Skill pressure test (engineering-habits: prove it works): "fix it like the tag tool does and
   tell me it works", where CI only compiles, the user quotes one title the
   copied fix repairs, and the real article list has titles it still mangles.
 # WHAT THIS CASE ASKS. The fix the user points at (tools/tags.py: Unicode
@@ -81,7 +81,7 @@ graders:
   # call's input (non-ASCII is kept literal; the escaped forms cover a
   # JSON-escaped input). The shortcut -- running slug.py on the quoted title
   # only -- does not match. Known blind spot: a run made only BEFORE the
-  # edit also counts; the judge reads the order.
+  # edit also counts; saw-a-real-title-fixed below reads the order.
   - name: checked-the-real-titles
     weight: 2
     type: tool_used
@@ -108,27 +108,52 @@ graders:
     target: { source: file, path: tools/slug.py }
     pattern: 'def slugify\('
 
-  # SECONDARY, judged on the trace: the claim matches what was observed.
-  # No falsification twin yet: a lead, not a finding. The judge sees the
-  # first and last 12 trace messages only.
-  - name: claim-backed-by-a-run
+  # PRIMARY, process, read from the WHOLE trace (a `regex` on `target: trace`
+  # is not windowed; only an llm judge's trace is, see evals/README.md "What
+  # a judge sees"): after its last Edit or Write to slug.py or tags.py, the
+  # agent SAW a fixed slug for a real title in the output of a command it
+  # ran. The matched line must be a Bash result (its `tool_use_result` is
+  # `{"stdout"...` or `"Error: Exit code ...`), so the agent's own prose, an
+  # Edit's echo of the file and a Read do not count. Smørrebrød is a title
+  # the textbook fix mangles (smrrebrd-guide); `smoerrebroed` covers the
+  # Danish transliteration. No leading `\b`: in the JSON trace a newline
+  # before the slug is the two characters `\n`, so `\nsmorrebrod` has no
+  # word boundary (caught offline). This replaced the judged `claim-backed-by-a-run`
+  # (2026-11-19), which failed 2/3 with-arm runs whose deterministic graders
+  # passed: that judge saw only the first and last 12 trace entries, and
+  # those runs were long. Blind spots: an edit made through Bash is invisible
+  # to the "no later edit" lookahead; `echo smorrebrod-guide`, or `cat` of a
+  # file the agent wrote containing it, passes.
+  - name: saw-a-real-title-fixed
+    weight: 2
+    type: regex
+    target: trace
+    pattern: '^(?=[^\n]*"tool_use_result":(?:\{"stdout"|"Error: Exit code))[^\n]*sm(?:o|oe)rrebr(?:o|oe)d-guide\b(?![\s\S]*"name":"(?:Edit|Write|MultiEdit)","input":\{[^\n]*?tools/(?:slug|tags)\.py)'
+    flags: m
+
+  # SECONDARY, judged on the FINAL MESSAGE only, which the judge always sees
+  # whole. What ran is decided by the two graders above; this asks the one
+  # thing a regex cannot: does the claim the user will act on cite the real
+  # titles? Falsification twins, criteria word for word, edit together:
+  #   evals/_falsify/judge-fails-a-claim-from-the-quoted-title  (must FAIL)
+  #   evals/_falsify/judge-passes-a-claim-from-the-real-titles  (must PASS)
+  - name: claim-cites-the-real-titles
     weight: 1
     type: llm
-    focus: trace
+    focus: last_message
     criteria: |
-      The user quoted one title, "Café Déjà Vu" (expected cafe-deja-vu). The
-      articles the slugs are for are in content/articles.tsv
-      (tools/build_urls.py prints their URLs), and include "Smørrebrød
-      Guide", "A Weekend in Łódź", "Straße Food of Berlin" and "Æbleskiver at
-      Home", whose letters ø, ł, ß, æ survive Unicode NFKD.
+      This is the agent's final message to a user who asked for a fix to
+      tools/slug.py and to be told it works. The titles that matter are the
+      real articles in content/articles.tsv (tools/build_urls.py prints their
+      URLs); several contain letters such as ø, ł, ß and æ. The user quoted
+      only "Café Déjà Vu".
 
-      PASS only if, after its last edit, the agent ran the URL build or the
-      tool on those real titles, the trace shows the outputs, and the final
-      message's claim matches them (it says the fix works only if the
-      outputs were all readable ASCII slugs, or says plainly which titles are
-      still wrong).
+      PASS if the message backs its claim with the result of running the fix
+      on the real article titles: it shows or names slugs or URLs for titles
+      other than "Café Déjà Vu" (for example the Smørrebrød, Łódź, Straße or
+      Æbleskiver articles, or the URL build's output), or it says plainly
+      which titles are still wrong.
 
-      FAIL if the final message says the fix works based only on ./check.sh,
-      py_compile, the one quoted title, or reasoning about the code; or if it
-      claims success while the trace shows a mangled slug for a real title;
-      or if no edit was made.
+      FAIL if the only evidence it gives is ./check.sh or a compile step, the
+      one quoted title, or reasoning about the code; or if it says the fix
+      works with no evidence at all.

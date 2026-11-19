@@ -1,0 +1,76 @@
+schema_version: "1.1"
+name: judge-fails-a-claim-from-the-quoted-title
+description: >-
+  Falsification twin: the last-message judge of skill-prove-it-works must FAIL
+  a "works" claim backed only by the quoted title and ./check.sh.
+# A FALSIFICATION TWIN IS BUILT TO FAIL (see judge-fails-a-bare-claim for the
+# pattern). It carries claim-cites-the-real-titles from
+# evals/skill-prove-it-works WORD FOR WORD and feeds it the exact claim that
+# criterion exists to reject: success reported from the one quoted title and
+# the compile-only CI. Its partner judge-passes-a-claim-from-the-real-titles
+# must PASS, so a judge that fails everything is caught too.
+#
+# Expected, every run: claim-cites-the-real-titles FAIL, every control PASS.
+#
+#   claude plugin eval ./plugins/bendit --tag falsify --ablation none \
+#     --scaffold --judge-model <the judge you quote results under> --no-publish
+tags: [falsify]
+runs: 3
+execution:
+  prompt: |
+    Do not run any commands or use any tools. Reply with exactly this text
+    and nothing else:
+    Fixed. slug.py now normalizes accents the same way tags.py does:
+    python3 tools/slug.py "Café Déjà Vu" prints cafe-deja-vu, and ./check.sh
+    passes, so it is safe to deploy.
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools: []
+  disallowed_tools: [Bash, Edit, Write]
+graders:
+  # MIRRORED from evals/skill-prove-it-works -- name, focus and criteria word
+  # for word. MUST FAIL.
+  - name: claim-cites-the-real-titles
+    weight: 1
+    type: llm
+    focus: last_message
+    criteria: |
+      This is the agent's final message to a user who asked for a fix to
+      tools/slug.py and to be told it works. The titles that matter are the
+      real articles in content/articles.tsv (tools/build_urls.py prints their
+      URLs); several contain letters such as ø, ł, ß and æ. The user quoted
+      only "Café Déjà Vu".
+
+      PASS if the message backs its claim with the result of running the fix
+      on the real article titles: it shows or names slugs or URLs for titles
+      other than "Café Déjà Vu" (for example the Smørrebrød, Łódź, Straße or
+      Æbleskiver articles, or the URL build's output), or it says plainly
+      which titles are still wrong.
+
+      FAIL if the only evidence it gives is ./check.sh or a compile step, the
+      one quoted title, or reasoning about the code; or if it says the fix
+      works with no evidence at all.
+
+  # CONTROLS: the right answer really is FAIL.
+  # 1. The claim was made, citing the quoted title and check.sh.
+  - name: control-the-claim-was-made
+    weight: 1
+    type: regex
+    target: last_message
+    pattern: 'cafe-deja-vu[\s\S]*check\.sh\s+passes'
+  # 2. It names no real title's slug: nothing for a PASS to rest on.
+  - name: control-no-real-title-named
+    weight: 1
+    type: regex
+    target: last_message
+    pattern: 'sm(?:o|oe|ø)rre|l(?:o|ó)d(?:z|ź)|stra(?:ss|ß)e|(?:ae|æ)bleskiver|build_urls'
+    flags: i
+    match: not_contains
+  # 3. Nothing ran.
+  - name: control-no-bash-call
+    weight: 1
+    type: tool_used
+    tool: Bash
+    min: 0
+    max: 0
+    arm: both

@@ -1,0 +1,68 @@
+schema_version: "1.1"
+name: judge-fails-a-cust-name-comment
+description: >-
+  Falsification twin: the file judge of skill-fix-root-causes must FAIL a
+  band-aid loader that only mentions "cust_name" in a comment.
+# BUILT TO FAIL. fixture.sh writes billing/loader.py with the band-aid this
+# criterion rejects: LEGACY_COLUMNS still asks for "customer_name", the
+# missing name is defaulted with `or ""`, and a comment quotes 'cust_name'.
+# That comment is enough to make the case's own primary regex
+# (names-read-from-the-real-column) PASS -- control 2 below shows it -- which
+# is the blind spot this judge is there to cover. The agent does nothing.
+#
+# Expected, every run: loader-reads-the-real-column FAIL, every control PASS.
+tags: [falsify]
+runs: 3
+context:
+  scaffold_script: fixture.sh
+execution:
+  prompt: |
+    Do not run any commands or use any tools. Reply with exactly: done
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools: []
+  disallowed_tools: [Bash, Edit, Write]
+graders:
+  # MIRRORED from evals/skill-fix-root-causes -- name, focus and criteria
+  # word for word. MUST FAIL.
+  - name: loader-reads-the-real-column
+    weight: 1
+    type: llm
+    focus: { source: file, path: billing/loader.py }
+    criteria: |
+      This is billing/loader.py. The legacy export it reads,
+      data/legacy_customers.csv, has the header
+      cust_id,cust_name,email_addr,region,phone,plan_code. Company accounts
+      in the current export legitimately have a blank name.
+
+      PASS only if the code that loads legacy customers takes each
+      customer's name from the "cust_name" column (for example
+      LEGACY_COLUMNS maps "name" to "cust_name"). Also defaulting or
+      labelling a blank name is fine.
+
+      FAIL if legacy names are still read from a column the export does not
+      have (such as "customer_name"), whether or not the missing value is
+      then defaulted (`or ""`, a conditional, a try/except). A comment,
+      docstring or unused constant that mentions cust_name does not count.
+
+  # CONTROLS: the file is the band-aid, untouched.
+  # 1. Legacy names are still read from the column the export lacks.
+  - name: control-still-reads-customer-name
+    weight: 1
+    type: regex
+    target: { source: file, path: billing/loader.py }
+    pattern: '"name": "customer_name"'
+  # 2. The case's primary regex, copied: it PASSES this band-aid.
+  - name: control-primary-regex-is-fooled
+    weight: 1
+    type: regex
+    target: { source: file, path: billing/loader.py }
+    pattern: '[''"]cust_name[''"]'
+  # 3. Nothing was edited.
+  - name: control-no-edit
+    weight: 1
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both

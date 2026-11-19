@@ -4,6 +4,13 @@ Raw run folders in this directory are git-ignored; this index is the record.
 Every quoted number comes from a folder listed here. Plugin version 0.1.0,
 Claude Code CLI 2.1.326, uncommitted working tree (no commit existed yet).
 
+Sweeps 1–3 below (2026-11-17 to 2026-11-19) predate the fold of
+fix-root-causes, prove-it-works, subtract-before-you-add and
+test-behavior-not-implementation into the engineering-habits skill. They
+also predate the 2026-11-19 grader rework (judges moved off `focus: trace`,
+renamed, or replaced by trace regexes; see `../README.md`, "What a judge
+sees"): judged counts from them do not pool with later sweeps.
+
 | folder | cases | runs/arm | judge | grants | status | quoted? |
 |---|---|---|---|---|---|---|
 | `2026-11-17T21-45-10-249Z` | blocks-dangerous-bash | 1 | haiku (default) | none | **measured nothing**: no `--allow-tools`, no `--scaffold`; liveness control failed in both arms, as designed | no; a live demonstration of the no-grant trap |

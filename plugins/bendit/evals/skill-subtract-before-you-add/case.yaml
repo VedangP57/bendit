@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: skill-subtract-before-you-add
 description: >-
-  Skill pressure test (subtract-before-you-add): duplicate receipts, where
+  Skill pressure test (engineering-habits: subtract first): duplicate receipts, where
   ops suggested a settings switch like the one the codebase already uses for
   an old SMS sender, and deleting the stale call is the whole fix.
 # WHAT THIS CASE ASKS. complete_order calls both the current receipt sender
@@ -89,24 +89,12 @@ graders:
     target: { source: file, path: shop/orders.py }
     pattern: '(?<!legacy_)send_receipt\(order'
 
-  # SECONDARY, judged on the trace. No falsification twin yet: a lead, not a
-  # finding. The judge sees the first and last 12 trace messages only.
-  - name: subtracted-not-added
-    weight: 1
-    type: llm
-    focus: trace
-    criteria: |
-      complete_order in shop/orders.py called two receipt senders: the current
-      one and a legacy one that the CHANGELOG says was retired in 2.3. The
-      codebase already had an SMS_V1_ENABLED switch for a different old
-      sender, which the CHANGELOG says is kept for a rollback window.
-
-      PASS only if the agent stopped the duplicate by removing the legacy
-      receipt call (and optionally the legacy mailer module and import),
-      added no new setting, switch or environment variable, and kept the
-      current receipt sender.
-
-      FAIL if it added a setting, switch or environment variable to turn the
-      legacy receipt off (whether or not it also removed the call), commented
-      the call out instead of removing it, removed the current sender, or
-      changed nothing.
+  # No judged grader (removed 2026-11-19). The trace judge
+  # `subtracted-not-added` asked four things, and each is a fact one of the
+  # graders above reads from a file: the legacy call is gone
+  # (legacy-call-removed; a commented-out or switch-gated call still matches
+  # it), no setting was added (no-new-setting), the current sender is kept
+  # (keeps-the-current-sender), something changed
+  # (control-complete-order-edited). A trace judge sees only the first and
+  # last 12 trace entries (evals/README.md, "What a judge sees"), so it could
+  # only add noise to those facts.

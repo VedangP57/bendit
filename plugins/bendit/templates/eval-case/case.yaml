@@ -76,7 +76,12 @@ graders:
   - name: throws-on-missing-port
     weight: 3
     type: regex
-    target: { source: file, path: src/settings.js }  # contents of that file
+    # target: { source: file, path } = that file's contents at the end of the
+    #   run | files = paths CREATED during the run (no contents) | trace = the
+    #   WHOLE trace, one JSON line per event (unwindowed; a newline inside a
+    #   tool's output is the two characters \n there, so no \b after it) |
+    #   last_message (the default)
+    target: { source: file, path: src/settings.js }
     pattern: 'getPort[\s\S]*\bthrow\b'
     match: contains            # contains | not_contains | count:N
     flags: ''                  # JS RegExp flags, e.g. i, m, s
@@ -84,7 +89,21 @@ graders:
   # Judged cross-check, pointed at the FILE with `focus`. Without `focus` the
   # judge reads the agent's last message (the default), and a rubric that says
   # "read src/settings.js" changes nothing -- prose in criteria never selects
-  # the input. focus: last_message | trace | files | { source: file, path }.
+  # the input. What each focus shows the judge (2.1.328; evals/README.md,
+  # "What a judge sees"):
+  #   last_message             the last assistant text, whole
+  #   { source: file, path }   that file's contents
+  #   files                    the paths CREATED during the run, no contents
+  #   mock_calls               calls answered by mocks
+  #   trace                    ONLY the first 12 and last 12 trace entries;
+  #                            the middle is elided, and a long run's edits
+  #                            and test runs are usually in the middle
+  # NEVER let a trace judge decide something a deterministic grader can see:
+  # "ran X", "it failed once", "the output showed Y" belong to tool_used or a
+  # regex on `target: trace` (whole trace); "the code does Z" to a regex or a
+  # judge on the file; "the user was told W" to a judge on last_message. Keep
+  # a trace judge only as a cross-check at weight 1, outweighed by the
+  # deterministic graders, since its view is truncated.
   # Judge with a sonnet-class model (--judge-model), never the agent's own
   # model. Give every judged grader a falsification twin before trusting it.
   - name: missing-port-is-loud
@@ -134,5 +153,10 @@ graders:
   #   arm: both
   # - name: read-before-edit
   #   type: tool_order
-  #   before: Read
-  #   after: Edit
+  #   before: Read              # or { tool: Bash, input_match: 'npm test' }
+  #   after: Edit               # compares the FIRST matching call of each
+  # - name: saw-the-tests-fail-once     # a mid-run fact, read from the whole trace
+  #   type: regex
+  #   target: trace
+  #   pattern: '"tool_use_result":"Error: Exit code [1-9]'   # a Bash call exited non-zero
+  #   flags: m

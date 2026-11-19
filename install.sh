@@ -8,6 +8,9 @@
 # is missing or failed; 2 usage error, refused location, unsupported OS.
 set -u
 ASK_OPEN=""  # never inherited: a caller must not choose which fd ask() reads
+ASKED="
+"           # install commands already offered, one per line
+CLT_MISSING=0
 
 BENDIT_VERSION="0.2.0"
 NODE_MIN=20
@@ -123,12 +126,23 @@ for n in names:
 
 python_version() {
   command -v python3 >/dev/null 2>&1 || return 0
+  apple_stub python3 && return 0
   python3 -I -c 'import sys;print("%d.%d.%d"%sys.version_info[:3])' 2>/dev/null | head -n 1
+}
+
+# apple_stub <tool> -- 0 when <tool> is macOS's stub in /usr/bin and the Command
+# Line Tools are missing, so running it would open Apple's install dialog.
+# BENDIT_APPLE_SHIMS (a test hook) names the folder the stubs live in.
+apple_stub() {
+  [ "${CLT_MISSING:-0}" = 1 ] || return 1
+  [ "$(command -v "$1")" = "${BENDIT_APPLE_SHIMS:-/usr/bin}/$1" ]
 }
 
 # row <item> <found-or-empty> <needed> <ok 0|1> <why>
 row() {
   local mark="✓" found="$2"
+  printf -v "FOUND_$1" '%s' "$2"
+  printf -v "NEED_$1" '%s' "$3"
   [ "$4" = 0 ] || mark="✗"
   [ -n "$found" ] || found="missing"
   printf '%s %-8s %-9s %-7s %s\n' "$mark" "$1" "$found" "$3" "$5"
@@ -139,6 +153,13 @@ row() {
 check_machine() {
   local v ok web=0
   MISSING_REQUIRED=""; MISSING_WEB=""
+  # Before anything runs git or python3: on a Mac without the Command Line Tools
+  # both are stubs that open Apple's install dialog each time they run.
+  CLT_MISSING=0
+  if [ "$(uname -s)" = Darwin ] && command -v xcode-select >/dev/null 2>&1 \
+     && ! xcode-select -p >/dev/null 2>&1; then
+    CLT_MISSING=1
+  fi
   is_web_project && web=1
   say "  item     found     needed  why"
 
@@ -150,14 +171,23 @@ check_machine() {
   [ "$ok" = 0 ] || MISSING_REQUIRED="$MISSING_REQUIRED claude"
 
   v=""; ok=1
-  if command -v git >/dev/null 2>&1; then v="found"; ok=0; fi
+  if command -v git >/dev/null 2>&1; then
+    if apple_stub git; then
+      v="stub only"
+    elif git --version >/dev/null 2>&1; then
+      ok=0; v="found"
+    else
+      v="found but did not run"
+    fi
+  fi
   row git "$v" any "$ok" "reads and records your changes"
   [ "$ok" = 0 ] || MISSING_REQUIRED="$MISSING_REQUIRED git"
 
   v="$(python_version)"; ok=1
   [ -n "$v" ] && ver_ge "$v" 3.9 && ok=0
-  # On PATH but silent: macOS's /usr/bin/python3 shim without Command Line Tools.
-  if [ -z "$v" ] && command -v python3 >/dev/null 2>&1; then v="found but did not run"; fi
+  if [ -z "$v" ] && command -v python3 >/dev/null 2>&1; then
+    if apple_stub python3; then v="stub only"; else v="found but did not run"; fi
+  fi
   row python3 "$v" "3.9+" "$ok" "runs bendit's guards"
   [ "$ok" = 0 ] || MISSING_REQUIRED="$MISSING_REQUIRED python3"
 
@@ -197,13 +227,17 @@ have_tty() { ( : < "${BENDIT_TTY:-/dev/tty}" ) 2>/dev/null; }
 
 # install_cmd <item> -- the command for this machine, or nothing.
 install_cmd() {
-  local item="$1" pm=""
+  local item="$1" pm="" s
   if [ "$item" = claude ]; then
     command -v curl >/dev/null 2>&1 && say 'curl -fsSL https://claude.ai/install.sh | bash'
     return 0
   fi
   case "$(uname -s)" in
     Darwin)
+      # brew itself needs the Command Line Tools, and they bring git and python3.
+      if [ "${CLT_MISSING:-0}" = 1 ]; then
+        case "$item" in git|python3) say 'xcode-select --install'; return 0 ;; esac
+      fi
       command -v brew >/dev/null 2>&1 || return 0
       case "$item" in
         python3) say 'brew install python@3.13' ;;
@@ -213,16 +247,27 @@ install_cmd() {
       esac ;;
     Linux)
       for pm in apt-get dnf pacman; do command -v "$pm" >/dev/null 2>&1 && break; pm=""; done
+      [ -n "$pm" ] || return 0
+      # root needs no sudo; anyone else without sudo (a container) gets no route.
+      if command -v id >/dev/null 2>&1 && [ "$(id -u)" = 0 ]; then
+        s=""
+      elif command -v sudo >/dev/null 2>&1; then
+        s="sudo "
+      else
+        return 0
+      fi
+      # apt's own nodejs is older than NODE_MIN (18 on Ubuntu 24.04 and Debian
+      # 12, 12 on 22.04), so it is no route for node. A fresh image has no
+      # package lists until apt-get update, and pacman's may be stale.
       case "$pm:$item" in
-        apt-get:python3) say 'sudo apt-get install -y python3' ;;
-        apt-get:git)     say 'sudo apt-get install -y git' ;;
-        apt-get:node)    say 'sudo apt-get install -y nodejs' ;;
-        dnf:python3)     say 'sudo dnf install -y python3' ;;
-        dnf:git)         say 'sudo dnf install -y git' ;;
-        dnf:node)        say 'sudo dnf install -y nodejs' ;;
-        pacman:python3)  say 'sudo pacman -S --noconfirm python' ;;
-        pacman:git)      say 'sudo pacman -S --noconfirm git' ;;
-        pacman:node)     say 'sudo pacman -S --noconfirm nodejs' ;;
+        apt-get:python3) say "${s}apt-get update && ${s}apt-get install -y python3" ;;
+        apt-get:git)     say "${s}apt-get update && ${s}apt-get install -y git" ;;
+        dnf:python3)     say "${s}dnf install -y python3" ;;
+        dnf:git)         say "${s}dnf install -y git" ;;
+        dnf:node)        say "${s}dnf install -y nodejs" ;;
+        pacman:python3)  say "${s}pacman -Sy --noconfirm python" ;;
+        pacman:git)      say "${s}pacman -Sy --noconfirm git" ;;
+        pacman:node)     say "${s}pacman -Sy --noconfirm nodejs" ;;
       esac ;;
   esac
   return 0
@@ -232,18 +277,27 @@ manual_pointer() {
   case "$1" in
     python3) say "Get Python 3.9 or newer from https://www.python.org/downloads/" ;;
     git)     say "Get git from https://git-scm.com/downloads" ;;
-    node)    say "Get Node.js $NODE_MIN or newer from https://nodejs.org/" ;;
+    node)
+      say "Get Node.js $NODE_MIN or newer from https://nodejs.org/ (or with nvm)."
+      if [ "$(uname -s)" = Linux ] && command -v apt-get >/dev/null 2>&1; then
+        say "  apt's own nodejs is older than $NODE_MIN; NodeSource's packages are new enough."
+      fi ;;
     chrome)  say "Get Chrome from https://www.google.com/chrome/" ;;
     claude)  say "See https://code.claude.com/docs/en/setup" ;;
   esac
 }
 
 why_missing() {
+  local var="FOUND_$1"
+  if [ "${!var:-}" = "stub only" ]; then
+    say "$1 is only Apple's stub until the Command Line Tools are installed."
+    return 0
+  fi
   case "$1" in
     python3) say "python3 is missing or older than 3.9 (it runs bendit's guards)." ;;
     node)    say "node is missing or older than $NODE_MIN (it drives the browser for a web app)." ;;
     chrome)  say "Chrome is missing (the browser bendit looks at your app with)." ;;
-    git)     say "git is missing (it reads and records your changes)." ;;
+    git)     say "git is missing or does not run (it reads and records your changes)." ;;
     claude)  say "claude is missing (the agent bendit plugs into)." ;;
   esac
 }
@@ -258,9 +312,18 @@ is_missing() {
 # offer <item> -- 0 installed and verified, 1 declined or no automatic route,
 # 2 the install ran but the item is still missing, 3 no terminal.
 offer() {
-  local item="$1" cmd rc tool
+  local item="$1" cmd rc tool now need added=0 var
   cmd="$(install_cmd "$item")"
   why_missing "$item"
+  # One command can serve two items (xcode-select --install brings git and
+  # python3): ask once.
+  case "$ASKED" in *"
+$cmd
+"*)
+    [ -n "$cmd" ] && { say "  That is the same install as above."; return 1; } ;;
+  esac
+  ASKED="$ASKED$cmd
+"
   if [ -z "$cmd" ]; then
     say "  bendit cannot install it automatically here. $(manual_pointer "$item")"
     return 1
@@ -271,18 +334,37 @@ offer() {
   [ "$rc" = 3 ] && return 3
   say ""
   [ "$rc" = 0 ] || return 1
-  eval "$cmd" < /dev/null; rc=$?
+  # pipefail: a failed download in `curl ... | bash` is a failure, not bash's
+  # 0. fd 3 is the terminal ask() reads; the command does not get it.
+  ( set -o pipefail; eval "$cmd" ) < /dev/null 3<&-; rc=$?
   # claude installs to ~/.local/bin, which a fresh machine may not have on PATH yet.
   if [ "$item" = claude ]; then
-    case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH" ;; esac
+    case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH"; added=1 ;; esac
   fi
   hash -r 2>/dev/null
-  if ! is_missing "$item"; then say "  $item is ready."; return 0; fi
+  if ! is_missing "$item"; then
+    say "  $item is ready."
+    if [ "$added" = 1 ] && [ "$(command -v claude)" = "$HOME/.local/bin/claude" ]; then
+      say "  claude is in ~/.local/bin, which this shell's PATH lacks: open a new terminal"
+      say "  (or add ~/.local/bin to PATH) before you run claude yourself."
+    fi
+    return 0
+  fi
+  if [ "$cmd" = "xcode-select --install" ]; then
+    say "  Apple's installer has opened in its own window."
+    say "  When Apple's installer finishes, run this again."
+    return 2
+  fi
   tool="${cmd#sudo }"; tool="${tool%% *}"
-  if [ "$rc" = 0 ]; then
+  var="FOUND_$item"; now="${!var:-}"; var="NEED_$item"; need="${!var:-}"
+  if [ "$rc" != 0 ]; then
+    say "  The install command failed (exit $rc), and $item is still not ready."
+  elif [ -z "$now" ]; then
     say "  $tool said it worked, but $item is still not found."
+  elif [ "$now" = "found but did not run" ] || [ "$now" = "stub only" ]; then
+    say "  $tool said it worked, but $item still does not run."
   else
-    say "  The install command failed (exit $rc), and $item is still not found."
+    say "  $tool said it worked, but $item is still $now; bendit needs $need."
   fi
   return 2
 }
@@ -384,9 +466,20 @@ hand_over() {
   exit 0
 }
 
+# repo_note -- one line when the project folder is not a git repository.
+repo_note() {
+  local out
+  out="$(LC_ALL=C git rev-parse --is-inside-work-tree 2>&1)" && return 0
+  case "$out" in
+    *"not a git repository"*) say "This folder is not a git repository; /adopt will offer git init." ;;
+    *) say "git could not tell whether this folder is a repository: $(printf '%s\n' "$out" | head -n 1)" ;;
+  esac
+}
+
 ready() {
   local plugin
   say ""
+  repo_note
   say "This machine is ready. Fetching bendit..."
   plugin="$(fetch_kit)" || exit 1
   hand_over "$plugin"

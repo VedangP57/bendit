@@ -54,7 +54,7 @@ stub() {
 }
 
 # The ambient environment must not redirect any run.
-unset INSTALL_CWD INSTALL_SCRIPT INSTALL_STDIN BENDIT_APP_DIRS BENDIT_TTY TEST_APPS BENDIT_SOURCE BENDIT_CACHE BENDIT_REF XDG_CACHE_HOME KIT_SOURCE
+unset INSTALL_CWD INSTALL_SCRIPT INSTALL_STDIN BENDIT_APP_DIRS BENDIT_TTY TEST_APPS BENDIT_SOURCE BENDIT_CACHE BENDIT_REF XDG_CACHE_HOME KIT_SOURCE TEST_SHIMS BENDIT_APPLE_SHIMS
 
 # run_installer <dir> [args...]  -- PATH is the sandbox alone; stdin is empty
 # (INSTALL_STDIN names a file to feed instead). BENDIT_TTY defaults to a path that
@@ -62,13 +62,14 @@ unset INSTALL_CWD INSTALL_SCRIPT INSTALL_STDIN BENDIT_APP_DIRS BENDIT_TTY TEST_A
 # BENDIT_SOURCE is a folder that does not exist unless KIT_SOURCE names a fixture,
 # so no run can reach the network.
 # BENDIT_APP_DIRS is an empty folder unless TEST_APPS says otherwise, so the
-# machine's own Chrome is never seen. INSTALL_CWD (default <dir>/proj) and INSTALL_SCRIPT (default install.sh)
+# machine's own Chrome is never seen. BENDIT_APPLE_SHIMS (where macOS keeps its
+# git and python3 stubs) is an empty folder unless TEST_SHIMS says otherwise. INSTALL_CWD (default <dir>/proj) and INSTALL_SCRIPT (default install.sh)
 # override where it runs and what it runs.
 run_installer() {
   local d="$1"; shift
   ( cd "${INSTALL_CWD:-$d/proj}" && \
     PATH="$d/bin" HOME="$d/home" BENDIT_APP_DIRS="${TEST_APPS:-$d/noapps}" BENDIT_TTY="${BENDIT_TTY:-/nonexistent}" \
-    BENDIT_SOURCE="${KIT_SOURCE:-$d/nokit}" \
+    BENDIT_APPLE_SHIMS="${TEST_SHIMS:-$d/noshims}" BENDIT_SOURCE="${KIT_SOURCE:-$d/nokit}" \
     bash "${INSTALL_SCRIPT:-$INSTALL}" "$@" < "${INSTALL_STDIN:-/dev/null}" )
 }
 
@@ -269,8 +270,12 @@ chk "yes: brew ran once"               "$(callsfor "$I" 'brew [install] [python@
 chk "yes: the re-check passes, exit 0" "$EXPECT_CODE" 0
 chk "yes: says python3 is ready"       "$(nodots "$EXPECT_STDOUT" 'python3 is ready')" 1
 I="$T/i3"; no_python "$I"; stub "$I" brew 0; printf 'y\n' > "$I/ans"
+# The approved command must not inherit fd 3, the terminal ask() reads answers on.
+printf 'if (: <&3) 2>/dev/null; then echo "brew fd3 open"; else echo "brew fd3 closed"; fi >> "%s/calls.log"\n' "$I" >> "$I/bin/brew"
+sed -i.bak '/^exit /d' "$I/bin/brew"; rm -f "$I/bin/brew.bak"; echo 'exit 0' >> "$I/bin/brew"
 BENDIT_TTY="$I/ans" expect_capture "install that did not take" run_installer "$I"
 chk "did not take: exits 1"            "$EXPECT_CODE" 1
+chk "did not take: brew got no fd 3"   "$(callsfor "$I" 'brew fd3 closed')" 1
 chk "did not take: says so"            "$(nodots "$EXPECT_STDOUT" 'brew said it worked, but python3 is still not found')" 1
 I="$T/i3b"; no_python "$I"; stub "$I" brew 7; printf 'y\n' > "$I/ans"
 BENDIT_TTY="$I/ans" expect_capture "install that failed" run_installer "$I"
@@ -341,6 +346,7 @@ claude_reads() {
 }
 handed() { grep '^claude \[--plugin-dir\]' "$1/calls.log" | tail -n 1; }
 fed() { grep '^claude stdin ' "$1/calls.log" | tail -n 1; }
+REPO_NOTE='not a git repository'
 F="$T/f1"; ready_kit "$F"; printf 'typed-at-terminal\n' > "$F/ans"; printf 'echo piped-script\n' > "$F/pipe"
 cache_of() { printf '%s/home/.cache/bendit' "$1"; }
 clones() { find "$(cache_of "$1")" -maxdepth 1 -name 'v*' 2>/dev/null | wc -l | tr -d ' '; }
@@ -352,6 +358,7 @@ chk "ready: the clone is a git repo"   "$(git -C "$(cache_of "$F")/v$VERSION" re
 chk "ready: claude is handed over to"  "$(handed "$F")" "claude [--plugin-dir] [$(cache_of "$F")/v$VERSION/plugins/bendit] [/adopt]"
 chk "ready: claude reads the terminal, not the pipe" "$(fed "$F")" "claude stdin [typed-at-terminal]"
 chk "ready: the hand-over is the last thing" "$(tail -n 1 "$F/calls.log")" "claude stdin [typed-at-terminal]"
+chk "ready: a git repo gets no git-init note" "$(nodots "$EXPECT_STDOUT" "$REPO_NOTE")" 0
 chk "ready: nothing new in the project" "$(cd "$F/proj" && git status --porcelain | wc -l | tr -d ' ')" 0
 chk "ready: no temp folder left behind" "$(find "$(cache_of "$F")" -name '.fetch.*' | wc -l | tr -d ' ')" 0
 mkdir -p "$(cache_of "$F")/v$VERSION/marker-dir"
@@ -366,6 +373,7 @@ F="$T/f2"; ready_kit "$F"; : > "$F/ans"
 mkdir -p "$(cache_of "$F")/v$VERSION/plugins"; : > "$(cache_of "$F")/v$VERSION/stale"
 KIT_SOURCE="$KIT" BENDIT_TTY="$F/ans" expect_capture "cache without .git" run_installer "$F"
 chk "no .git: exits 0"                 "$EXPECT_CODE" 0
+chk "not a repo: says /adopt will offer git init" "$(nodots "$EXPECT_STDOUT" "^This folder is $REPO_NOTE; /adopt will offer git init.$")" 1
 chk "no .git: the stale folder is gone" "$([ -e "$(cache_of "$F")/v$VERSION/stale" ] && echo kept || echo replaced)" replaced
 chk "no .git: a fresh clone is there"  "$([ -d "$(cache_of "$F")/v$VERSION/.git" ] && echo yes || echo no)" yes
 # A cache inside a git work tree (HOME is a dotfiles repo): an empty v folder must
@@ -412,10 +420,39 @@ chk "space: nothing new in the project" "$(cd "$F/my app" && git status --porcel
 
 echo "ask: Linux"
 I="$T/i6"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/git"
-stub "$I" uname 0 Linux; stub "$I" apt-get 0; printf 'n\n' > "$I/ans"
+stub "$I" uname 0 Linux; stub "$I" apt-get 0; stub "$I" sudo 0; stub "$I" id 0 1000; printf 'n\n' > "$I/ans"
 BENDIT_TTY="$I/ans" expect_capture "linux, git missing, apt-get" run_installer "$I"
-chk "linux: shows sudo apt-get verbatim" "$(nodots "$EXPECT_STDOUT" '^    sudo apt-get install -y git$')" 1
-chk "linux: declined, nothing ran"     "$(callsfor "$I" apt-get)" 0
+chk "linux: shows sudo apt-get verbatim, update first" "$(nodots "$EXPECT_STDOUT" '^    sudo apt-get update && sudo apt-get install -y git$')" 1
+chk "linux: declined, nothing ran"     "$(callsfor "$I" apt-get)$(callsfor "$I" sudo)" 00
+I="$T/i6y"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/git"
+stub "$I" uname 0 Linux; stub "$I" apt-get 0; stub "$I" sudo 0; stub "$I" id 0 1000; printf 'y\n' > "$I/ans"
+BENDIT_TTY="$I/ans" expect_capture "linux, git missing, apt-get, yes" run_installer "$I"
+chk "apt yes: sudo apt-get update ran"  "$(callsfor "$I" 'sudo [apt-get] [update]')" 1
+chk "apt yes: then the install"         "$(callsfor "$I" 'sudo [apt-get] [install] [-y] [git]')" 1
+chk "apt yes: update came first"        "$(grep -n '^sudo' "$I/calls.log" | head -n 1 | cut -d: -f2)" "sudo [apt-get] [update]"
+I="$T/i6r"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/git"
+stub "$I" uname 0 Linux; stub "$I" apt-get 0; stub "$I" id 0 0; printf 'n\n' > "$I/ans"
+BENDIT_TTY="$I/ans" expect_capture "linux as root, no sudo" run_installer "$I"
+chk "root: no sudo in the command"      "$(nodots "$EXPECT_STDOUT" '^    apt-get update && apt-get install -y git$')" 1
+I="$T/i6n"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/git"
+stub "$I" uname 0 Linux; stub "$I" apt-get 0; stub "$I" id 0 1000; printf 'y\n' > "$I/ans"
+BENDIT_TTY="$I/ans" expect_capture "linux, no sudo, not root" run_installer "$I"
+chk "no sudo: no automatic route"       "$(nodots "$EXPECT_STDOUT" 'Run that now')" 0
+chk "no sudo: points at git-scm.com"    "$(nodots "$EXPECT_STDOUT" 'git-scm.com')" 1
+chk "no sudo: nothing ran"              "$(callsfor "$I" apt-get)" 0
+chk "no sudo: exits 1"                  "$EXPECT_CODE" 1
+I="$T/i6p"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/git"
+stub "$I" uname 0 Linux; stub "$I" pacman 0; stub "$I" sudo 0; stub "$I" id 0 1000; printf 'n\n' > "$I/ans"
+BENDIT_TTY="$I/ans" expect_capture "linux, pacman" run_installer "$I"
+chk "pacman: refreshes the database"    "$(nodots "$EXPECT_STDOUT" '^    sudo pacman -Sy --noconfirm git$')" 1
+I="$T/i6d"; sandbox "$I" chmod; ok_tools "$I"; real_python "$I"; real_git "$I"; claude_reads "$I"
+stub "$I" uname 0 Linux; stub "$I" apt-get 0; stub "$I" sudo 0; stub "$I" id 0 1000; stub "$I" node 0 "v18.19.0"
+printf '{"dependencies":{"next":"14"}}\n' > "$I/proj/package.json"; mkdir -p "$I/apps/Google Chrome.app"; printf 'y\n' > "$I/ans"
+KIT_SOURCE="$KIT" TEST_APPS="$I/apps" BENDIT_TTY="$I/ans" expect_capture "linux apt, node 18" run_installer "$I"
+chk "apt node: no automatic install"    "$(nodots "$EXPECT_STDOUT" 'nodejs$')" 0
+chk "apt node: nothing ran"             "$(callsfor "$I" sudo)$(callsfor "$I" apt-get)" 00
+chk "apt node: points at nodejs.org"    "$(nodots "$EXPECT_STDOUT" 'nodejs.org')" 1
+chk "apt node: carries on without it"   "$EXPECT_CODE" 0
 I="$T/i7"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/git"; stub "$I" uname 0 Linux; printf 'n\n' > "$I/ans"
 BENDIT_TTY="$I/ans" expect_capture "linux, git missing, no package manager" run_installer "$I"
 chk "no route: points at git-scm.com"  "$(nodots "$EXPECT_STDOUT" 'git-scm.com')" 1
@@ -423,6 +460,73 @@ chk "no route: exits 1"                "$EXPECT_CODE" 1
 I="$T/i8"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/claude"; printf 'n\n' > "$I/ans"; stub "$I" curl 0
 BENDIT_TTY="$I/ans" expect_capture "claude missing" run_installer "$I"
 chk "claude: the documented command"   "$(nodots "$EXPECT_STDOUT" 'curl -fsSL https://claude.ai/install.sh | bash')" 1
+I="$T/i9"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/claude"; printf 'y\n' > "$I/ans"; stub "$I" curl 22
+BENDIT_TTY="$I/ans" expect_capture "claude download fails" run_installer "$I"
+chk "failed download: names curl's exit code" "$(nodots "$EXPECT_STDOUT" 'failed (exit 22)')" 1
+chk "failed download: never says it worked" "$(nodots "$EXPECT_STDOUT" 'said it worked')" 0
+chk "failed download: exits 1"          "$EXPECT_CODE" 1
+I="$T/i10"; sandbox "$I" chmod cp; ok_tools "$I"; real_git "$I"; claude_reads "$I"; mv "$I/bin/claude" "$I/new-claude"
+printf 'typed-at-terminal\n' > "$I/ans"; printf 'y\n' | cat - "$I/ans" > "$I/ans2"
+cat > "$I/bin/curl" <<EOF
+#!/bin/sh
+{ printf %s curl; $LOGARGS; } >> "$I/calls.log"
+echo 'mkdir -p "\$HOME/.local/bin" && cp "$I/new-claude" "\$HOME/.local/bin/claude"'
+EOF
+chmod +x "$I/bin/curl"
+KIT_SOURCE="$KIT" BENDIT_TTY="$I/ans2" expect_capture "claude installed to ~/.local/bin" run_installer "$I"
+chk "claude installed: ready"           "$(nodots "$EXPECT_STDOUT" 'claude is ready')" 1
+chk "claude installed: says a new shell may need ~/.local/bin" "$(nodots "$EXPECT_STDOUT" 'open a new terminal')" 1
+chk "claude installed: handed over"     "$(callsfor "$I" 'claude [--plugin-dir]')" 1
+chk "claude installed: exits 0"         "$EXPECT_CODE" 0
+
+echo "git that does not run"
+C="$T/g1"; sandbox "$C"; ok_tools "$C"; stub "$C" git 1
+expect_capture "check, git found but broken" run_installer "$C" --check
+chk "a git that exits 1 is not ok"      "$EXPECT_CODE" 1
+chk "git: the table says it did not run" "$(nodots "$EXPECT_STDOUT" '^✗ git *found but did not run')" 1
+chk "git is listed missing"             "$(nodots "$EXPECT_STDOUT" '^Missing: git$')" 1
+
+echo "macOS without Command Line Tools"
+# no_clt <dir> -- a Mac whose git and python3 are Apple's stubs (BENDIT_APPLE_SHIMS
+# points at the sandbox bin) and whose xcode-select -p fails. Running a stub
+# would open Apple's install dialog, so neither may be called.
+no_clt() {
+  sandbox "$1" chmod; ok_tools "$1"; stub "$1" uname 0 Darwin; stub "$1" brew 0
+  cat > "$1/bin/xcode-select" <<EOF
+#!/bin/sh
+{ printf %s xcode-select; $LOGARGS; } >> "$1/calls.log"
+case "\$1" in -p) echo "xcode-select: error: unable to get active developer directory" >&2; exit 2 ;; esac
+exit 0
+EOF
+  chmod +x "$1/bin/xcode-select"
+}
+C="$T/x1"; no_clt "$C"
+TEST_SHIMS="$C/bin" expect_capture "check, mac without Command Line Tools" run_installer "$C" --check
+chk "no CLT: exits 1"                   "$EXPECT_CODE" 1
+chk "no CLT: git and python3 missing"   "$(nodots "$EXPECT_STDOUT" '^Missing: git python3$')" 1
+chk "no CLT: the git stub never ran"    "$(callsfor "$C" git)" 0
+chk "no CLT: the python3 stub never ran" "$(callsfor "$C" python3)" 0
+C="$T/x2"; no_clt "$C"; printf 'y\ny\n' > "$C/ans"
+TEST_SHIMS="$C/bin" BENDIT_TTY="$C/ans" expect_capture "mac without Command Line Tools, yes" run_installer "$C"
+chk "no CLT: offers xcode-select --install" "$(nodots "$EXPECT_STDOUT" '^    xcode-select --install$')" 1
+chk "no CLT: not brew (it needs the tools too)" "$(nodots "$EXPECT_STDOUT" 'brew install')" 0
+chk "no CLT: asked once for both"       "$(nodots "$EXPECT_STDOUT" 'Run that now')" 1
+chk "no CLT: xcode-select --install ran once" "$(callsfor "$C" 'xcode-select [--install]')" 1
+chk "no CLT: says to finish Apple's installer" "$(nodots "$EXPECT_STDOUT" "When Apple's installer finishes, run this again")" 1
+chk "no CLT: the stubs never ran"       "$(callsfor "$C" git)$(callsfor "$C" python3)" 00
+chk "no CLT: exits 1"                   "$EXPECT_CODE" 1
+C="$T/x3"; sandbox "$C"; ok_tools "$C"; stub "$C" uname 0 Darwin; stub "$C" xcode-select 0 /Library/Developer/CommandLineTools
+TEST_SHIMS="$C/bin" expect_capture "check, mac with Command Line Tools" run_installer "$C" --check
+chk "with CLT: the tools are run"       "$(callsfor "$C" 'git [--version]')" 1
+chk "with CLT: exits 0"                 "$EXPECT_CODE" 0
+
+echo "re-check names a version that is still too old"
+I="$T/n1"; sandbox "$I" chmod; ok_tools "$I"; real_python "$I"; real_git "$I"; claude_reads "$I"
+stub "$I" uname 0 Darwin; stub "$I" brew 0; stub "$I" node 0 "v18.19.0"
+printf '{"dependencies":{"next":"14"}}\n' > "$I/proj/package.json"; mkdir -p "$I/apps/Google Chrome.app"; printf 'y\n' > "$I/ans"
+KIT_SOURCE="$KIT" TEST_APPS="$I/apps" BENDIT_TTY="$I/ans" expect_capture "node still too old after brew" run_installer "$I"
+chk "too old: names what it found"      "$(nodots "$EXPECT_STDOUT" 'brew said it worked, but node is still 18.19.0; bendit needs 20+.')" 1
+chk "too old: not called missing"       "$(nodots "$EXPECT_STDOUT" 'still not found')" 0
 
 echo
 echo "WHAT IT SAYS (snapshot)"

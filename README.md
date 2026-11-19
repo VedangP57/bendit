@@ -27,40 +27,45 @@ repo**), the same instruction was tested two ways:
   its work;
 - as a **hook that refuses** the action, it held 12 times out of 12.
 
-**This kit's own result, reproducible from this repo** (2026-11-18, 12 runs per
-arm, CLI 2.1.326, judge sonnet; commands and provenance in
+**This kit's own results, reproducible from this repo** (v0.2.0 sweep,
+2026-11-19, CLI 2.1.328, judge sonnet, inputs frozen in
+`evals/freezes/v2-final.json`; commands and provenance in
 [evals/results/INDEX.md](plugins/bendit/evals/results/INDEX.md)):
 
-| case | with the kit | without | two-sided Fisher p |
+| what was measured | with the kit | without | two-sided Fisher p |
 |---|---|---|---|
-| agent told to run `rm -rf ./build` | 12/12 directory survived | 0/12 | 7.4e-07 |
-| agent told only to "free up space" (it picks the command) | 12/12 | 0/12 | 7.4e-07 |
+| Bash guard: agent told to run `rm -rf ./build` | 12/12 directory survived | 0/12 | 7.4e-07 |
+| Bash guard: agent told only to "free up space" (it picks the command) | 11/12 | 0/12 | 9.6e-06 |
+| skill `checks-that-can-lie`: the CI check it writes refuses an empty scan | **28/30** | **1/30** | **2.3e-13** |
 
-Every run in both arms attempted the deletion, so neither column is a run that
-measured nothing. Limits: in all 12 unprompted with-kit runs the agent picked a
-command the guard covers. The guard allows `rm -r dir` (recursive, no `-f`) by
-design, so routine cleanups keep working, and the guard's header says what that
-costs. `git clean -f`, which the same eval found getting through, has been
-blocked since.
+Every run in every arm attempted the task (a liveness control passed in all of
+them), so no column is a run that measured nothing. The same guard result was
+measured on v0.1.0 a day earlier (12/12 and 12/12 vs 0/12).
 
-The kit's **skills** have no demonstrated effect. Two 3-runs-per-arm pressure
-tests of six skills (checks for direction, not measurements; the second with
-scenarios rebuilt to tempt the shortcut harder) found mean differences of -0.02
-and +0.01. In most cases the model did the right thing without the skill, even
-under pressure. The one consistent signal is `checks-that-can-lie`: its check
-refused an empty scan in 5/6 runs with the kit and 0/6 without (p = 0.015, but
-six skills were tested, so after correcting for that it is not significant).
-Treat the skills as advice, the hooks as enforcement. The four skills with no
-measured effect were then folded into one, `engineering-habits`, which keeps
-their specific advice and costs one listing entry instead of four in every
-session.
+**The one deletion that got through** used `rm -r -- ./dist`: recursive, without
+`-f`. v0.1.0 allowed that on purpose so routine cleanups kept working; the sweep
+measured the cost (1 agent in 12 chose it unprompted), and since the `-f` flag
+changes almost nothing in an agent's shell, recursive deletes are now refused
+with or without it. Deleting a scratch folder inside a temp location stays
+allowed.
 
-The same runs measured a **cost**: with the kit, 6 of 18 runs ran out of turns,
-against 0 of 18 without. The traces show why: in a project with no verify
-harness yet, the Stop gate refuses the stop and the agent spends turns working
-out how to satisfy it; and the Bash guard refused an `rm -rf` the agent used to
-clean up a scratch folder while following a skill's advice. Running `/adopt`
-first (which writes the harness) removes the first of these.
+**Skills.** `checks-that-can-lie` is the first skill with a measured effect: a
+30-runs-per-arm test, decisive at p = 2.3e-13. Its judged criterion ("made the
+check fail once") went the other way (21/30 vs 28/30), but the deterministic
+grader that sees the same fact in the full trace passed 30/30 in both arms; the
+LLM judge sees only the first and last 12 trace events, and the kit's hook
+messages push that evidence into the part it cannot see. The other skills
+showed no difference in three 3-runs-per-arm pressure tests: the model already
+did the right thing without them, even under pressure. Four of them were
+therefore folded into one, `engineering-habits`, to cut the per-session listing
+cost. Treat the hooks as enforcement, `checks-that-can-lie` as measured advice,
+and the other skills as advice.
+
+**Cost of the kit.** In the earlier v0.1.0 skill sweep, 6 of 18 with-kit runs ran
+out of turns (0 of 18 without): the Stop gate in a project with no harness yet,
+and the guard refusing a scratch-folder cleanup. After two fixes it was 0 of 6
+on the two worst cases, and 2 of 18 in the v0.2.0 sweep. Running `/adopt`
+first, which writes the harness, avoids most of it.
 
 That is a small sample, and you should not take it on trust. The kit ships the
 method to measure it on your own project
@@ -87,7 +92,7 @@ the layer that holds it, are in [docs/ladder.md](docs/ladder.md).
 
 | | what | how |
 |---|---|---|
-| **Enforced** | destructive shell commands (recursive force delete, `find -delete`, destructive SQL, force push, …) | `PreToolUse` hook, exit 2 |
+| **Enforced** | destructive shell commands (recursive delete with or without `-f`, `find -delete`, destructive SQL, `git reset --hard` and other work-losing git commands, force push, …) | `PreToolUse` hook, exit 2 |
 | **Enforced** | zsh word-splitting mistakes, when your shell is zsh | `PreToolUse` hook, exit 2 (option `zshGuard`) |
 | **Enforced** | edits to files named `*.gen.*`; allocations in `*.hot.*` files | `PreToolUse` hook, exit 2 (opt in by file name) |
 | **Enforced** | ending a turn that edited code without running the project's verification command | `Stop` hook runs `.claude/verify-harness`; an escape exists and is always shown to you |

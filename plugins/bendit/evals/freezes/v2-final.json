@@ -1,0 +1,122 @@
+{
+  "commit": "a5d6be04a468e6221381c8267d76b1c120aea358",
+  "dirty": false,
+  "files": {
+    ".claude-plugin/plugin.json": "c3ad5792dabf6aab",
+    "commands/adopt.md": "e7bdf00d8a82e8c6",
+    "commands/doctor.md": "eb8e6040dd165436",
+    "commands/new-guard.md": "7bbddd363e87399e",
+    "commands/review-diff.md": "679d63b2452f4768",
+    "commands/ship.md": "8b1fa8e5a527bf60",
+    "commands/verify.md": "e4a5b5de6f601ce8",
+    "evals/_falsify/judge-fails-a-bare-claim/case.yaml": "e17c3643841a153d",
+    "evals/_falsify/judge-fails-a-bare-claim/fixture.sh": "a498661949a491dc",
+    "evals/_falsify/judge-fails-a-claim-from-the-quoted-title/case.yaml": "3e64b702a23d53b6",
+    "evals/_falsify/judge-fails-a-cust-name-comment/case.yaml": "90f2555f9a70ef2c",
+    "evals/_falsify/judge-fails-a-cust-name-comment/fixture.sh": "034338d893b7b452",
+    "evals/_falsify/judge-fails-a-self-assigned-total/case.yaml": "bdeb760d8f2e873a",
+    "evals/_falsify/judge-fails-a-self-assigned-total/fixture.sh": "70618745200b4784",
+    "evals/_falsify/judge-passes-a-claim-from-the-real-titles/case.yaml": "27742da1c1533bdb",
+    "evals/blocks-dangerous-bash-unprompted/case.yaml": "fba5f88e91a7adf3",
+    "evals/blocks-dangerous-bash-unprompted/fixture.sh": "347517853881d46d",
+    "evals/blocks-dangerous-bash/case.yaml": "ca77127cd253a3ee",
+    "evals/blocks-dangerous-bash/fixture.sh": "e5fb17524c304156",
+    "evals/skill-checks-that-can-lie/case.yaml": "58b983f71b05ff8d",
+    "evals/skill-checks-that-can-lie/fixture.sh": "1be96afc7347c91e",
+    "evals/skill-encode-lessons-in-structure/case.yaml": "558a88d462499720",
+    "evals/skill-encode-lessons-in-structure/fixture.sh": "7ef3aaa5ff34ca3e",
+    "evals/skill-fix-root-causes/case.yaml": "c9772e225fdda438",
+    "evals/skill-fix-root-causes/fixture.sh": "966203ed70433911",
+    "evals/skill-prove-it-works/case.yaml": "0da8580200810438",
+    "evals/skill-prove-it-works/fixture.sh": "be8d73e018b95f52",
+    "evals/skill-subtract-before-you-add/case.yaml": "eed8cb9ba9d88c1b",
+    "evals/skill-subtract-before-you-add/fixture.sh": "f2baf39d69d3d2e8",
+    "evals/skill-test-behavior-not-implementation/case.yaml": "a78a3ed720566bb5",
+    "evals/skill-test-behavior-not-implementation/fixture.sh": "c872469e6c32c63c",
+    "hooks/hooks.json": "43ea6f4fc8ebdfe0",
+    "scripts/block-dangerous-bash.py": "a81b88097f4e2eed",
+    "scripts/block-dangerous-bash.test.sh": "ed8ef455be435c7e",
+    "scripts/block-zsh-wordsplit.py": "bd32b59d7f85e485",
+    "scripts/block-zsh-wordsplit.test.sh": "27adde804a41c0ab",
+    "scripts/eval-freeze.py": "a2d84c5f0c380bd7",
+    "scripts/eval-freeze.test.sh": "dcb9ca7264ecdb0b",
+    "scripts/expect.sh": "bfbc2a80c73907e0",
+    "scripts/expect.test.sh": "943d4ece5f49a88b",
+    "scripts/new-guard.sh": "439ecc6aa0104725",
+    "scripts/new-guard.test.sh": "4347762ec3e141f4",
+    "scripts/path-contracts.py": "0850af677057d363",
+    "scripts/path-contracts.test.sh": "e57bbbb8129afd91",
+    "scripts/ports.py": "ddb968cd91f19158",
+    "scripts/ports.test.sh": "c1ed2ac63c731175",
+    "scripts/post-edit-review.py": "085c626955bf0f98",
+    "scripts/post-edit-review.test.sh": "3c0133132e226f35",
+    "scripts/privacy-scan.py": "d5ff523481ec280d",
+    "scripts/privacy-scan.test.sh": "071bd1bfc2dd3eb4",
+    "scripts/probes.py": "d01a79b5c73f330e",
+    "scripts/prove.sh": "02d38a4d9ef6610c",
+    "scripts/prove.test.sh": "f4454d7f8cdf79b5",
+    "scripts/require-verification.py": "9a531be74c3c6133",
+    "scripts/require-verification.test.sh": "6c169887bf2813d0",
+    "scripts/scaffold-verification-skill.sh": "3ac8d9ed8569a0a8",
+    "scripts/scaffold-verification-skill.test.sh": "61f5dae954fa3d39",
+    "scripts/selfcheck.py": "1087edfa1479c00a",
+    "scripts/selfcheck.test.sh": "4e8d0b3d725e9e1c",
+    "scripts/shell_text.py": "a99bb56f737b60fa",
+    "scripts/skill-budget.py": "abd9ed83f85e2e25",
+    "scripts/skill-budget.test.sh": "c5e4d49355303e53",
+    "scripts/verify-readiness.test.sh": "a0082dd212daceed",
+    "scripts/verify-slots.sh": "a7b3e243ca8f6195",
+    "scripts/verify-slots.test.sh": "babe5e3b9eba23c1",
+    "scripts/verify.sh": "709b16c8be50fb4f",
+    "scripts/warn-suppressed-stderr.py": "3af35bbc7d9bdf02",
+    "scripts/warn-suppressed-stderr.test.sh": "8da30991be019c47",
+    "skills/adopt-bendit/SKILL.md": "f0b2a05a2c4749d0",
+    "skills/adopt-bendit/references/detect.md": "932d01588dec813d",
+    "skills/adopt-bendit/references/grow.md": "908163e1beb96a60",
+    "skills/adopt-bendit/references/install.md": "84fd54a2b368329f",
+    "skills/adopt-bendit/references/interview.md": "bf14d2b2c3bd0ad6",
+    "skills/adopt-bendit/references/project-layer.md": "3b01ab6212167374",
+    "skills/adopt-bendit/references/prove.md": "552a2a66a64fbbff",
+    "skills/checks-that-can-lie/SKILL.md": "c10c9bd4d9925855",
+    "skills/create-verification-skill/SKILL.md": "20630b74967f417f",
+    "skills/encode-lessons-in-structure/SKILL.md": "09d6132d2f415475",
+    "skills/engineering-habits/SKILL.md": "f7cda364b224e5da"
+  },
+  "name": "v2-final",
+  "note": "v0.2.0 final sweep",
+  "watch_version": 1,
+  "watched": [
+    [
+      ".claude-plugin",
+      "plugin.json"
+    ],
+    [
+      "hooks",
+      "hooks.json"
+    ],
+    [
+      "scripts",
+      "*.py"
+    ],
+    [
+      "scripts",
+      "*.sh"
+    ],
+    [
+      "skills",
+      "**/*"
+    ],
+    [
+      "commands",
+      "**/*"
+    ],
+    [
+      "evals",
+      "**/case.yaml"
+    ],
+    [
+      "evals",
+      "**/fixture.sh"
+    ]
+  ]
+}

@@ -780,6 +780,27 @@ def _shown(files: list) -> str:
     return ', '.join(files[:6]) + (f' (+{len(files) - 6} more)' if len(files) > 6 else '')
 
 
+# WHAT FAILED, from anywhere in the output. The refusal showed only the last
+# 1,500 chars, so a CI that runs more suites after the failing one buried the
+# failure under passing output (sibling kit, 2026-11-19: "CI FAILED: shell"
+# under a screen of passing tests, the failing suite never named). `FAIL` must
+# be a whole word -- a suite's "FAILING CLOSED" section header is not a failure.
+_FAILURE = re.compile(r'^\s*FAIL\b|^=== .*: FAILED\s*$|^CI FAILED|exited non-zero')
+FAILURE_LINES_MAX = 30
+
+
+def _failure_lines(out: str) -> list:
+    seen, lines = set(), []
+    for line in out.splitlines():
+        line = line.rstrip()
+        if _FAILURE.search(line) and line not in seen:
+            seen.add(line)
+            lines.append(line)
+            if len(lines) >= FAILURE_LINES_MAX:
+                break
+    return lines
+
+
 def _run_harness(cmd: str, root: Path, budget: float):
     """(returncode or None on timeout, output). Kills the WHOLE process group.
 
@@ -1126,9 +1147,11 @@ def _judge(root: Path, sid: str, cwd: Path, cwd_root, deadline: float):
             _clear(pending, root, sid, 'harness')
             return 0, f'[bendit] verified by {root.name}\'s declared harness: {cmd}', files
         tail = out.strip()[-1500:]
+        named = _failure_lines(out)
         # No output (e.g. exit 127, command not found) gets no blank separator.
         return 2, (f'[bendit] {root.name}\'s declared harness FAILED (exit {rc}), '
                    f'so {_shown(files)} is not verified:\n  {cmd}'
+                   + ('\n\nfailures:\n' + '\n'.join(named) if named else '')
                    + (f'\n\n{tail}' if tail else '')), files
 
     reachable = escapes[0]

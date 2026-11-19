@@ -279,6 +279,206 @@ exit 2
 
 3 failed
 
+=== a failure early, then >1500 chars of passing noise
+exit 2
+--- stderr
+[bendit] <tmp-name>'s declared harness FAILED (exit 1), so src/declared2b.ts is not verified:
+  bash <tmp>/.claude/fake-ci.sh
+
+failures:
+  FAIL  early-suite: the thing broke
+FAIL: plugins/x/early.test.sh exited non-zero
+=== shell: FAILED
+CI FAILED: shell
+
+ passing noise line 91 of the later stage
+  ok    passing noise line 92 of the later stage
+  ok    passing noise line 93 of the later stage
+  ok    passing noise line 94 of the later stage
+  ok    passing noise line 95 of the later stage
+  ok    passing noise line 96 of the later stage
+  ok    passing noise line 97 of the later stage
+  ok    passing noise line 98 of the later stage
+  ok    passing noise line 99 of the later stage
+  ok    passing noise line 100 of the later stage
+  ok    passing noise line 101 of the later stage
+  ok    passing noise line 102 of the later stage
+  ok    passing noise line 103 of the later stage
+  ok    passing noise line 104 of the later stage
+  ok    passing noise line 105 of the later stage
+  ok    passing noise line 106 of the later stage
+  ok    passing noise line 107 of the later stage
+  ok    passing noise line 108 of the later stage
+  ok    passing noise line 109 of the later stage
+  ok    passing noise line 110 of the later stage
+  ok    passing noise line 111 of the later stage
+  ok    passing noise line 112 of the later stage
+  ok    passing noise line 113 of the later stage
+  ok    passing noise line 114 of the later stage
+  ok    passing noise line 115 of the later stage
+  ok    passing noise line 116 of the later stage
+  ok    passing noise line 117 of the later stage
+  ok    passing noise line 118 of the later stage
+  ok    passing noise line 119 of the later stage
+  ok    passing noise line 120 of the later stage
+CI FAILED: shell
+
+=== sixty failures
+exit 2
+--- stderr
+[bendit] <tmp-name>'s declared harness FAILED (exit 1), so src/declared2c.ts is not verified:
+  bash <tmp>/.claude/fake-ci.sh
+
+failures:
+  FAIL  case 1
+  FAIL  case 2
+  FAIL  case 3
+  FAIL  case 4
+  FAIL  case 5
+  FAIL  case 6
+  FAIL  case 7
+  FAIL  case 8
+  FAIL  case 9
+  FAIL  case 10
+  FAIL  case 11
+  FAIL  case 12
+  FAIL  case 13
+  FAIL  case 14
+  FAIL  case 15
+  FAIL  case 16
+  FAIL  case 17
+  FAIL  case 18
+  FAIL  case 19
+  FAIL  case 20
+  FAIL  case 21
+  FAIL  case 22
+  FAIL  case 23
+  FAIL  case 24
+  FAIL  case 25
+  FAIL  case 26
+  FAIL  case 27
+  FAIL  case 28
+  FAIL  case 29
+  FAIL  case 30
+
+FAIL  case 1
+  FAIL  case 2
+  FAIL  case 3
+  FAIL  case 4
+  FAIL  case 5
+  FAIL  case 6
+  FAIL  case 7
+  FAIL  case 8
+  FAIL  case 9
+  FAIL  case 10
+  FAIL  case 11
+  FAIL  case 12
+  FAIL  case 13
+  FAIL  case 14
+  FAIL  case 15
+  FAIL  case 16
+  FAIL  case 17
+  FAIL  case 18
+  FAIL  case 19
+  FAIL  case 20
+  FAIL  case 21
+  FAIL  case 22
+  FAIL  case 23
+  FAIL  case 24
+  FAIL  case 25
+  FAIL  case 26
+  FAIL  case 27
+  FAIL  case 28
+  FAIL  case 29
+  FAIL  case 30
+  FAIL  case 31
+  FAIL  case 32
+  FAIL  case 33
+  FAIL  case 34
+  FAIL  case 35
+  FAIL  case 36
+  FAIL  case 37
+  FAIL  case 38
+  FAIL  case 39
+  FAIL  case 40
+  FAIL  case 41
+  FAIL  case 42
+  FAIL  case 43
+  FAIL  case 44
+  FAIL  case 45
+  FAIL  case 46
+  FAIL  case 47
+  FAIL  case 48
+  FAIL  case 49
+  FAIL  case 50
+  FAIL  case 51
+  FAIL  case 52
+  FAIL  case 53
+  FAIL  case 54
+  FAIL  case 55
+  FAIL  case 56
+  FAIL  case 57
+  FAIL  case 58
+  FAIL  case 59
+  FAIL  case 60
+
+=== no failure markers
+exit 2
+--- stderr
+[bendit] <tmp-name>'s declared harness FAILED (exit 1), so src/declared2d.ts is not verified:
+  bash <tmp>/.claude/fake-ci.sh
+
+e line 71
+  ok    passing noise line 72
+  ok    passing noise line 73
+  ok    passing noise line 74
+  ok    passing noise line 75
+  ok    passing noise line 76
+  ok    passing noise line 77
+  ok    passing noise line 78
+  ok    passing noise line 79
+  ok    passing noise line 80
+  ok    passing noise line 81
+  ok    passing noise line 82
+  ok    passing noise line 83
+  ok    passing noise line 84
+  ok    passing noise line 85
+  ok    passing noise line 86
+  ok    passing noise line 87
+  ok    passing noise line 88
+  ok    passing noise line 89
+  ok    passing noise line 90
+  ok    passing noise line 91
+  ok    passing noise line 92
+  ok    passing noise line 93
+  ok    passing noise line 94
+  ok    passing noise line 95
+  ok    passing noise line 96
+  ok    passing noise line 97
+  ok    passing noise line 98
+  ok    passing noise line 99
+  ok    passing noise line 100
+  ok    passing noise line 101
+  ok    passing noise line 102
+  ok    passing noise line 103
+  ok    passing noise line 104
+  ok    passing noise line 105
+  ok    passing noise line 106
+  ok    passing noise line 107
+  ok    passing noise line 108
+  ok    passing noise line 109
+  ok    passing noise line 110
+  ok    passing noise line 111
+  ok    passing noise line 112
+  ok    passing noise line 113
+  ok    passing noise line 114
+  ok    passing noise line 115
+  ok    passing noise line 116
+  ok    passing noise line 117
+  ok    passing noise line 118
+  ok    passing noise line 119
+  ok    passing noise line 120
+
 === an EMPTY declaration blocks, it is not a pass
 exit 2
 --- stderr

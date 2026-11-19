@@ -384,6 +384,50 @@ declare_harness 'echo "3 failed" >&2; exit 1'
 trust_harness "$T"   # approved: this case is about what RUNNING it does
 want "a declared harness that FAILS blocks" 2
 
+# THE REFUSAL MUST NAME WHAT FAILED. It showed only the last 1,500 chars, so a
+# CI that runs more suites AFTER the failing one buried the failure under a
+# screen of passing output (measured in the sibling kit, 2026-11-19: "CI
+# FAILED: shell" under passing tests, the failing suite never named).
+# Failure-marker lines from anywhere in the output now come first, under
+# "failures:". Called without $(...) so EXPECT_STDERR survives for the asserts.
+dstop() { expect_capture "$1" python3 "$H" \
+            <<<"$(printf '{"cwd":"%s","stop_hook_active":false}' "$T")"; }
+has() { case "$EXPECT_STDERR" in *"$2"*) chk "$1" ok ok ;; *) chk "$1" "$EXPECT_STDERR" "contains: $2" ;; esac; }
+hasnt() { case "$EXPECT_STDERR" in *"$2"*) chk "$1" "$EXPECT_STDERR" "no: $2" ;; *) chk "$1" ok ok ;; esac; }
+# The fake CI lives in a FILE: the refusal echoes the harness command, so an
+# inline script would put every FAIL line in the message whatever the gate did.
+FAKE="$T/.claude/fake-ci.sh"
+fake_ci() { mkdir -p "$T/.claude"; printf '%s\n' "$1" > "$FAKE"; declare_harness "bash $FAKE"; trust_harness "$T"; }
+rm -rf "$D"; mark "$T/src/declared2b.ts"
+fake_ci 'echo "=== shell"; echo "FAILING CLOSED"; echo "  ok    first suite"
+echo "  FAIL  early-suite: the thing broke"; echo "  FAIL  early-suite: the thing broke"
+echo "FAIL: plugins/x/early.test.sh exited non-zero"; echo "=== shell: FAILED"
+for i in $(seq 1 120); do echo "  ok    passing noise line $i of the later stage"; done
+echo "CI FAILED: shell"; exit 1'
+dstop "a failure early, then >1500 chars of passing noise"
+chk "an early failure, then passing noise -> blocked" "$EXPECT_CODE" 2
+has "  ...and the refusal names the early FAIL line" "FAIL  early-suite: the thing broke"
+has "  ...and the suite that exited non-zero" "plugins/x/early.test.sh exited non-zero"
+has "  ...and the failed stage" "=== shell: FAILED"
+has "  ...under a failures: heading" "failures:"
+chk "  ...each failure line once (de-duplicated)" \
+    "$(grep -c 'early-suite: the thing broke' <<<"$EXPECT_STDERR")" 1
+hasnt "  ...and a header that merely STARTS with FAIL is not a failure" "FAILING CLOSED"
+has "  ...and the tail is still there" "passing noise line 120"
+
+rm -rf "$D"; mark "$T/src/declared2c.ts"
+fake_ci 'for i in $(seq 1 60); do echo "  FAIL  case $i"; done; exit 1'
+dstop "sixty failures"
+chk "sixty failure lines -> at most 30 listed" \
+    "$(sed -n '/^failures:/,/^$/p' <<<"$EXPECT_STDERR" | grep -c 'FAIL  case')" 30
+
+rm -rf "$D"; mark "$T/src/declared2d.ts"
+fake_ci 'for i in $(seq 1 120); do echo "  ok    passing noise line $i"; done; exit 1'
+dstop "no failure markers"
+chk "CONTROL: no failure markers -> blocked as before" "$EXPECT_CODE" 2
+hasnt "CONTROL: ...and no failures: heading is added" "failures:"
+rm -f "$FAKE"
+
 # An empty declaration is a misconfiguration, not a pass. A harness that cannot
 # run must never be the reason a turn was allowed to end.
 rm -rf "$D"; mark "$T/src/declared3.ts"

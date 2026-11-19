@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -594,11 +595,69 @@ def _judge(root: Path, sid: str, cwd: Path, cwd_root, deadline: float):
                f'If it genuinely does not apply, say why to the user and record it:\n'
                f'  echo "<one-line reason>" > {reachable}')
     else:
-        msg = (f'[bendit] You changed code in {root.name} and it has no verification harness: {shown}.\n'
-               f'Declare a command that verifies it in {root / ".claude" / "verify-harness"},\n'
-               f'scaffold a verify skill (create-verification-skill), or record why not:\n'
+        # Everything the agent needs is IN this message. With three options
+        # given in the abstract, a measured eval run spent its last turns
+        # reading this hook's source to work out what to do.
+        decl = root / '.claude' / 'verify-harness'
+        cmd = suggest_harness(root)
+        head = (f'[bendit] You changed code in {root.name} and it has no verification harness: {shown}.\n'
+                f'The gate runs {decl} (one shell command per line; exit 0 means verified) '
+                f'when a turn ends. Everything you need is in this message.\n')
+        if cmd:
+            how = (f'This project looks like it tests with `{cmd}`. To make that the check, run:\n'
+                   f"  mkdir -p {root / '.claude'} && echo '{cmd}' > {decl}\n"
+                   f'then end the turn again. For a fuller harness (launching the app), run /bendit:adopt.\n')
+        else:
+            how = (f'No test command was found here. Write the command that proves your change into {decl},\n'
+                   f'or run /bendit:adopt to build a harness for this project.\n')
+        msg = (head + how +
+               f'If verification genuinely does not apply, say why to the user and record it:\n'
                f'  echo "<one-line reason>" > {reachable}')
     return 2, msg, files
+
+
+def suggest_harness(root: Path):
+    """The project's own test command, read from what is on disk, or None.
+    Only signals that name a real test command count: npm's placeholder
+    `echo "Error: no test specified"` script is not one."""
+    pkg = root / 'package.json'
+    if pkg.is_file():
+        try:
+            test = (json.loads(pkg.read_text()).get('scripts') or {}).get('test') or ''
+        except (OSError, ValueError, AttributeError):
+            test = ''
+        if test and 'no test specified' not in test:
+            if (root / 'pnpm-lock.yaml').is_file():
+                return 'pnpm test'
+            if (root / 'yarn.lock').is_file():
+                return 'yarn test'
+            if (root / 'bun.lockb').is_file() or (root / 'bun.lock').is_file():
+                return 'bun run test'
+            return 'npm test'
+    pyproject = root / 'pyproject.toml'
+    pytest_cfg = (root / 'pytest.ini').is_file() or (root / 'conftest.py').is_file()
+    if not pytest_cfg and pyproject.is_file():
+        try:
+            pytest_cfg = 'pytest' in pyproject.read_text()
+        except OSError:
+            pass
+    if pytest_cfg:
+        return 'python3 -m pytest'
+    tests = root / 'tests'
+    if tests.is_dir() and any(tests.glob('test_*.py')):
+        return 'python3 -m unittest discover -s tests'
+    if (root / 'go.mod').is_file():
+        return 'go test ./...'
+    if (root / 'Cargo.toml').is_file():
+        return 'cargo test'
+    mk = root / 'Makefile'
+    if mk.is_file():
+        try:
+            if re.search(r'^test\s*:', mk.read_text(), re.M):
+                return 'make test'
+        except OSError:
+            pass
+    return None
 
 
 def _say(message: str) -> None:

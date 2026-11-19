@@ -10,8 +10,10 @@ exit 0
 exit 2
 --- stderr
 [bendit] You changed code in <tmp-name> and it has no verification harness: src/a.ts.
-Declare a command that verifies it in <tmp>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-nosession
 
 === verified after the edit -> allowed
@@ -22,8 +24,10 @@ exit 0
 exit 2
 --- stderr
 [bendit] You changed code in <tmp-name> and it has no verification harness: src/b.ts.
-Declare a command that verifies it in <tmp>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-nosession
 
 === skip recorded with a reason -> allowed
@@ -35,14 +39,16 @@ exit 0
 exit 2
 --- stderr
 [bendit] You changed code in <tmp-name> and it has no verification harness: src/c.ts.
-Declare a command that verifies it in <tmp>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-nosession
 
 === second stop in the same turn -> allowed, not refused twice
 exit 0
 --- stdout
-{"systemMessage": "[bendit] the turn ended with code NOT verified -- the gate already refused once this turn and does not refuse twice:\n\n[bendit] You changed code in <tmp-name> and it has no verification harness: src/c.ts.\nDeclare a command that verifies it in <tmp>/.claude/verify-harness,\nscaffold a verify skill (create-verification-skill), or record why not:\n  echo \"<one-line reason>\" > <tmp>/.claude/.verify-state/skipped-nosession"}
+{"systemMessage": "[bendit] the turn ended with code NOT verified -- the gate already refused once this turn and does not refuse twice:\n\n[bendit] You changed code in <tmp-name> and it has no verification harness: src/c.ts.\nThe gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.\nNo test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,\nor run /bendit:adopt to build a harness for this project.\nIf verification genuinely does not apply, say why to the user and record it:\n  echo \"<one-line reason>\" > <tmp>/.claude/.verify-state/skipped-nosession"}
 
 === node_modules ignored
 exit 0
@@ -57,32 +63,40 @@ exit 0
 exit 2
 --- stderr
 [bendit] You changed code in <tmp-name> and it has no verification harness: src/hook.py.
-Declare a command that verifies it in <tmp>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-code-py
 
 === edited a .sh -> BLOCKED
 exit 2
 --- stderr
 [bendit] You changed code in <tmp-name> and it has no verification harness: src/hook.sh.
-Declare a command that verifies it in <tmp>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-code-sh
 
 === edited a .go -> BLOCKED
 exit 2
 --- stderr
 [bendit] You changed code in <tmp-name> and it has no verification harness: src/hook.go.
-Declare a command that verifies it in <tmp>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-code-go
 
 === edited a .mts -> BLOCKED
 exit 2
 --- stderr
 [bendit] You changed code in <tmp-name> and it has no verification harness: src/hook.mts.
-Declare a command that verifies it in <tmp>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-code-mts
 
 === own .claude/ config -> allowed
@@ -93,16 +107,20 @@ exit 0
 exit 2
 --- stderr
 [bendit] You changed code in wt1 and it has no verification harness: src/in-worktree.ts.
-Declare a command that verifies it in <tmp>/.claude/worktrees/wt1/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/worktrees/wt1/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/worktrees/wt1/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/.claude/worktrees/wt1/.claude/.verify-state/skipped-wt
 
 === edit in another repo -> blocked
 exit 2
 --- stderr
 [bendit] You changed code in <other-name> and it has no verification harness: src/far.ts.
-Declare a command that verifies it in <other>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <other>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <other>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-xr
 
 === other repo, skip under cwd -> allowed
@@ -118,8 +136,10 @@ exit 0
 exit 2
 --- stderr
 [bendit] You changed code in <tmp-name> and it has no verification harness: src/x.ts.
-Declare a command that verifies it in <tmp>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-sess-A
 
 === A's skip clears A
@@ -131,8 +151,10 @@ exit 0
 exit 2
 --- stderr
 [bendit] You changed code in <tmp-name> and it has no verification harness: src/y.ts.
-Declare a command that verifies it in <tmp>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-sess-B
 
 === global verified (verify.sh) still clears B
@@ -147,16 +169,20 @@ exit 0
 exit 2
 --- stderr
 [bendit] You changed code in <tmp-name> and it has no verification harness: src/z.ts.
-Declare a command that verifies it in <tmp>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-sess-NEW
 
 === workspace below root, nothing recorded -> BLOCKED
 exit 2
 --- stderr
 [bendit] You changed code in <tmp-name> and it has no verification harness: src/deep.ts.
-Declare a command that verifies it in <tmp>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/workspace/.claude/.verify-state/skipped-nosession
 
 === skip written INSIDE the workspace -> allowed
@@ -173,8 +199,10 @@ exit 0
 exit 2
 --- stderr
 [bendit] You changed code in <tmp-name> and it has no verification harness: src/wander.ts.
-Declare a command that verifies it in <tmp>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-nosession
 
 === shell in subdir, skip at project dir -> allowed
@@ -186,16 +214,20 @@ exit 0
 exit 2
 --- stderr
 [bendit] You changed code in <tmp-name> and it has no verification harness: src/deep3.ts.
-Declare a command that verifies it in <tmp>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/workspace/.claude/.verify-state/skipped-nosession
 
 === a shell edit is marked, so the turn is BLOCKED
 exit 2
 --- stderr
 [bendit] You changed code in <tmp-name> and it has no verification harness: src/shell1.ts.
-Declare a command that verifies it in <tmp>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-nosession
 
 === and verifying it clears the block
@@ -218,8 +250,10 @@ exit 0
 exit 2
 --- stderr
 [bendit] You changed code in <tmp-name> and it has no verification harness: src/viafiles.ts.
-Declare a command that verifies it in <tmp>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-nosession
 
 === a declared harness that PASSES ends the turn
@@ -257,8 +291,10 @@ exit 2
 exit 2
 --- stderr
 [bendit] You changed code in <tmp-name> and it has no verification harness: src/declared5.ts.
-Declare a command that verifies it in <tmp>/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/.claude/.verify-state/skipped-nosession
 
 === clean against HEAD -> allowed
@@ -269,48 +305,60 @@ exit 0
 exit 2
 --- stderr
 [bendit] You changed code in gitaware and it has no verification harness: src/dirty.ts.
-Declare a command that verifies it in <tmp>/gitaware/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/gitaware/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/gitaware/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/gitaware/.claude/.verify-state/skipped-git-b
 
 === untracked -> blocked
 exit 2
 --- stderr
 [bendit] You changed code in gitaware and it has no verification harness: src/brand-new.ts.
-Declare a command that verifies it in <tmp>/gitaware/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/gitaware/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/gitaware/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/gitaware/.claude/.verify-state/skipped-git-c
 
 === stash pop -> blocked
 exit 2
 --- stderr
 [bendit] You changed code in gitaware and it has no verification harness: src/dirty.ts.
-Declare a command that verifies it in <tmp>/gitaware/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/gitaware/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/gitaware/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/gitaware/.claude/.verify-state/skipped-git-d
 
 === commit -am in the same command -> blocked
 exit 2
 --- stderr
 [bendit] You changed code in gitaware and it has no verification harness: src/clean.ts.
-Declare a command that verifies it in <tmp>/gitaware/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/gitaware/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/gitaware/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/gitaware/.claude/.verify-state/skipped-git-f
 
 === gitignored -> blocked
 exit 2
 --- stderr
 [bendit] You changed code in gitaware and it has no verification harness: gen/out.ts.
-Declare a command that verifies it in <tmp>/gitaware/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/gitaware/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/gitaware/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/gitaware/.claude/.verify-state/skipped-git-g
 
 === git status fails -> blocked
 exit 2
 --- stderr
 [bendit] You changed code in gitaware and it has no verification harness: src/other.ts.
-Declare a command that verifies it in <tmp>/gitaware/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/gitaware/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/gitaware/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/gitaware/.claude/.verify-state/skipped-git-h
 
 === same file, git working -> allowed
@@ -321,7 +369,96 @@ exit 0
 exit 2
 --- stderr
 [bendit] You changed code in gitaware and it has no verification harness: src/clean.ts.
-Declare a command that verifies it in <tmp>/gitaware/.claude/verify-harness,
-scaffold a verify skill (create-verification-skill), or record why not:
+The gate runs <tmp>/gitaware/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/gitaware/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
   echo "<one-line reason>" > <tmp>/gitaware/.claude/.verify-state/skipped-git-e
+
+=== npm project
+exit 2
+--- stderr
+[bendit] You changed code in eco-npm and it has no verification harness: src/a.ts.
+The gate runs <tmp>/eco-npm/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+This project looks like it tests with `npm test`. To make that the check, run:
+  mkdir -p <tmp>/eco-npm/.claude && echo 'npm test' > <tmp>/eco-npm/.claude/verify-harness
+then end the turn again. For a fuller harness (launching the app), run /bendit:adopt.
+If verification genuinely does not apply, say why to the user and record it:
+  echo "<one-line reason>" > <tmp>/eco-npm/.claude/.verify-state/skipped-eco-eco-npm
+
+=== pnpm project
+exit 2
+--- stderr
+[bendit] You changed code in eco-pnpm and it has no verification harness: src/a.ts.
+The gate runs <tmp>/eco-pnpm/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+This project looks like it tests with `pnpm test`. To make that the check, run:
+  mkdir -p <tmp>/eco-pnpm/.claude && echo 'pnpm test' > <tmp>/eco-pnpm/.claude/verify-harness
+then end the turn again. For a fuller harness (launching the app), run /bendit:adopt.
+If verification genuinely does not apply, say why to the user and record it:
+  echo "<one-line reason>" > <tmp>/eco-pnpm/.claude/.verify-state/skipped-eco-eco-pnpm
+
+=== pytest project
+exit 2
+--- stderr
+[bendit] You changed code in eco-py and it has no verification harness: src/a.ts.
+The gate runs <tmp>/eco-py/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+This project looks like it tests with `python3 -m pytest`. To make that the check, run:
+  mkdir -p <tmp>/eco-py/.claude && echo 'python3 -m pytest' > <tmp>/eco-py/.claude/verify-harness
+then end the turn again. For a fuller harness (launching the app), run /bendit:adopt.
+If verification genuinely does not apply, say why to the user and record it:
+  echo "<one-line reason>" > <tmp>/eco-py/.claude/.verify-state/skipped-eco-eco-py
+
+=== unittest only
+exit 2
+--- stderr
+[bendit] You changed code in eco-ut and it has no verification harness: src/a.ts.
+The gate runs <tmp>/eco-ut/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+This project looks like it tests with `python3 -m unittest discover -s tests`. To make that the check, run:
+  mkdir -p <tmp>/eco-ut/.claude && echo 'python3 -m unittest discover -s tests' > <tmp>/eco-ut/.claude/verify-harness
+then end the turn again. For a fuller harness (launching the app), run /bendit:adopt.
+If verification genuinely does not apply, say why to the user and record it:
+  echo "<one-line reason>" > <tmp>/eco-ut/.claude/.verify-state/skipped-eco-eco-ut
+
+=== go module
+exit 2
+--- stderr
+[bendit] You changed code in eco-go and it has no verification harness: src/a.ts.
+The gate runs <tmp>/eco-go/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+This project looks like it tests with `go test ./...`. To make that the check, run:
+  mkdir -p <tmp>/eco-go/.claude && echo 'go test ./...' > <tmp>/eco-go/.claude/verify-harness
+then end the turn again. For a fuller harness (launching the app), run /bendit:adopt.
+If verification genuinely does not apply, say why to the user and record it:
+  echo "<one-line reason>" > <tmp>/eco-go/.claude/.verify-state/skipped-eco-eco-go
+
+=== rust crate
+exit 2
+--- stderr
+[bendit] You changed code in eco-rs and it has no verification harness: src/a.ts.
+The gate runs <tmp>/eco-rs/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+This project looks like it tests with `cargo test`. To make that the check, run:
+  mkdir -p <tmp>/eco-rs/.claude && echo 'cargo test' > <tmp>/eco-rs/.claude/verify-harness
+then end the turn again. For a fuller harness (launching the app), run /bendit:adopt.
+If verification genuinely does not apply, say why to the user and record it:
+  echo "<one-line reason>" > <tmp>/eco-rs/.claude/.verify-state/skipped-eco-eco-rs
+
+=== make test
+exit 2
+--- stderr
+[bendit] You changed code in eco-mk and it has no verification harness: src/a.ts.
+The gate runs <tmp>/eco-mk/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+This project looks like it tests with `make test`. To make that the check, run:
+  mkdir -p <tmp>/eco-mk/.claude && echo 'make test' > <tmp>/eco-mk/.claude/verify-harness
+then end the turn again. For a fuller harness (launching the app), run /bendit:adopt.
+If verification genuinely does not apply, say why to the user and record it:
+  echo "<one-line reason>" > <tmp>/eco-mk/.claude/.verify-state/skipped-eco-eco-mk
+
+=== no test command found
+exit 2
+--- stderr
+[bendit] You changed code in eco-none and it has no verification harness: src/a.ts.
+The gate runs <tmp>/eco-none/.claude/verify-harness (one shell command per line; exit 0 means verified) when a turn ends. Everything you need is in this message.
+No test command was found here. Write the command that proves your change into <tmp>/eco-none/.claude/verify-harness,
+or run /bendit:adopt to build a harness for this project.
+If verification genuinely does not apply, say why to the user and record it:
+  echo "<one-line reason>" > <tmp>/eco-none/.claude/.verify-state/skipped-eco-eco-none
 

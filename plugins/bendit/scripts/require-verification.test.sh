@@ -537,6 +537,52 @@ estop() { expect_capture "$1" python3 "$H" \
           echo "$EXPECT_CODE"; }
 chk "an Edit of a clean file is NOT filtered" "$(estop 'Edit of clean file -> blocked')" "2"
 
+# --- THE REFUSAL SAYS WHAT TO RUN, FOR THIS PROJECT --------------------------
+# Measured in a skill eval: in a project with no harness, the refusal listed
+# three options in the abstract, and the agent spent its last turns reading
+# this hook's SOURCE to work out what to do, then ran out of turns. A refusal
+# that names the project's own test command, as one paste-able line, ends that.
+echo
+echo "NO HARNESS: THE REFUSAL SUGGESTS THIS PROJECT'S OWN TEST COMMAND"
+eco() { # eco <name> <file=content>... -> a fresh repo with those files, one edit marked
+  local R="$T/eco-$1"; shift; mkdir -p "$R/src"; git -C "$R" init -q 2>/dev/null
+  local kv; for kv in "$@"; do mkdir -p "$(dirname "$R/${kv%%=*}")"; printf '%s\n' "${kv#*=}" > "$R/${kv%%=*}"; done
+  printf 'x\n' > "$R/src/a.ts"
+  # Its OWN session: the gate checks every repo a session marked, so a shared
+  # session would show each repo's refusal in every other repo's.
+  printf '{"session_id":"eco-%s","tool_name":"Edit","tool_input":{"file_path":"%s"}}' "$(basename "$R")" "$R/src/a.ts" | python3 "$H" --mark >/dev/null 2>&1
+  printf '%s' "$R"; }
+suggests() { # suggests <label> <repo> <expected command>
+  expect_capture "$1" python3 "$H" \
+    <<<"$(printf '{"session_id":"eco-%s","cwd":"%s","stop_hook_active":false}' "$(basename "$2")" "$2")"
+  chk "$1 -> refused" "$EXPECT_CODE" 2
+  # git reports the RESOLVED root (/private/var on macOS for a /var temp dir).
+  local real; real=$(cd "$2" && pwd -P)
+  case "$EXPECT_STDERR" in
+    *"echo '$3' > $real/.claude/verify-harness"*) chk "$1 -> suggests \`$3\` as one line" ok ok ;;
+    *) chk "$1 -> suggests \`$3\` as one line" "$EXPECT_STDERR" "a line writing '$3'" ;;
+  esac; }
+suggests "npm project"    "$(eco npm 'package.json={"scripts":{"test":"node --test"}}' 'package-lock.json={}')" 'npm test'
+suggests "pnpm project"   "$(eco pnpm 'package.json={"scripts":{"test":"vitest run"}}' 'pnpm-lock.yaml=lockfileVersion: 9')" 'pnpm test'
+suggests "pytest project" "$(eco py 'pyproject.toml=[tool.pytest.ini_options]' 'tests/test_a.py=def test_a(): pass')" 'python3 -m pytest'
+suggests "unittest only"  "$(eco ut 'tests/test_a.py=import unittest')" 'python3 -m unittest discover -s tests'
+suggests "go module"      "$(eco go 'go.mod=module example.com/x')" 'go test ./...'
+suggests "rust crate"     "$(eco rs 'Cargo.toml=[package]')" 'cargo test'
+suggests "make test"      "$(eco mk 'Makefile=test:')" 'make test'
+# The npm placeholder script is not a test command; nothing to suggest.
+R0=$(eco none 'package.json={"scripts":{"test":"echo \"Error: no test specified\" && exit 1"}}')
+expect_capture "no test command found" python3 "$H" \
+  <<<"$(printf '{"session_id":"eco-%s","cwd":"%s","stop_hook_active":false}' "$(basename "$R0")" "$R0")"
+chk "no test command found -> still refused" "$EXPECT_CODE" 2
+case "$EXPECT_STDERR" in
+  *"verify-harness"*"bendit:adopt"*) chk "  ...and points at the harness file and /bendit:adopt" ok ok ;;
+  *) chk "  ...and points at the harness file and /bendit:adopt" "$EXPECT_STDERR" "both named" ;;
+esac
+case "$EXPECT_STDERR" in
+  *"echo '"*"' > "*) chk "  ...without inventing a command" "$EXPECT_STDERR" "no suggested command" ;;
+  *) chk "  ...without inventing a command" ok ok ;;
+esac
+
 expect_verify || fail=$((fail+1))
 
 rm -rf "$T" "$X"

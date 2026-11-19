@@ -1,0 +1,30 @@
+name: Guard idea
+description: A mistake your agent keeps making that Bendit could refuse
+labels: [guard-idea]
+body:
+  - type: textarea
+    id: mistake
+    attributes:
+      label: The mistake
+      description: What the agent did, how often, and what it cost.
+    validations:
+      required: true
+  - type: textarea
+    id: examples
+    attributes:
+      label: Example commands or edits
+      description: Real ones if you can. Include ones that must stay ALLOWED, so the guard does not block normal work.
+      render: shell
+    validations:
+      required: true
+  - type: dropdown
+    id: ladder
+    attributes:
+      label: Cheapest layer you think would hold it
+      description: See docs/ladder.md.
+      options:
+        - L0 · delete the thing
+        - L1 · structure or types
+        - L2 · a hook, CI check or lint rule
+        - L3 · prose (a skill or AGENTS.md line)
+        - Not sure

@@ -1,5 +1,8 @@
 # Bendit
 
+[![ci](https://github.com/VedangP57/bendit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/VedangP57/bendit/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A Claude Code plugin that gives your coding agent rules that are **enforced**,
 not merely written down, and a method for growing your own rules from your own
 mistakes and measuring whether each one works.
@@ -207,6 +210,13 @@ plugins/bendit/
 Every behaviour has a shell test suite (`scripts/*.test.sh`) using snapshot
 tests of what the hooks actually say; `.github/workflows/ci.sh` runs them all and
 fails if any stage ran nothing.
+
+## Contributing and security
+
+[CONTRIBUTING.md](CONTRIBUTING.md) covers running CI locally, test-first
+changes and how to back a claim with evidence. Report a guard bypass or a
+fail-open privately, as [SECURITY.md](SECURITY.md) describes, not in a public
+issue. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

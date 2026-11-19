@@ -1,0 +1,34 @@
+name: Bug
+description: Something in Bendit behaves wrongly (not a security bypass; see SECURITY.md)
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: The exact command or hook payload, and the guard's exit code and message.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Output of `claude --version`, `python3 --version`, `bash --version | head -1`, and your OS.
+    validations:
+      required: true
+  - type: dropdown
+    id: rung
+    attributes:
+      label: How far did you check it?
+      options:
+        - 1 · I saw it happen once
+        - 2 · I found the line that does it
+        - 4 · I ran it again and read the output
+        - 5 · I reproduced it in a real project

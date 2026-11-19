@@ -332,10 +332,61 @@ install_missing() {
   return 0
 }
 
-# Task 4 continues from here: fetch the kit and hand over.
-ready() {
+# fetch_kit -- prints the plugin directory, cloning bendit into the cache first
+# unless a good clone of this version is already there. The clone lands in a temp
+# folder inside the cache and is moved into place, so a failed or interrupted
+# fetch never leaves a half-made v<version> folder.
+fetch_kit() {
+  local cache dir src ref tmp out
+  cache="${BENDIT_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/bendit}"
+  dir="$cache/v$BENDIT_VERSION"
+  src="${BENDIT_SOURCE:-https://github.com/VedangP57/bendit.git}"
+  ref="${BENDIT_REF:-v$BENDIT_VERSION}"
+  if [ -d "$dir" ] && git -C "$dir" rev-parse --verify HEAD >/dev/null 2>&1; then
+    say "$dir/plugins/bendit"
+    return 0
+  fi
+  rm -rf "$dir"
+  mkdir -p "$cache" || { printf '%s\n' "could not create $cache" >&2; return 1; }
+  tmp="$(mktemp -d "$cache/.fetch.XXXXXX")" || { printf '%s\n' "could not create a temporary folder in $cache" >&2; return 1; }
+  # git's own chatter (detached HEAD advice, local-clone depth warning) is noise
+  # unless the clone fails, and then it is the reason.
+  if ! out="$(git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$ref" "$src" "$tmp/kit" </dev/null 2>&1)"; then
+    rm -rf "$tmp"
+    [ -z "$out" ] || printf '%s\n' "$out" >&2
+    printf '%s\n' "could not fetch bendit from $src ($ref)." >&2
+    return 1
+  fi
+  if ! mv "$tmp/kit" "$dir"; then
+    rm -rf "$tmp"
+    printf '%s\n' "could not move bendit into $cache." >&2
+    return 1
+  fi
+  rm -rf "$tmp"
+  say "$dir/plugins/bendit"
+}
+
+# hand_over <plugin-dir> -- with a terminal, becomes claude running /adopt (its
+# input is the terminal, not the script a curl pipe may be feeding stdin);
+# without one, prints the command to run.
+hand_over() {
+  local plugin="$1" q
+  if have_tty; then
+    exec claude --plugin-dir "$plugin" "/adopt" < "${BENDIT_TTY:-/dev/tty}"
+  fi
+  printf -v q '%q' "$plugin"
   say ""
-  say "This machine is ready."
+  say "There is no terminal to open Claude on. To finish, run this in your project:"
+  say "  claude --plugin-dir $q \"/adopt\""
+  exit 0
+}
+
+ready() {
+  local plugin
+  say ""
+  say "This machine is ready. Fetching bendit..."
+  plugin="$(fetch_kit)" || exit 1
+  hand_over "$plugin"
 }
 
 main() {

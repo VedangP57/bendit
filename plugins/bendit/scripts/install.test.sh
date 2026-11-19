@@ -26,7 +26,7 @@ chk() { if [ "$2" = "$3" ]; then printf '  ok    %s\n' "$1"; pass=$((pass+1));
 sandbox() {
   local d="$1" t p; shift
   mkdir -p "$d/bin" "$d/home" "$d/proj"
-  for t in bash cat grep sed head tr cut mkdir mktemp mv rm dirname uname env "$@"; do
+  for t in bash cat grep sed head tr cut mkdir mktemp mv rm rmdir dirname uname env "$@"; do
     p="$(type -P "$t")" || p=""
     if [ -z "$p" ]; then
       printf '  FAIL  sandbox: %s is not installed here, so the suite cannot run\n' "$t"
@@ -51,11 +51,13 @@ stub() {
 }
 
 # The ambient environment must not redirect any run.
-unset INSTALL_CWD INSTALL_SCRIPT INSTALL_STDIN BENDIT_APP_DIRS BENDIT_TTY TEST_APPS
+unset INSTALL_CWD INSTALL_SCRIPT INSTALL_STDIN BENDIT_APP_DIRS BENDIT_TTY TEST_APPS BENDIT_SOURCE BENDIT_CACHE BENDIT_REF XDG_CACHE_HOME KIT_SOURCE
 
 # run_installer <dir> [args...]  -- PATH is the sandbox alone; stdin is empty
 # (INSTALL_STDIN names a file to feed instead). BENDIT_TTY defaults to a path that
 # cannot be opened, so no run can ever read this terminal's real /dev/tty.
+# BENDIT_SOURCE is a folder that does not exist unless KIT_SOURCE names a fixture,
+# so no run can reach the network.
 # BENDIT_APP_DIRS is an empty folder unless TEST_APPS says otherwise, so the
 # machine's own Chrome is never seen. INSTALL_CWD (default <dir>/proj) and INSTALL_SCRIPT (default install.sh)
 # override where it runs and what it runs.
@@ -63,6 +65,7 @@ run_installer() {
   local d="$1"; shift
   ( cd "${INSTALL_CWD:-$d/proj}" && \
     PATH="$d/bin" HOME="$d/home" BENDIT_APP_DIRS="${TEST_APPS:-$d/noapps}" BENDIT_TTY="${BENDIT_TTY:-/nonexistent}" \
+    BENDIT_SOURCE="${KIT_SOURCE:-$d/nokit}" \
     bash "${INSTALL_SCRIPT:-$INSTALL}" "$@" < "${INSTALL_STDIN:-/dev/null}" )
 }
 
@@ -139,6 +142,18 @@ real_python() {
   chmod +x "$1/bin/python3"
 }
 nodots() { printf '%s' "$1" | grep -c "$2"; }
+
+# The kit fixture: a git repo shaped like bendit, tagged v<version>, standing in
+# for the GitHub remote. real_git <dir> swaps the git stub for the machine's git.
+KIT="$T/kit"; mkdir -p "$KIT/plugins/bendit/.claude-plugin"
+printf '{"version":"%s"}\n' "$VERSION" > "$KIT/plugins/bendit/.claude-plugin/plugin.json"
+if command -v git >/dev/null 2>&1; then
+  ( cd "$KIT" && git init -q . && git add -A && \
+    git -c user.name=t -c user.email=t@t commit -q -m fixture && git tag "v$VERSION" )
+else
+  printf '  FAIL  git is not installed here, so the fetch tests cannot run\n'; fail=$((fail+1))
+fi
+real_git() { rm -f "$1/bin/git"; ln -sf "$(type -P git)" "$1/bin/git"; }
 
 echo "machine check: all present, not a web project"
 C="$T/c1"; sandbox "$C"; ok_tools "$C"
@@ -240,8 +255,8 @@ I="$T/i1w"; no_python "$I"; brew_fixes "$I"; printf 'yep\n' > "$I/ans"
 BENDIT_TTY="$I/ans" expect_capture "install, answer yep" run_installer "$I"
 chk "only y or yes counts"             "$(callsfor "$I" brew)" 0
 I="$T/i2"; no_python "$I"; brew_fixes "$I"; printf 'y\n' > "$I/ans"
-stub "$I" uname 0 Darwin
-BENDIT_TTY="$I/ans" expect_capture "install, answer yes, brew fixes it" run_installer "$I"
+stub "$I" uname 0 Darwin; real_git "$I"
+KIT_SOURCE="$KIT" BENDIT_TTY="$I/ans" expect_capture "install, answer yes, brew fixes it" run_installer "$I"
 chk "yes: brew ran once"               "$(callsfor "$I" 'brew install python@3.13')" 1
 chk "yes: the re-check passes, exit 0" "$EXPECT_CODE" 0
 chk "yes: says python3 is ready"       "$(nodots "$EXPECT_STDOUT" 'python3 is ready')" 1
@@ -257,8 +272,8 @@ chk "failed: names the exit code"      "$(nodots "$EXPECT_STDOUT" 'failed (exit 
 echo "ask: web items"
 I="$T/i4"; sandbox "$I" chmod; ok_tools "$I"; real_python "$I"
 printf '{"dependencies":{"next":"14"}}\n' > "$I/proj/package.json"; mkdir -p "$I/apps/Google Chrome.app"
-stub "$I" brew 0; stub "$I" uname 0 Darwin; printf 'n\n' > "$I/ans"
-TEST_APPS="$I/apps" BENDIT_TTY="$I/ans" expect_capture "web, node declined" run_installer "$I"
+stub "$I" brew 0; stub "$I" uname 0 Darwin; printf 'n\n' > "$I/ans"; real_git "$I"
+KIT_SOURCE="$KIT" TEST_APPS="$I/apps" BENDIT_TTY="$I/ans" expect_capture "web, node declined" run_installer "$I"
 chk "node declined: carries on, exit 0" "$EXPECT_CODE" 0
 chk "node declined: browser driver off" "$(nodots "$EXPECT_STDOUT" 'the browser driver will be off')" 1
 chk "node declined: brew never ran"    "$(callsfor "$I" brew)" 0
@@ -269,7 +284,8 @@ chk "required still enforced: exit 1"  "$EXPECT_CODE" 1
 chk "web items are not asked when a required one is refused" "$(nodots "$EXPECT_STDOUT" 'brew install node')" 0
 I="$T/i4c"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/python3"; brew_fixes "$I"; stub "$I" uname 0 Darwin
 printf 'y\nn\nn\n' > "$I/ans"; printf '{"dependencies":{"next":"14"}}\n' > "$I/proj/package.json"
-BENDIT_TTY="$I/ans" expect_capture "answers are read one per question" run_installer "$I"
+real_git "$I"
+KIT_SOURCE="$KIT" BENDIT_TTY="$I/ans" expect_capture "answers are read one per question" run_installer "$I"
 chk "second answer was its own line"   "$(callsfor "$I" 'brew install python')" 1
 chk "then node and chrome declined, exit 0" "$EXPECT_CODE" 0
 chk "the web project is still web after python3 is installed" "$(nodots "$EXPECT_STDOUT" 'brew install node')" 1
@@ -296,6 +312,60 @@ chk "empty tty, stdin y: nothing installed" "$(callsfor "$I" brew)" 0
 I="$T/i5e"; no_python "$I"; brew_fixes "$I"; printf 'n\n' > "$I/ans"; printf 'y\n' > "$I/fd3"
 ASK_OPEN=1 BENDIT_TTY="$I/ans" expect_capture "inherited ASK_OPEN and fd 3" run_installer "$I" 3< "$I/fd3"
 chk "inherited ASK_OPEN and fd 3 y: brew never ran" "$(callsfor "$I" brew)" 0
+
+echo "fetch and hand over"
+# ready_kit <dir> -- a machine that needs nothing, with the real git.
+ready_kit() { sandbox "$1"; ok_tools "$1"; real_git "$1"; }
+cache_of() { printf '%s/home/.cache/bendit' "$1"; }
+clones() { find "$(cache_of "$1")" -maxdepth 1 -name 'v*' 2>/dev/null | wc -l | tr -d ' '; }
+F="$T/f1"; ready_kit "$F"; : > "$F/ans"
+( cd "$F/proj" && git init -q . )
+KIT_SOURCE="$KIT" BENDIT_TTY="$F/ans" expect_capture "ready, with a terminal" run_installer "$F"
+chk "ready: exits 0"                   "$EXPECT_CODE" 0
+chk "ready: one clone in the cache"    "$(clones "$F")" 1
+chk "ready: the clone is a git repo"   "$(git -C "$(cache_of "$F")/v$VERSION" rev-parse --verify HEAD >/dev/null 2>&1 && echo yes || echo no)" yes
+chk "ready: claude is the last call"   "$(tail -n 1 "$F/calls.log")" "claude --plugin-dir $(cache_of "$F")/v$VERSION/plugins/bendit /adopt"
+chk "ready: nothing new in the project" "$(cd "$F/proj" && git status --porcelain | wc -l | tr -d ' ')" 0
+chk "ready: no temp folder left behind" "$(find "$(cache_of "$F")" -name '.fetch.*' | wc -l | tr -d ' ')" 0
+mkdir -p "$(cache_of "$F")/v$VERSION/marker-dir"
+KIT_SOURCE="$T/gone" BENDIT_TTY="$F/ans" expect_capture "second run" run_installer "$F"
+chk "second run: exits 0"              "$EXPECT_CODE" 0
+chk "second run: still one clone"      "$(clones "$F")" 1
+chk "second run: the source was not asked again" "$(find "$(cache_of "$F")/v$VERSION" -name marker-dir | wc -l | tr -d ' ')" 1
+chk "second run: same hand-over"       "$(tail -n 1 "$F/calls.log")" "claude --plugin-dir $(cache_of "$F")/v$VERSION/plugins/bendit /adopt"
+chk "second run: two claude calls in all" "$(callsfor "$F" "claude --plugin-dir")" 2
+chk "second run: no install calls"     "$(callsfor "$F" brew)" 0
+F="$T/f2"; ready_kit "$F"; : > "$F/ans"
+mkdir -p "$(cache_of "$F")/v$VERSION/plugins"; : > "$(cache_of "$F")/v$VERSION/stale"
+KIT_SOURCE="$KIT" BENDIT_TTY="$F/ans" expect_capture "cache without .git" run_installer "$F"
+chk "no .git: exits 0"                 "$EXPECT_CODE" 0
+chk "no .git: the stale folder is gone" "$([ -e "$(cache_of "$F")/v$VERSION/stale" ] && echo kept || echo replaced)" replaced
+chk "no .git: a fresh clone is there"  "$([ -d "$(cache_of "$F")/v$VERSION/.git" ] && echo yes || echo no)" yes
+F="$T/f3"; ready_kit "$F"; : > "$F/ans"
+KIT_SOURCE="$T/gone" BENDIT_TTY="$F/ans" expect_capture "unreachable source" run_installer "$F"
+chk "unreachable: exits 1"             "$EXPECT_CODE" 1
+chk "unreachable: says so"             "$(nodots "$EXPECT_STDERR" 'could not fetch bendit from')" 1
+chk "unreachable: no v folder left"    "$(clones "$F")" 0
+chk "unreachable: no temp folder left" "$(find "$(cache_of "$F")" -name '.fetch.*' | wc -l | tr -d ' ')" 0
+chk "unreachable: claude not called"   "$(callsfor "$F" "claude --plugin-dir")" 0
+F="$T/f4"; ready_kit "$F"
+KIT_SOURCE="$KIT" BENDIT_TTY=/nonexistent expect_capture "ready, no terminal" run_installer "$F"
+chk "no terminal: exits 0"             "$EXPECT_CODE" 0
+chk "no terminal: prints the command"  "$(nodots "$EXPECT_STDOUT" '^  claude --plugin-dir .*/plugins/bendit "/adopt"$')" 1
+chk "no terminal: claude not called"   "$(callsfor "$F" "claude --plugin-dir")" 0
+F="$T/f5"; ready_kit "$F"; : > "$F/ans"
+mkdir -p "$F/h ome" "$F/my app"; ( cd "$F/my app" && git init -q . )
+expect_capture "space in HOME, with a terminal" \
+  env -i PATH="$F/bin" HOME="$F/h ome" BENDIT_TTY="$F/ans" BENDIT_SOURCE="$KIT" BENDIT_APP_DIRS="$F/noapps" \
+  bash -c 'cd "$1" && bash "$2" </dev/null' _ "$F/my app" "$INSTALL"
+chk "space, terminal: exits 0"         "$EXPECT_CODE" 0
+chk "space, terminal: claude got the unsplit path" "$(tail -n 1 "$F/calls.log")" "claude --plugin-dir $F/h ome/.cache/bendit/v$VERSION/plugins/bendit /adopt"
+expect_capture "space in HOME, no terminal" \
+  env -i PATH="$F/bin" HOME="$F/h ome" BENDIT_TTY=/nonexistent BENDIT_SOURCE="$KIT" BENDIT_APP_DIRS="$F/noapps" \
+  bash -c 'cd "$1" && bash "$2" </dev/null' _ "$F/my app" "$INSTALL"
+chk "space: exits 0"                   "$EXPECT_CODE" 0
+chk "space: the path is quoted so it pastes" "$(nodots "$EXPECT_STDOUT" 'plugin-dir .*h\\ ome/.cache/bendit/v')" 1
+chk "space: nothing new in the project" "$(cd "$F/my app" && git status --porcelain | wc -l | tr -d ' ')" 0
 
 echo "ask: Linux"
 I="$T/i6"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/git"

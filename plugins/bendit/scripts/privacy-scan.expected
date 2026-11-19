@@ -33,7 +33,68 @@ privacy-scan: 1 file scanned, 0 deny-list rules, 1 finding
 --- stdout
 gh.md:1: email: j***@users.noreply.github.com
 
+=== a home path with NO trailing slash, at the end of a quoted string
+exit 1
+--- stderr
+privacy-scan: 1 file scanned, 0 deny-list rules, 1 finding
+--- stdout
+noslash.json:1: home path: /Users/j***
+
+=== a home path with no trailing slash, at the end of a line
+exit 1
+--- stderr
+privacy-scan: 1 file scanned, 0 deny-list rules, 1 finding
+--- stdout
+eol.txt:1: home path: /Users/j***
+
+=== a JSON-escaped home path (\/Users\/name\/)
+exit 1
+--- stderr
+privacy-scan: 1 file scanned, 0 deny-list rules, 1 finding
+--- stdout
+escaped.json:1: home path: \/Users\/j***\/
+
+=== a home dir name with a space
+exit 1
+--- stderr
+privacy-scan: 1 file scanned, 0 deny-list rules, 1 finding
+--- stdout
+space.md:1: home path: /Users/J***/
+
+=== a non-ASCII home dir name
+exit 1
+--- stderr
+privacy-scan: 1 file scanned, 0 deny-list rules, 1 finding
+--- stdout
+accent.md:1: home path: /Users/j***/
+
+=== a lowercase Windows home path
+exit 1
+--- stderr
+privacy-scan: 1 file scanned, 0 deny-list rules, 1 finding
+--- stdout
+win.txt:1: home path: c:\users\j***\
+
+=== an email with a URL-encoded @ (%40)
+exit 1
+--- stderr
+privacy-scan: 1 file scanned, 0 deny-list rules, 1 finding
+--- stdout
+pct.txt:1: email: j***%40corp.io
+
+=== an email with an HTML-entity @ (&#64;)
+exit 1
+--- stderr
+privacy-scan: 1 file scanned, 0 deny-list rules, 1 finding
+--- stdout
+ent.html:1: email: j***&#64;corp.io
+
 === placeholders, CI paths, package pins
+exit 0
+--- stderr
+privacy-scan: 1 file scanned, 0 deny-list rules, 0 findings
+
+=== the wider patterns stay silent on folders, CI, routes, URLs
 exit 0
 --- stderr
 privacy-scan: 1 file scanned, 0 deny-list rules, 0 findings

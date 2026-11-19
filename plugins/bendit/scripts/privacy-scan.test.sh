@@ -46,12 +46,41 @@ case_ 1 "an email address" "$T/d" .
 mk e/gh.md "jdoe${AT}users.noreply.github.com"
 case_ 1 "a GitHub noreply address still names a person" "$T/e" .
 
+# Shapes the first regex missed (red team): no trailing slash, JSON-escaped
+# slashes, a name with a space or outside ASCII, a lowercase Windows path, and
+# an email whose @ is URL- or HTML-encoded.
+mk i/noslash.json "{\"cwd\": \"$U/jdoe\"}"
+case_ 1 "a home path with NO trailing slash, at the end of a quoted string" "$T/i" .
+mk j/eol.txt "workspace: $U/jdoe"
+case_ 1 "a home path with no trailing slash, at the end of a line" "$T/j" .
+mk k/escaped.json "{\"cwd\": \"\\$U\\/jdoe\\/app\"}"
+case_ 1 "a JSON-escaped home path (\\/Users\\/name\\/)" "$T/k" .
+mk l/space.md "open $U/Jane Doe/Desktop/plan.md"
+case_ 1 "a home dir name with a space" "$T/l" .
+mk m/accent.md "cd $U/josé/src"
+case_ 1 "a non-ASCII home dir name" "$T/m" .
+mk n/win.txt 'c:\us''ers\jdoe\appdata'
+case_ 1 "a lowercase Windows home path" "$T/n" .
+mk o/pct.txt "mailto:jane.doe%4""0corp.io"   # split: this file is scanned too
+case_ 1 "an email with a URL-encoded @ (%40)" "$T/o" .
+mk p/ent.html "jane.doe&#6""4;corp.io"
+case_ 1 "an email with an HTML-entity @ (&#64;)" "$T/p" .
+
 echo
 echo "MUST STAY SILENT"
 mk f/ok.md "you${AT}example.com, ops${AT}mail.example.org, noreply${AT}anthropic.com, x${AT}evil.example, y${AT}ci.test
 $HM/runner/work and $U/Shared/x and $U/<name>/ and ~/projects
 git${AT}github.com:org/repo.git and @anthropic-ai/claude-code@2.1.0 and react@18.3.1"
 case_ 0 "placeholders, CI paths, package pins" "$T/f" .
+# Controls for the wider patterns. /Users/ alone (docs about the folder), CI
+# runners with no trailing slash, app ROUTES under /home/ (`/home/dashboard`
+# is a web page, so a /home/<x> with no trailing slash is not reported), a URL
+# path that merely contains /Users/, and %40 in a package spec.
+mk q/ok.md "macOS keeps homes under $U/ and Linux under $HM/.
+\"$HM/runner\" and \"$U/Shared\" and C:\\Us""ers\\runneradmin\\work
+router.push(\"$HM/dashboard\") and https://api.example.com$U/42/profile
+npm i %40scope/pkg and user%40example.com and ${AT}types/node"
+case_ 0 "the wider patterns stay silent on folders, CI, routes, URLs" "$T/q" .
 
 echo
 echo "THE DENY-LIST -- the owner's private names, never published"

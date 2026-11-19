@@ -8,8 +8,11 @@
 What counts as a finding, each reported as `path:line: kind: redacted-match`:
 
   * an absolute home path -- /Users/<name>/, /home/<name>/, C:\\Users\\<name>\\ --
-    except a handful of names that belong to no one (runner, user, example...)
-  * an email address, except example.com / example.org / example.net (and their
+    except a handful of names that belong to no one (runner, user, example...).
+    Also JSON-escaped (\\/Users\\/<name>\\/), lowercase Windows (c:\\users\\<name>),
+    names with spaces or outside ASCII, and /Users/<name> with no trailing
+    slash. NOT /home/<name> without one: that is also how a web route looks.
+  * an email address -- the @ also as %40 or &#64; -- except example.com / example.org / example.net (and their
     subdomains), the reserved TLDs .example .test .invalid .localhost (RFC 2606),
     and noreply@anthropic.com
   * a match for any regex in the OPTIONAL deny-list file, one per line (`#`
@@ -40,19 +43,40 @@ from typing import Iterator, List, Optional, Pattern, Tuple
 
 DENYLIST_NAME = '.privacy-denylist'
 
-HOME_PATH = re.compile(
-    r'/(?:Users|home)/([A-Za-z0-9._-]+)/'
-    r'|[A-Za-z]:\\\\?Users\\\\?([A-Za-z0-9._-]+)\\')
+# Home directories, in every spelling a file has been seen to carry them.
+# `\\?/` also takes JSON's escaped slash (`\/Users\/name\/`). The name is
+# `\w` (Unicode, so `josé` counts) and may hold single spaces (`Jane Doe`)
+# when a separator follows it. The look-behind skips a URL path that merely
+# contains /Users/ (`https://api.example.com/Users/42`).
+_POSIX_SEP = r'\\?/'
+_NAME = r'[\w.-]+'
+_SPACED = r'[\w.-]+(?: [\w.-]+)*'
+_END = r"""(?=["'`\s)\]},;:>]|$)"""
+HOME_PATHS = [
+    # /Users/<name>/ or /home/<name>/ -- a separator after the name.
+    re.compile(r'(?<![\w.-])' + _POSIX_SEP + r'(?:Users|home)' + _POSIX_SEP
+               + '(' + _SPACED + ')' + _POSIX_SEP),
+    # /Users/<name> with NO trailing slash, ended by a quote, space or line end.
+    # /home/<name> is deliberately NOT matched this way: `/home/dashboard` is
+    # an ordinary web route, and a scanner that cries wolf gets switched off.
+    re.compile(r'(?<![\w.-])' + _POSIX_SEP + r'Users' + _POSIX_SEP + '(' + _NAME + ')' + _END),
+    # C:\Users\<name>\ in any case, single or doubled (escaped) backslashes.
+    re.compile(r'(?i)(?<![a-z])[a-z]:\\\\?users\\\\?(' + _SPACED + r')\\'),
+    re.compile(r'(?i)(?<![a-z])[a-z]:\\\\?users\\\\?(' + _NAME + ')' + _END),
+]
 # Directory names under /Users or /home that identify nobody: CI runners,
 # system accounts, and placeholders. Placeholder FIRST names (alice, bob) are
-# deliberately absent -- a real person can be called either.
+# deliberately absent -- a real person can be called either. Compared
+# case-insensitively (Windows paths are case-insensitive).
 HOME_ALLOW = frozenset({
-    'runner', 'user', 'username', 'you', 'yourname', 'me', 'name', 'example',
-    'Shared', 'linuxbrew', 'ubuntu', 'vscode', 'node', 'root', 'admin',
-    'USER', 'USERNAME', 'someone', 'dev',
+    'runner', 'runneradmin', 'user', 'username', 'you', 'yourname', 'me', 'name',
+    'example', 'shared', 'linuxbrew', 'ubuntu', 'vscode', 'node', 'root', 'admin',
+    'someone', 'dev', 'public', 'default', 'default user', 'all users',
 })
 
-EMAIL = re.compile(r'[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})')
+# The @ also as it appears URL-encoded (%40) and as an HTML entity (&#64;).
+EMAIL = re.compile(r'([A-Za-z0-9._%+-]+)(@|%40|&#64;|&#x40;)'
+                   r'([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})')
 EMAIL_ALLOW_DOMAINS = ('example.com', 'example.org', 'example.net',
                        'example', 'test', 'invalid', 'localhost')
 EMAIL_ALLOW_EXACT = frozenset({'noreply@anthropic.com', 'git@github.com'})
@@ -134,14 +158,18 @@ def walk(paths: List[str]) -> Iterator[str]:
 
 def scan_text(text: str, deny: List[Tuple[int, Pattern]]) -> Iterator[Tuple[int, str]]:
     for ln, line in enumerate(text.splitlines(), 1):
-        for m in HOME_PATH.finditer(line):
-            name = m.group(1) or m.group(2)
-            if name not in HOME_ALLOW:
+        seen = set()
+        for rx in HOME_PATHS:
+            for m in rx.finditer(line):
+                name = m.group(1)
+                if name.lower() in HOME_ALLOW or m.start() in seen:
+                    continue
+                seen.add(m.start())
                 yield ln, f'home path: {m.group(0).replace(name, redact(name), 1)}'
         for m in EMAIL.finditer(line):
-            if not email_allowed(m.group(0), m.group(1)):
-                local = m.group(0).split('@', 1)[0]
-                yield ln, f'email: {redact(local)}@{m.group(1)}'
+            local, at, domain = m.groups()
+            if not email_allowed(f'{local}@{domain}', domain):
+                yield ln, f'email: {redact(local)}{at}{domain}'
         for rule_no, rx in deny:
             m = rx.search(line)
             if m:

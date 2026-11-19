@@ -14,9 +14,12 @@ WHAT VERIFIES A REPO, in order:
   4. otherwise the gate asks for a `verify-*` skill (/bendit:verify),
      or for one to be scaffolded, or for a recorded reason.
 
-Two modes:
+Three modes:
+  --pre    PreToolUse(Bash): stamp when this call began (never blocks)
   --mark   PostToolUse(Edit|Write|MultiEdit|Bash): record that code changed, in
-           the repo that holds the file, and index that repo under the session
+           the repo that holds the file, and index that repo under the session.
+           A Bash call's changed-file list is a working-tree diff, so files
+           another session wrote are dropped on evidence -- see this_call()
   (none)   Stop: block if code changed in ANY repo this session marked and
            nothing verified it since
 
@@ -321,6 +324,162 @@ def only_dirty(paths: list) -> list:
     return kept
 
 
+# WHOSE BASH CHANGE IS IT? Two sessions can work in one checkout at once.
+# `bashEditDiff.changedFiles` is a diff of the WORKING TREE across the command
+# (the engine's own words: "the working-tree changes this command made"), so a
+# file another session wrote while -- or, observed live, around when -- this
+# command ran is reported to THIS session too. Marking it made this session's
+# Stop refuse, naming files it never touched. Observed twice.
+#
+# The payload cannot say who wrote a file, so two pieces of evidence are kept
+# beside it, and a reported file is dropped only on POSITIVE evidence that the
+# command did not write it last:
+#
+#   1. THE STAMP. `--pre` (PreToolUse Bash) records when this call began, keyed
+#      by session and `tool_use_id` (both events carry it). A file whose mtime
+#      AND ctime are both older than the stamp was not written during the
+#      command. ctime is the clock that matters: no user tool can set it, and
+#      `mv` and `cp -p` -- which keep the source's old mtime -- still bump it
+#      (checked on APFS; Linux filesystems do the same on rename).
+#   2. THE CLAIM. Every Edit/Write/MultiEdit mark also records the file's stat
+#      signature (inode, size, mtime_ns, ctime_ns) under its session. A file
+#      whose current signature is exactly what ANOTHER session's Edit left was
+#      last written by that Edit -- any later write, by this command or anyone,
+#      changes ctime. Only Edit-tool marks are claims: a Bash mark is itself a
+#      guess, and trusting one session's guess would let a leak in one session
+#      silently drop a real change in another.
+#
+# Neither filter drops a file the command TEXT names (its basename appears in
+# the command): a command that names a file is the strongest evidence it wrote
+# it, and a lost mark is the direction this gate must never fail in.
+#
+# REMAINING LEAK, by design: a file another session changed BY SHELL during this
+# command's window (stamp to PostToolUse) is still marked here, and so is one
+# another session's Edit wrote in the moment before its own --mark ran (the
+# hook itself ran ~40ms when measured, plus the engine's dispatch, which was
+# not measured). The Bash window is
+# as long as the command, so a long test run in one session while another edits
+# by shell can still leak; Edit-tool writes, the common case, do not.
+# Without a stamp (an older hooks.json with no PreToolUse entry, or no
+# `tool_use_id`) filter 1 drops nothing: fail closed.
+#
+# Rejected: marking only files the command names. `sed -i … src/*.ts`, a
+# formatter or a codegen step names none of the files it writes, and dropping
+# them would make the gate blind to the shell again -- the bug edited() fixed.
+STAMP_SLACK = 1.0   # seconds: a filesystem with 1s timestamps floors them
+
+
+def _stamp_path(payload):
+    tid = payload.get('tool_use_id')
+    if not isinstance(tid, str) or not tid.strip():
+        return None
+    safe = ''.join(c for c in tid if c.isalnum() or c in '-_')[:96]
+    if not safe:
+        return None
+    return index_dir() / 'bash-start' / f'{session_of(payload)}-{safe}'
+
+
+def pre(raw: str) -> int:
+    """PreToolUse(Bash): record when this call began. NEVER blocks: a PreToolUse
+    exit 2 denies the command, so every failure here is swallowed -- a missing
+    stamp only means --mark drops nothing on that ground."""
+    try:
+        payload = json.loads(raw)
+        if isinstance(payload, dict):
+            p = _stamp_path(payload)
+            if p is not None:
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(repr(time.time()))
+    except Exception:
+        pass
+    return 0
+
+
+def _take_stamp(payload):
+    p = _stamp_path(payload)
+    if p is None:
+        return None
+    try:
+        t = float(p.read_text().strip())
+    except (OSError, ValueError):
+        return None
+    try:
+        p.unlink()
+        prune(p.parent)   # stamps of calls a PreToolUse guard denied
+    except OSError:
+        pass
+    return t
+
+
+def _sig(path: str):
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    return f'{st.st_ino}:{st.st_size}:{st.st_mtime_ns}:{st.st_ctime_ns}'
+
+
+def _claim(root: Path, sid: str, rels: list) -> None:
+    lines = []
+    for rel in rels:
+        s = _sig(str(root / rel))
+        if s:
+            lines.append(f'{rel}\t{s}\n')
+    if not lines:
+        return
+    try:
+        with open(state_dir(root) / f'claims-{sid}', 'a') as fh:
+            fh.writelines(lines)
+    except OSError:
+        pass
+
+
+def _claimed_by_others(root: Path, sid: str) -> set:
+    """{(rel, signature)} recorded by every OTHER session's Edit marks."""
+    out = set()
+    d = root / '.claude' / '.verify-state'
+    try:
+        files = [f for f in d.glob('claims-*') if f.name != f'claims-{sid}']
+    except OSError:
+        return out
+    for f in files:
+        try:
+            for line in f.read_text().splitlines():
+                rel, _, s = line.partition('\t')
+                if s:
+                    out.add((rel, s))
+        except OSError:
+            continue
+    return out
+
+
+def this_call(placed: list, payload, sid: str) -> list:
+    """Drop the (root, rel, path) entries this Bash call provably did not write."""
+    ti = payload.get('tool_input')
+    cmd = ti.get('command') if isinstance(ti, dict) else None
+    cmd = cmd if isinstance(cmd, str) else ''
+    began = _take_stamp(payload)
+    others: dict = {}
+    kept = []
+    for root, rel, path in placed:
+        if Path(path).name in cmd:
+            kept.append((root, rel, path))
+            continue
+        try:
+            st = os.stat(path)
+        except OSError:
+            kept.append((root, rel, path))   # deleted: nothing to compare, keep
+            continue
+        if began is not None and max(st.st_mtime, st.st_ctime) < began - STAMP_SLACK:
+            continue                          # untouched since before the call
+        if root not in others:
+            others[root] = _claimed_by_others(root, sid)
+        if (rel, _sig(path)) in others[root]:
+            continue                          # another session's Edit wrote it last
+        kept.append((root, rel, path))
+    return kept
+
+
 def mark(raw: str) -> int:
     try:
         payload = json.loads(raw)
@@ -333,22 +492,32 @@ def mark(raw: str) -> int:
     if not isinstance(ti, dict):
         ti = {}
     named = ti.get('file_path') or ti.get('path') or ''
+    named = isinstance(named, str) and bool(named)
+    sid = session_of(payload)
     # Filter by suffix FIRST: every later step costs a git call, and a command
     # that touched 200 files of which three are code should not pay for 197.
     paths = [p for p in edited(payload) if Path(p).suffix in CODE]
     # An Edit/Write/MultiEdit NAMES its file: that is the agent editing, and no
     # amount of git state changes it. Only the shell's changed-file list, which
     # cannot tell an edit from a checkout, is filtered.
-    if paths and not (isinstance(named, str) and named):
+    if paths and not named:
         paths = only_dirty(paths)
-    by_root: dict = {}
+    placed = []
     for path in paths:
-        placed = _place(Path(path))
-        if placed:
-            by_root.setdefault(placed[0], []).append(placed[1])
-    sid = session_of(payload)
+        p = _place(Path(path))
+        if p:
+            placed.append((p[0], p[1], path))
+    if placed and not named:
+        placed = this_call(placed, payload, sid)
+    elif not named:
+        _take_stamp(payload)                  # spend it even when nothing is left
+    by_root: dict = {}
+    for root, rel, _path in placed:
+        by_root.setdefault(root, []).append(rel)
     for root, rels in by_root.items():
         _record(root, sid, rels)
+        if named:
+            _claim(root, sid, rels)
     if by_root:
         _index_add(sid, by_root.keys())
     return 0
@@ -740,6 +909,8 @@ def check(payload: dict) -> int:
 
 def run(argv) -> int:
     raw = sys.stdin.buffer.read().decode('utf-8', 'surrogateescape')
+    if '--pre' in argv:
+        return pre(raw)
     if '--mark' in argv:
         try:
             return mark(raw)

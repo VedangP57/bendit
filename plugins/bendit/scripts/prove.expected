@@ -11,6 +11,7 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
 post-edit-review --pre: allows a write (snapshot only)                 | PASS   | 4
@@ -24,7 +25,7 @@ Stop gate: allows when the harness exits 0                             | PASS   
 harness: .claude/verify-harness exits 0                                | PASS   | 4
 privacy: agent-layer files carry no home path or email                 | PASS   | 4
 
-prove: all 16 checks passed
+prove: all 17 checks passed
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -42,6 +43,7 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
 post-edit-review --pre: allows a write (snapshot only)                 | PASS   | 4
@@ -59,7 +61,7 @@ failures:
   harness: .claude/verify-harness exits 0
     exit 1: 2 tests failed
 
-prove: 1 of 16 checks FAILED -- adoption is NOT complete
+prove: 1 of 17 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -77,6 +79,7 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
 post-edit-review --pre: allows a write (snapshot only)                 | PASS   | 4
@@ -94,7 +97,7 @@ failures:
   harness: .claude/verify-harness exits 0
     no .claude/verify-harness: the Stop gate has nothing to run for this repo
 
-prove: 1 of 16 checks FAILED -- adoption is NOT complete
+prove: 1 of 17 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -112,6 +115,7 @@ block-dangerous-bash: refuses `git push --force`                       | FAIL   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
 post-edit-review --pre: allows a write (snapshot only)                 | PASS   | 4
@@ -129,7 +133,7 @@ failures:
   block-dangerous-bash: refuses `git push --force`
     exit 0, wanted 2 (a refusal)
 
-prove: 1 of 16 checks FAILED -- adoption is NOT complete
+prove: 1 of 17 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -147,6 +151,7 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | FAIL   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
 post-edit-review --pre: allows a write (snapshot only)                 | PASS   | 4
@@ -164,7 +169,7 @@ failures:
   path-contracts: refuses a write to x.gen.ts
     refused, but stderr does not name bendit (it must begin "[bendit]" or "BLOCKED by bendit"): [some-kit] x.gen.ts is generated (.gen.*): edit the generator, not its output. | If this file is no longer generated, rename it.
 
-prove: 1 of 16 checks FAILED -- adoption is NOT complete
+prove: 1 of 17 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -182,6 +187,7 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
 post-edit-review --pre: allows a write (snapshot only)                 | PASS   | 4
@@ -203,7 +209,7 @@ failures:
   Stop gate: allows when the harness exits 0
     exit 0, wanted 0 and "verified by ..." on stdout
 
-prove: 3 of 16 checks FAILED -- adoption is NOT complete
+prove: 3 of 17 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -221,6 +227,7 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 new-guard-nobody-probed.py: has a probe                                | FAIL   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -239,7 +246,7 @@ failures:
   new-guard-nobody-probed.py: has a probe
     hooks.json runs it, but prove.sh has no known-bad/known-good payload for it -- add one
 
-prove: 1 of 17 checks FAILED -- adoption is NOT complete
+prove: 1 of 18 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).

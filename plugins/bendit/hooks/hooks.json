@@ -13,6 +13,11 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/block-zsh-wordsplit.py\"",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/require-verification.py\" --pre",
+            "timeout": 10
           }
         ]
       },

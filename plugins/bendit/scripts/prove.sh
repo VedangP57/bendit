@@ -187,6 +187,13 @@ def p_mark(t):
     pass    # exercised by the Stop gate dry run below, which needs its marks
 
 
+def p_stamp(t):
+    # --pre only stamps when a Bash call began; a PreToolUse exit 2 would DENY
+    # the command, so by design it never blocks.
+    allows('require-verification --pre: allows a Bash call (stamp only)', 'require-verification.py',
+           ['--pre'], payload('PreToolUse', 'Bash', {'command': 'true'}, tool_use_id='bendit-prove'), t)
+
+
 def p_stop(t):
     pass    # the dry run below
 
@@ -198,6 +205,7 @@ PROBES = {
     ('post-edit-review.py', ('--pre',)): p_review_pre,
     ('post-edit-review.py', ()): p_review,
     ('warn-suppressed-stderr.py', ()): p_stderr,
+    ('require-verification.py', ('--pre',)): p_stamp,
     ('require-verification.py', ('--mark',)): p_mark,
     ('require-verification.py', ()): p_stop,
 }

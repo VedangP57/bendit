@@ -583,6 +583,118 @@ case "$EXPECT_STDERR" in
   *) chk "  ...without inventing a command" ok ok ;;
 esac
 
+echo
+echo "TWO SESSIONS, ONE REPO -- a Bash call answers only for what IT wrote"
+# Observed live, twice: two sessions in one checkout, session B edits files
+# while session A runs a command. The Bash tool's changed-file list is a diff
+# of the WORKING TREE, so B's files arrived in A's payload, A marked them, and
+# A's Stop refused to end the turn naming files A never touched.
+#
+# Each case runs the hooks the way the engine does: PreToolUse --pre (the
+# stamp), the command for real, then PostToolUse --mark with the payload. The
+# changed-file list is what the engine would hand over -- including B's file.
+CR="$T/concurrent"; mkdir -p "$CR/src"
+git -C "$CR" init -q 2>/dev/null
+git -C "$CR" config user.email t@example.com; git -C "$CR" config user.name t
+for f in a b c d e f g h i j k l other; do printf 'export const v = 1;\n' > "$CR/src/$f.ts"; done
+git -C "$CR" add -A >/dev/null 2>&1
+GIT_AUTHOR_DATE=2026-01-01T00:00:00 GIT_COMMITTER_DATE=2026-01-01T00:00:00 \
+  git -C "$CR" commit -qm init >/dev/null 2>&1
+printf 'export const v = 2;\n' > "$CR/src/other.ts"
+git -C "$CR" add -A >/dev/null 2>&1
+GIT_AUTHOR_DATE=2026-01-02T00:00:00 GIT_COMMITTER_DATE=2026-01-02T00:00:00 \
+  git -C "$CR" commit -qm second >/dev/null 2>&1
+# cpre <session> <tool_use_id> -- the PreToolUse stamp.
+cpre()  { printf '{"session_id":"%s","tool_name":"Bash","tool_use_id":"%s","tool_input":{"command":"x"}}' "$1" "$2" \
+            | python3 "$H" --pre >/dev/null 2>&1; }
+# cpost <session> <tool_use_id> <command> <file>... -- the PostToolUse mark.
+cpost() { local s="$1" u="$2" c="$3"; shift 3
+          python3 -c 'import json,sys
+s,u,c=sys.argv[1:4]
+print(json.dumps({"session_id":s,"tool_name":"Bash","tool_use_id":u,"tool_input":{"command":c},
+  "tool_response":{"bashEditDiff":{"files":[],"moreFiles":0,"changedFiles":sys.argv[4:]}}}))' "$s" "$u" "$c" "$@" \
+            | python3 "$H" --mark >/dev/null 2>&1; }
+# cedit <session> <file> -- an Edit tool call: write the file, then mark it.
+cedit() { printf 'export const v = %s;\n' "$RANDOM" > "$2"
+          printf '{"session_id":"%s","tool_name":"Edit","tool_input":{"file_path":"%s"}}' "$1" "$2" \
+            | python3 "$H" --mark >/dev/null 2>&1; }
+# cstop <session> -- the exit code of that session's Stop.
+cstop() { printf '{"session_id":"%s","cwd":"%s","stop_hook_active":false}' "$1" "$CR" \
+            | python3 "$H" >/dev/null 2>&1; echo $?; }
+
+# THE BUG, inside the window: B's Edit lands WHILE A's command runs.
+cpre A1 t1
+cedit B1 "$CR/src/a.ts"
+cpost A1 t1 'pnpm test' "$CR/src/a.ts"
+chk "THE BUG: B's Edit during A's command is not A's -> A allowed" "$(cstop A1)" 0
+chk "  ...and B still answers for it" "$(cstop B1)" 2
+
+# THE BUG, around the window: B (by shell, so no Edit record) changed a file
+# BEFORE A's command began, and the working-tree diff still reports it to A.
+printf 'export const v = 9;\n' > "$CR/src/b.ts"
+sleep 1.2
+cpre A2 t2
+cpost A2 t2 'pnpm lint' "$CR/src/b.ts"
+chk "THE BUG: a file changed before A's command began is not A's -> A allowed" "$(cstop A2)" 0
+
+# CONTROLS: every common way a command writes a file is still marked. Each tmp
+# source is written BEFORE the stamp, so a filter keying on the source's old
+# mtime (mv and cp -p keep it) would drop the target.
+printf 'export const src = 1;\n' > "$CR/tmp-mv.ts.new"
+printf 'export const src = 2;\n' > "$CR/tmp-cpp.ts.new"
+printf 'export const src = 3;\n' > "$CR/tmp-cp.ts.new"
+sleep 1.2
+tp() { # tp <label> <session> <command> <file> -- run the command between the hooks
+  cpre "$2" "u-$2"; (cd "$CR" && eval "$3") >/dev/null 2>&1
+  cpost "$2" "u-$2" "$3" "$4"
+  chk "CONTROL: $1 is still A's -> blocked" "$(cstop "$2")" 2; }
+tp 'sed -i'                P1 "sed -i.bak 's/1/2/' src/c.ts" "$CR/src/c.ts"
+tp 'cat > file'            P2 "cat > src/d.ts <<'EOF'
+export const v = 3;
+EOF" "$CR/src/d.ts"
+tp 'tee'                   P3 "echo 'export const v = 4;' | tee src/e.ts" "$CR/src/e.ts"
+tp 'python -c write'       P4 "python3 -c \"open('src/f.ts','w').write('export const v = 5;')\"" "$CR/src/f.ts"
+tp 'git checkout <ref> --' P5 "git checkout HEAD~1 -- src/other.ts" "$CR/src/other.ts"
+tp 'mv onto a file'        P6 "mv tmp-mv.ts.new src/g.ts" "$CR/src/g.ts"
+tp 'cp -p onto a file'     P7 "cp -p tmp-cpp.ts.new src/h.ts" "$CR/src/h.ts"
+tp 'cp onto a file'        P8 "cp tmp-cp.ts.new src/i.ts" "$CR/src/i.ts"
+# A glob names no file: the command text cannot vouch for it, the stamp can.
+tp 'sed -i on a glob'      P9 "sed -i.bak 's/1/7/' src/j*.ts" "$CR/src/j.ts"
+
+# A's command names the file and B edits it after: both answer for it. Losing
+# A's mark here is the direction this gate must never fail in.
+cpre A3 t3
+(cd "$CR" && sed -i.bak 's/1/8/' src/k.ts)
+cedit B3 "$CR/src/k.ts"
+cpost A3 t3 "sed -i.bak 's/1/8/' src/k.ts" "$CR/src/k.ts"
+chk "CONTROL: A named the file, B edited it after -> A still blocked" "$(cstop A3)" 2
+
+# No stamp -- the PreToolUse entry is missing (an older hooks.json): nothing
+# says when the command began, so nothing is dropped on that ground.
+printf 'export const v = 9;\n' > "$CR/src/l.ts"
+sleep 1.2
+cpost A4 never-stamped 'pnpm lint' "$CR/src/l.ts"
+chk "CONTROL: without a PreToolUse stamp the file is kept (fails closed)" "$(cstop A4)" 2
+
+# An Edit names its file: it is this session's even when another session's
+# record matches the file exactly.
+cedit B5 "$CR/src/a.ts"
+printf '{"session_id":"A5","tool_name":"Edit","tool_input":{"file_path":"%s"}}' "$CR/src/a.ts" \
+  | python3 "$H" --mark >/dev/null 2>&1
+chk "CONTROL: an Edit's file_path is always this session's -> blocked" "$(cstop A5)" 2
+
+# The stamp is spent once read: a later call with the same id cannot reuse it.
+chk "the stamp is removed once the PostToolUse read it" \
+    "$(/bin/ls "$BENDIT_VERIFY_INDEX/bash-start" 2>/dev/null | grep -c . || true)" 0
+# --pre never blocks the command: a PreToolUse exit 2 would DENY the Bash call.
+chk "--pre with garbage exits 0 (a PreToolUse 2 would deny the command)" \
+    "$(printf 'not json' | python3 "$H" --pre >/dev/null 2>&1; echo $?)" 0
+pt0=$(python3 -c 'import time;print(time.time())')
+cpre A6 t6
+pt1=$(python3 -c 'import time;print(time.time())')
+chk "and --pre is fast (<0.5s)" \
+    "$(python3 -c "print('fast' if $pt1-$pt0 < 0.5 else 'slow: %.2fs' % ($pt1-$pt0))")" fast
+
 expect_verify || fail=$((fail+1))
 
 rm -rf "$T" "$X"

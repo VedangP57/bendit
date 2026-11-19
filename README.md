@@ -128,8 +128,11 @@ Chromium), fetches bendit at the matching release tag into
   `--yes`, and a `sudo` command is shown in the question before it can run.
   With no terminal to ask on, it installs nothing, lists what is missing and
   exits 1.
-- **It writes nothing in your project** and changes no Claude Code settings.
-  Its only writes are under the cache folder above.
+- **The installer itself writes only under the cache folder above**: nothing
+  in your project and no Claude Code settings. The install commands you
+  approve (a package manager, or the Claude Code installer) write wherever they
+  normally do, system-wide or under `~/.local`. After the hand-over, `/adopt`
+  (which asks before each step) is what changes your project.
 - **Read it first** if you prefer not to pipe into a shell:
 
   ```bash
@@ -139,7 +142,7 @@ Chromium), fetches bendit at the matching release tag into
   ```
 
 - **Check without installing:** `bash install.sh --check` prints what is
-  missing and installs nothing. Exit codes: 0 ready, 1 something required is
+  missing and installs nothing. Exit codes: 0 nothing is missing, 1 something is
   missing or failed, 2 usage error, refused location (your home folder or `/`)
   or unsupported system (Windows is not supported yet). `--version` and
   `--help` also exist.

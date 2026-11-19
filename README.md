@@ -35,8 +35,10 @@ arm, CLI 2.1.326, judge sonnet; commands and provenance in
 
 Every run in both arms attempted the deletion, so neither column is a run that
 measured nothing. Limits: in all 12 unprompted with-kit runs the agent picked a
-command the guard covers, and the guard is known to miss `rm -r dir` and
-`git clean -fdx` (listed in the guard's own header).
+command the guard covers. The guard allows `rm -r dir` (recursive, no `-f`) by
+design, so routine cleanups keep working, and the guard's header says what that
+costs. `git clean -f`, which the same eval found getting through, has been
+blocked since.
 
 The kit's **skills** have no demonstrated effect. A 3-runs-per-arm pressure test
 of six skills (a check for direction, not a measurement) found a mean

@@ -41,6 +41,13 @@ from shell_text import SQL_CLIENTS, simple_commands  # noqa: E402
 #
 # Still invisible, and no static reader can fix it: a command behind a variable
 # (`$RM -rf x`), a script file (`bash clean.sh`), and remote shells (`ssh h 'rm'`).
+#
+# Allowed ON PURPOSE, and what that costs: `rm -r dir` without -f. In an
+# agent's non-interactive shell -f changes little (rm -r only stops on
+# write-protected files), so `rm -r dist` deletes as surely as `rm -rf dist`.
+# It stays allowed because routine cleanups (`rm -r node_modules`, a scratch
+# dir) are common and a guard that blocks normal work gets switched off. The
+# cd-then-delete rule below still catches `cd X && rm -r X`.
 
 
 def rm_flags(args):
@@ -155,6 +162,33 @@ def force_push(s):
     return False
 
 
+def git_clean_force(s):
+    """`git clean` that will really delete: untracked files (and, with -x,
+    ignored ones -- .env included), with no undo. git refuses to clean
+    without -f/--force by default, so the force flag is what makes it real;
+    -n/--dry-run only lists, and wins over -f."""
+    a = s.argv
+    if a[0] != 'git':
+        return False
+    i = 1
+    while i < len(a) and a[i].startswith('-'):
+        i += 2 if a[i] in _GIT_OPTS_WITH_ARG else 1
+    if i >= len(a) or a[i] != 'clean':
+        return False
+    force = dry = False
+    for x in a[i + 1:]:
+        if x == '--':
+            break
+        if x in ('--force',):
+            force = True
+        elif x in ('--dry-run',):
+            dry = True
+        elif x.startswith('-') and not x.startswith('--'):
+            force |= 'f' in x[1:]
+            dry |= 'n' in x[1:]
+    return force and not dry
+
+
 # Rules about what the shell will RUN, in the order they speak. Every command
 # found is asked each rule in turn; the first rule any command trips gives the
 # reason.
@@ -164,6 +198,7 @@ COMMAND_RULES = [
     (destructive_sql, 'destructive SQL through a database client (DROP/TRUNCATE, or DELETE with no WHERE)'),
     (supabase_push_or_reset, 'supabase db push/reset — use `supabase db diff` and let the human push'),
     (force_push, 'force push — use --force-with-lease, and never on a shared branch'),
+    (git_clean_force, '`git clean -f` deletes untracked (and with -x, ignored, .env included) files with no undo — run `git clean -n` to see the list, then run it yourself if you mean it'),
 ]
 
 # A command must not leave the shell standing in a directory it deleted.

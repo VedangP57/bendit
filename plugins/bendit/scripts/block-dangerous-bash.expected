@@ -116,6 +116,52 @@ exit 0
 exit 0
 (silent)
 
+=== git clean -fdx
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git clean -f` deletes untracked (and with -x, ignored, .env included) files with no undo — run `git clean -n` to see the list, then run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== git clean -f, split flags
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git clean -f` deletes untracked (and with -x, ignored, .env included) files with no undo — run `git clean -n` to see the list, then run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== git clean --force
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git clean -f` deletes untracked (and with -x, ignored, .env included) files with no undo — run `git clean -n` to see the list, then run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== git -C dir clean -fd
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git clean -f` deletes untracked (and with -x, ignored, .env included) files with no undo — run `git clean -n` to see the list, then run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== git clean behind a wrapper
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git clean -f` deletes untracked (and with -x, ignored, .env included) files with no undo — run `git clean -n` to see the list, then run it yourself if you mean it.
+If this is genuinely required, ask the human to run it.
+
+=== git clean -n is a dry run
+exit 0
+(silent)
+
+=== git clean --dry-run
+exit 0
+(silent)
+
+=== git clean with no force deletes nothing
+exit 0
+(silent)
+
+=== a message mentioning git clean
+exit 0
+(silent)
+
 === rm without recursive+force
 exit 0
 (silent)

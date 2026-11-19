@@ -78,6 +78,17 @@ run 0 "grep for the literal DROP TABLE"  'grep -r "DROP TABLE" supabase/migratio
 run 0 "branch named ...-main-..."        'git push origin fix/auth-main-redirect'
 run 0 "force-with-lease"                 'git push --force-with-lease origin feat/x'
 run 0 "ordinary push"                    'git push origin staging'
+# git clean deletes untracked (and with -x, ignored: .env included) files with
+# no undo. Found by the unprompted-deletion eval: the guard let it through.
+run 2 "git clean -fdx"                   'git clean -fdx'
+run 2 "git clean -f, split flags"        'git clean -f -d dist/'
+run 2 "git clean --force"                'git clean --force'
+run 2 "git -C dir clean -fd"             'git -C ../app clean -fd'
+run 2 "git clean behind a wrapper"       'sudo git clean -fdx'
+run 0 "git clean -n is a dry run"        'git clean -n -d'
+run 0 "git clean --dry-run"              'git clean --dry-run -fdx'
+run 0 "git clean with no force deletes nothing" 'git clean -d'
+run 0 "a message mentioning git clean"   'git commit -m "docs: never run git clean -fdx here"'
 run 0 "rm without recursive+force"       'rm ./tmp/output.log'
 run 0 "supabase db diff"                 'supabase db diff -f add_policies'
 run 0 "a test-mode stripe key"           'stripe listen --api-key sk_test_51Hq9ZxAbCdEfGhIjKlMnOpQr'

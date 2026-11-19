@@ -77,3 +77,21 @@ without. Read from the kept traces: (1) in projects with no
 its last turns reading the gate's source and writing a harness; (2) in
 encode-lessons, following the skill's "make the check fail once" advice, the
 agent's `rm -rf "$TMPDIR/..."` cleanup was refused by the Bash guard.
+
+## Turn-cost recheck (`2026-11-19T15-49-16-731Z`, `2026-11-19T15-53-04-150Z`)
+
+Freeze `evals/freezes/skills-v3.json` (72 files at `2211371`, after the
+temp-folder `rm -rf` allowance and the no-harness gate message). The two cases
+that ran out of turns most in sweep 2, 3 runs/arm each, $3.88.
+
+| case | with-arm runs that hit max turns, sweep 2 | recheck | score with / without |
+|---|---|---|---|
+| skill-encode-lessons-in-structure | 3/3 | 0/3 | 0.82 / 0.73 |
+| skill-prove-it-works | 2/3 | 0/3 | 0.85 / 0.91 |
+
+Turn exhaustion in the with-arm went from 5/6 to 0/6 (Fisher two-sided
+p = 0.015; small sample, same cases). Remaining: prove-it-works'
+judged `claim-backed-by-a-run` failed 2/3 with the kit while its deterministic
+graders passed. Hypothesis, not verified: the judge sees only the first and
+last 12 messages of a trace, and the kit's hook messages push the proof run
+into the unseen middle.

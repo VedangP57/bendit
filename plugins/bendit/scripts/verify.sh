@@ -148,17 +148,22 @@ teardown() {
     # whole tree goes: `npm run dev` -> sh -> node puts the listener two levels
     # down, and killing the launcher plus its direct children left it holding
     # the port. TERM first, then KILL whatever ignored it.
-    kill -TERM -- "-$APP_PID" 2>/dev/null || kill -TERM "$APP_PID" 2>/dev/null
+    #
+    # The shell's OWN stderr is parked for this block: bash prints a
+    # "line N: PID Terminated: 15 ..." job notice whenever it notices the app
+    # died, which can be at `wait` or at any command after the kill. A redirect
+    # on `wait` alone still let it through on GitHub's macOS runners.
+    exec 3>&2 2>/dev/null
+    kill -TERM -- "-$APP_PID" || kill -TERM "$APP_PID"
     local i
     for i in 1 2 3 4 5 6 7 8 9 10; do
-      kill -0 -- "-$APP_PID" 2>/dev/null || break
+      kill -0 -- "-$APP_PID" || break
       sleep 0.3
     done
-    kill -KILL -- "-$APP_PID" 2>/dev/null
+    kill -KILL -- "-$APP_PID"
     # Reaped, so the port is free when this script returns -- not a moment later.
-    # Braces: bash prints its own "Terminated: 15 ..." job notice when wait
-    # reaps a signalled job, and only a redirect on a group catches it.
-    { wait "$APP_PID"; } 2>/dev/null
+    wait "$APP_PID"
+    exec 2>&3 3>&-
   fi
   [ -n "$APP_LOG" ] && rm -f "$APP_LOG"
   return 0

@@ -28,9 +28,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            timeout: 15
+          # macOS arm64 runners queue for a long time when GitHub is short of
+          # capacity, and the queue counted against the limit: three jobs on
+          # 2026-11-18/19 were cancelled at exactly 15 minutes with 0 steps run.
+          # The suite itself takes ~3 minutes there.
+          - os: macos-latest
+            timeout: 45
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: ${{ matrix.timeout }}
     steps:
       # Pinned by commit, not tag: a tag can be moved to different code.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

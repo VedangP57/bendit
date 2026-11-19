@@ -32,7 +32,7 @@ listener_pid() {
 }
 
 stamp_verified() {
-  mkdir -p "$ROOT/.claude/.verify-state" && : > "$ROOT/.claude/.verify-state/verified"
+  mkdir -p "$ROOT/.claude/.bendit-state" && : > "$ROOT/.claude/.bendit-state/verified"
 }
 
 # --- locate repo + harness ------------------------------------------------

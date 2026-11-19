@@ -16,7 +16,7 @@ expect_init "$SD/require-verification.expected"
 # real cwd and wrote this test's fixtures into the kit's own state.
 export GIT_CEILING_DIRECTORIES="$(dirname "$T")"
 git -C "$T" init -q 2>/dev/null
-D="$T/.claude/.verify-state"
+D="$T/.claude/.bendit-state"
 # The session index (every repo a session marked) normally lives in ~/.cache.
 # A test must not write the real one.
 export BENDIT_VERIFY_INDEX="$T/.session-index"
@@ -152,7 +152,7 @@ git -C "$X" init -q 2>/dev/null
 marks "xr" "$X/src/far.ts"
 chk "an edit in ANOTHER repo is checked at Stop -> BLOCKED" \
     "$(stopc xr "$T" "edit in another repo -> blocked")" 2
-sleep 1; mkdir -p "$T/.claude/.verify-state"; echo "other repo is docs" > "$T/.claude/.verify-state/skipped-xr"
+sleep 1; mkdir -p "$T/.claude/.bendit-state"; echo "other repo is docs" > "$T/.claude/.bendit-state/skipped-xr"
 chk "... and the skip under the cwd's repo covers it (the path the agent can reach)" \
     "$(stopc xr "$T" "other repo, skip under cwd -> allowed")" 0
 rm -rf "$X/.claude" "$X/.git"
@@ -212,8 +212,8 @@ mark "$T/src/deep.ts"
 wantw "workspace below root, nothing recorded -> BLOCKED" 2
 
 sleep 1
-mkdir -p "$W/.claude/.verify-state"
-echo "docs-only change, no runtime path" > "$W/.claude/.verify-state/skipped-nosession"
+mkdir -p "$W/.claude/.bendit-state"
+echo "docs-only change, no runtime path" > "$W/.claude/.bendit-state/skipped-nosession"
 wantw "skip written INSIDE the workspace -> allowed" 0
 
 # And the root location still works, so nothing that already escaped breaks.
@@ -226,7 +226,7 @@ rm -rf "$D" "$W/.claude"
 # --- the payload's `cwd` is the SHELL's cwd, and the shell wanders -----------
 # An agent that `cd`s into a subfolder (say, a harness's artifacts/ to read a
 # verdict) and ends its turn there was told to write
-# artifacts/.claude/.verify-state/skipped-<sid> -- a directory that does not
+# artifacts/.claude/.bendit-state/skipped-<sid> -- a directory that does not
 # exist, inside the harness's evidence tree. The launch directory
 # (CLAUDE_PROJECT_DIR) is what the agent can always write, and it does not move.
 A="$T/sub/artifacts"; mkdir -p "$A"
@@ -248,7 +248,7 @@ mark "$T/src/deep3.ts"
 CLAUDE_PROJECT_DIR="$W" expect_capture 'workspace is the project dir -> blocked' python3 "$H" \
   <<<"$(printf '{"cwd":"%s","stop_hook_active":false}' "$W")"
 chk "workspace is the project dir -> BLOCKED" "$EXPECT_CODE" 2
-names "$W/.claude/.verify-state/skipped-nosession" "... and names the workspace path"
+names "$W/.claude/.bendit-state/skipped-nosession" "... and names the workspace path"
 rm -rf "$D" "$W/.claude" "$T/sub"
 
 # --- THE SHELL EDITS TOO -----------------------------------------------------
@@ -767,13 +767,13 @@ printf 'FROM scratch\n' > "$MS/Dockerfile"; printf '#!/bin/sh\necho deploy\n' > 
 printf '{"session_id":"m-bash","tool_name":"Bash","tool_response":{"bashEditDiff":{"changedFiles":[%s]}}}' "$(q "$MS/Dockerfile" "$MS/scripts/deploy")" \
   | python3 "$H" --mark >/dev/null 2>&1
 chk "a SHELL edit to a Dockerfile and a shebang script is marked too" \
-    "$(cat "$MS/.claude/.verify-state/pending-m-bash" 2>/dev/null | sort | tr '\n' ' ')" "Dockerfile scripts/deploy "
+    "$(cat "$MS/.claude/.bendit-state/pending-m-bash" 2>/dev/null | sort | tr '\n' ' ')" "Dockerfile scripts/deploy "
 rm -rf "$MS"
 
 echo
 echo "SILENT ESCAPES -- an allowed stop the person cannot see is a bypass"
 # A `verified` stamp ended the turn in silence, and anyone can write one by
-# hand (`touch .claude/.verify-state/verified`). It is now named to the PERSON,
+# hand (`touch .claude/.bendit-state/verified`). It is now named to the PERSON,
 # with its time, so a stamp nobody remembers running is noticed.
 rm -rf "$D"
 mark "$T/src/esc1.ts"; stamp_verified
@@ -783,7 +783,7 @@ chk "a stop allowed by the verified stamp tells the PERSON when it was written" 
 rm -f "$D/verified"
 
 # Deleting the pending list by hand ended the turn in silence too (red team:
-# `rm .claude/.verify-state/pending-<sid>`). A marks log kept OUTSIDE the repo
+# `rm .claude/.bendit-state/pending-<sid>`). A marks log kept OUTSIDE the repo
 # remembers what was marked; pending gone with no verification or skip since
 # the last edit is said to the person.
 mark "$T/src/esc2.ts"; rm -f "$D/pending-nosession"
@@ -795,7 +795,7 @@ stop "the hand removal is said once, not every turn" >/dev/null
 chk "... once: the next stop is silent" "$EXPECT_STDOUT" ""
 mark "$T/src/esc3.ts"; rm -rf "$D"
 stop "the whole state dir removed by hand -> said" >/dev/null
-chk "removing the whole .verify-state dir is said too" \
+chk "removing the whole .bendit-state dir is said too" \
     "$(said "$EXPECT_STDOUT" | grep -c 'removed by hand')" 1
 # CONTROLS: the gate's own clears are not "by hand".
 mark "$T/src/esc4.ts"

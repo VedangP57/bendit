@@ -46,7 +46,7 @@ hasty, not one set on lying, and these are the ways to lie:
   - forging the --pre stamp: a Bash command that rewrites its own stamp in
     ${BENDIT_VERIFY_INDEX}/bash-start/ to a future time makes every file it
     wrote look untouched-since-the-call, and they are dropped;
-  - writing `verified` by hand (`touch .claude/.verify-state/verified`): it
+  - writing `verified` by hand (`touch .claude/.bendit-state/verified`): it
     ends the turn, but the person is now shown the stamp and its time;
   - deleting the marks log in the session index along with pending: then
     nothing remembers the marks, and the hand removal is not detected;
@@ -207,7 +207,7 @@ def repo_root(start: Path):
 
 
 def state_dir(root: Path) -> Path:
-    d = root / '.claude' / '.verify-state'
+    d = root / '.claude' / '.bendit-state'
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -521,7 +521,7 @@ def _claim(root: Path, sid: str, rels: list) -> None:
 def _claimed_by_others(root: Path, sid: str) -> set:
     """{(rel, signature)} recorded by every OTHER session's Edit marks."""
     out = set()
-    d = root / '.claude' / '.verify-state'
+    d = root / '.claude' / '.bendit-state'
     try:
         files = [f for f in d.glob('claims-*') if f.name != f'claims-{sid}']
     except OSError:
@@ -719,7 +719,7 @@ def _record(root: Path, sid: str, rels: list) -> None:
 
 # THE MARKS LOG. `pending-<sid>` is the gate's to-do list, and it sits in the
 # repo where anyone can delete it -- and deleting it ended the turn in silence
-# (red team: `rm .claude/.verify-state/pending-<sid>`). A second record of what
+# (red team: `rm .claude/.bendit-state/pending-<sid>`). A second record of what
 # was marked lives OUTSIDE the repo, under the session index; the gate rewrites
 # it to a single `clear` line whenever IT clears pending. Marks in the log with
 # pending gone and no verification or skip since the last of them means the
@@ -998,7 +998,7 @@ def _judge(root: Path, sid: str, cwd: Path, cwd_root, deadline: float):
     harness verified it, a stamp, a hand removal); on a 2 it is the refusal
     the model must act on.
     """
-    d = root / '.claude' / '.verify-state'
+    d = root / '.claude' / '.bendit-state'
     if d.is_dir():
         prune(d)
 
@@ -1018,9 +1018,9 @@ def _judge(root: Path, sid: str, cwd: Path, cwd_root, deadline: float):
     # one path the agent is sure to reach.
     escapes = [d / f'skipped-{sid}']
     if cwd_root is not None and cwd_root != root:
-        escapes.insert(0, cwd_root / '.claude' / '.verify-state' / f'skipped-{sid}')
+        escapes.insert(0, cwd_root / '.claude' / '.bendit-state' / f'skipped-{sid}')
     if cwd != root:
-        escapes.insert(0, cwd / '.claude' / '.verify-state' / f'skipped-{sid}')
+        escapes.insert(0, cwd / '.claude' / '.bendit-state' / f'skipped-{sid}')
 
     def newest(paths):
         t = 0.0

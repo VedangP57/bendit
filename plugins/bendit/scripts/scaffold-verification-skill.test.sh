@@ -59,7 +59,7 @@ chk "generated app harness parses" "$(bash -n "$V" 2>&1; echo $?)" "0"
 chk "generated .claude/verify-harness parses as sh" "$(sh -n "$R/.claude/verify-harness" 2>&1; echo $?)" "0"
 has "the registry went to BENDIT_CONFIG_DIR" "$R" "$(cat "$T/cfg/ports.json" 2>/dev/null)"
 chk "  ...and nothing was written under XDG_CONFIG_HOME" "$(/bin/ls -A "$T/xdg" 2>/dev/null | wc -l | tr -d ' ')" "0"
-has ".git/info/exclude keeps verify state out of history" ".claude/.verify-state/" "$(cat "$R/.git/info/exclude")"
+has ".git/info/exclude keeps verify state out of history" ".claude/.bendit-state/" "$(cat "$R/.git/info/exclude")"
 has "  ...and local env overrides too" ".env.verify.local" "$(cat "$R/.git/info/exclude")"
 # A fresh clone has no local-only file, so the scaffold must not make one the
 # harness depends on. It writes a COMMITTED example instead.
@@ -144,7 +144,7 @@ has "env restored byte-for-byte -> passes again" "doctor: PASS" "$(doc)"
 echo dirty >> "$R/tracked.txt"
 o=$(doc); has "dev server + code moved is a note, not a failure (it hot-reloads)" "note  code moved" "$o"; has "... and still passes" "doctor: PASS" "$o"
 git -C "$R" checkout -q -- tracked.txt
-SCAR="$R/.claude/.verify-state/server-$PORT"; cp "$SCAR" "$T/sidecar.orig"
+SCAR="$R/.claude/.bendit-state/server-$PORT"; cp "$SCAR" "$T/sidecar.orig"
 # `sed -i.bak` (suffix attached) is the one spelling GNU and BSD sed share.
 sed -i.bak 's/^verb=up/verb=serve/' "$SCAR"; echo dirty >> "$R/tracked.txt"
 o=$(doc); has "a 'serve' build + code moved -> refused (the stale-commit failure)" "code moved since this 'serve' build" "$o"

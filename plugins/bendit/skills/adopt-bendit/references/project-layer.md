@@ -77,11 +77,11 @@ If a fact has no reader here, do not record it: say it in the report.
 
 ## 4. `.gitignore`
 
-The Stop gate keeps per-session state under `.claude/.verify-state/`. The
+The Stop gate keeps per-session state under `.claude/.bendit-state/`. The
 scaffold already lists it (and the optional local `.env.verify.local`) in
-`.git/info/exclude`, which is per-clone; propose adding `.claude/.verify-state/`
+`.git/info/exclude`, which is per-clone; propose adding `.claude/.bendit-state/`
 to `.gitignore` too, so every clone ignores it
-(`git check-ignore -q .claude/.verify-state/x`). If the scaffold warned that
+(`git check-ignore -q .claude/.bendit-state/x`). If the scaffold warned that
 `.env.verify.example` is ignored, propose `!.env.verify.example`: the example
 must be committed so a fresh clone has it.
 

@@ -180,7 +180,7 @@ if ('require-verification.py', ()) in seen:
 
     harness('exit 1')
     rc, _o, err = mark()
-    pending = os.path.join(s, '.claude', '.verify-state', f'pending-{sid}')
+    pending = os.path.join(s, '.claude', '.bendit-state', f'pending-{sid}')
     if rc == 0 and os.path.isfile(pending):
         row('Stop gate: --mark records a code edit', True)
     else:

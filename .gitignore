@@ -8,7 +8,7 @@ artifacts/
 .privacy-denylist
 
 # session state written by require-verification.py
-.claude/.verify-state/
+.claude/.bendit-state/
 
 # bytecode from the hook scripts, written whenever one imports another
 # (the guards import shell_text.py)

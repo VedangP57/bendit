@@ -528,7 +528,7 @@ case "$EXCLUDE" in /*) ;; *) EXCLUDE="$REPO/$EXCLUDE" ;; esac
 EXCLUDE="$EXCLUDE/info/exclude"
 mkdir -p "$(dirname "$EXCLUDE")"
 if ! grep -q 'bendit verification state' "$EXCLUDE" 2>/dev/null; then
-  printf '\n# bendit verification state -- local only, never this repo'"'"'s history.\n.claude/.verify-state/\n.env.verify.local\n' >> "$EXCLUDE"
+  printf '\n# bendit verification state -- local only, never this repo'"'"'s history.\n.claude/.bendit-state/\n.env.verify.local\n' >> "$EXCLUDE"
 fi
 
 # --- .claude/verify-harness -------------------------------------------------
@@ -656,7 +656,7 @@ cd "$REPO" || exit 1
 export PORT="${PORT:-@@PORT@@}"
 SELF="verify-@@NAME@@"
 VERIFY_ENV="$REPO/.env.verify.local"
-STATE="$REPO/.claude/.verify-state"
+STATE="$REPO/.claude/.bendit-state"
 SIDECAR="$STATE/server-$PORT"
 # Evidence runs kept per scenario; nothing else ever deletes one.
 KEEP="${VERIFY_KEEP_RUNS:-10}"

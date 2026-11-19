@@ -131,7 +131,7 @@ case "$out2" in
   *"2/2 verified"*) ok "a scenario whose verdict precedes 200KB of output PASSES (exit $rc2)";;
   *) bad "a scenario whose verdict precedes 200KB of output PASSES" "$(printf '%s' "$out2" | tail -4)";;
 esac
-STAMP="$R2/.claude/.verify-state/verified"
+STAMP="$R2/.claude/.bendit-state/verified"
 if [ -f "$STAMP" ]; then ok "a FULL clean run writes the stamp the Stop gate reads"
 else bad "a FULL clean run writes the stamp the Stop gate reads" "no $STAMP"; fi
 
@@ -207,7 +207,7 @@ rm -f "$RN/.claude/skills/verify-none/scenarios/"*.sh
 outn=$(run_verify "$RN" none); rcn=$?
 if [ "$rcn" -ne 0 ]; then ok "verify with zero scenarios exits non-zero ($rcn)"; else bad "verify with zero scenarios exits non-zero" "exited 0"; fi
 case "$outn" in *"nothing was verified"*) ok "  ...saying nothing was verified";; *) bad "  ...saying nothing was verified" "$(printf '%s' "$outn" | tail -2)";; esac
-if [ -f "$RN/.claude/.verify-state/verified" ]; then bad "  ...and writes no stamp" "stamp written"; else ok "  ...and writes no stamp"; fi
+if [ -f "$RN/.claude/.bendit-state/verified" ]; then bad "  ...and writes no stamp" "stamp written"; else ok "  ...and writes no stamp"; fi
 
 echo
 echo "NO APP HARNESS: THE DECLARED HARNESS IS THE VERIFICATION"
@@ -219,11 +219,11 @@ echo running-the-suite')
 outd=$(run_verify "$RD" declpass); rcd=$?
 if [ "$rcd" -eq 0 ]; then ok "a passing declared harness verifies (exit 0)"; else bad "a passing declared harness verifies" "exit $rcd: $(printf '%s' "$outd" | tail -2)"; fi
 case "$outd" in *running-the-suite*) ok "  ...because it RAN it";; *) bad "  ...because it RAN it" "$outd";; esac
-if [ -f "$RD/.claude/.verify-state/verified" ]; then ok "  ...and stamps the Stop gate"; else bad "  ...and stamps the Stop gate" "no stamp"; fi
+if [ -f "$RD/.claude/.bendit-state/verified" ]; then ok "  ...and stamps the Stop gate"; else bad "  ...and stamps the Stop gate" "no stamp"; fi
 RF=$(decl_repo declfail 'echo boom; exit 3')
 outf=$(run_verify "$RF" declfail); rcf=$?
 if [ "$rcf" -ne 0 ]; then ok "CONTROL: a failing declared harness fails ($rcf)"; else bad "CONTROL: a failing declared harness fails" "exit 0"; fi
-if [ -f "$RF/.claude/.verify-state/verified" ]; then bad "  ...and writes no stamp" "stamp written"; else ok "  ...and writes no stamp"; fi
+if [ -f "$RF/.claude/.bendit-state/verified" ]; then bad "  ...and writes no stamp" "stamp written"; else ok "  ...and writes no stamp"; fi
 RC=$(decl_repo declempty '# only a comment
    # and another')
 outc=$(run_verify "$RC" declempty); rcc=$?

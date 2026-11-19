@@ -107,6 +107,48 @@ text such as a commit message never trips one.
 
 ## Quickstart
 
+One command, from inside your project folder, on macOS or Linux. Pick any of
+the three spellings:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh | bash
+npx bendit
+pipx run bendit        # or: uvx bendit
+```
+
+That URL is "latest". To pin a release, put its tag in the URL:
+`https://raw.githubusercontent.com/VedangP57/bendit/<tag>/install.sh`.
+
+The installer checks that your machine has what bendit needs (`claude`, `git`,
+`python3` 3.9 or newer; for a web app also `node` 20 or newer and Chrome or
+Chromium), fetches bendit at the matching release tag into
+`${XDG_CACHE_HOME:-~/.cache}/bendit/`, and starts Claude Code on `/adopt`.
+
+- **It asks before every install.** The default answer is no, there is no
+  `--yes`, and a `sudo` command is shown in the question before it can run.
+  With no terminal to ask on, it installs nothing, lists what is missing and
+  exits 1.
+- **It writes nothing in your project** and changes no Claude Code settings.
+  Its only writes are under the cache folder above.
+- **Read it first** if you prefer not to pipe into a shell:
+
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh -o install.sh
+  less install.sh
+  bash install.sh
+  ```
+
+- **Check without installing:** `bash install.sh --check` prints what is
+  missing and installs nothing. Exit codes: 0 ready, 1 something required is
+  missing or failed, 2 usage error, refused location (your home folder or `/`)
+  or unsupported system (Windows is not supported yet). `--version` and
+  `--help` also exist.
+- **Settings:** `BENDIT_SOURCE` (git URL or path to fetch bendit from),
+  `BENDIT_REF` (tag or branch; default `v` plus the installer's version) and
+  `BENDIT_CACHE` (cache folder).
+
+### Manual install
+
 ```bash
 claude plugin marketplace add https://github.com/VedangP57/bendit
 claude plugin install bendit@bendit

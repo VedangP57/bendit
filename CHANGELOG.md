@@ -2,6 +2,25 @@
 
 All notable changes. Dates are UTC.
 
+## [Unreleased]
+
+### Added
+- **One-command installer** (`install.sh`; macOS and Linux). Checks the machine,
+  asks before every install (default no, no `--yes`), fetches bendit at the
+  matching release tag into the cache folder and starts Claude Code on
+  `/adopt`. Writes nothing in the project. Flags `--check`, `--version`,
+  `--help`; settings `BENDIT_SOURCE`, `BENDIT_REF`, `BENDIT_CACHE`; exit codes
+  0, 1, 2.
+- **Wrappers** for the same installer: `npx bendit` (`packages/npm`) and
+  `pipx run bendit` / `uvx bendit` (`packages/pypi`), kept identical to
+  `install.sh` by `packages/sync.sh`.
+- README quickstart and a release checklist in `CONTRIBUTING.md`.
+
+### Not yet seen in a live session
+- The installer has not been run from GitHub or the registries: the repo is
+  private, so the curl URL, `npx bendit` and `pipx run bendit` do not work for
+  anyone yet.
+
 ## [0.2.0] - 2026-11-19
 
 Every change below came from something measured or seen: an adversarial

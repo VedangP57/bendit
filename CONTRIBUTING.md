@@ -48,6 +48,20 @@ When you report what you verified, use the evidence rungs:
 1 said so · 2 pointed at the line · 3 showed the bad case cannot happen ·
 4 ran it and read the output · 5 reproduced it in the running app.
 
+## Releasing
+
+1. Bump the version in all four places, to the same value: `BENDIT_VERSION` in
+   `install.sh`, `version` in `plugins/bendit/.claude-plugin/plugin.json`,
+   `packages/npm/package.json` and `packages/pypi/pyproject.toml`.
+2. Run `packages/sync.sh` (copies `install.sh` into both wrappers) and commit.
+3. `bash .github/workflows/ci.sh` must end `CI passed: ...`.
+4. Tag `vX.Y.Z` and push the tag. The installer fetches that tag, so it must
+   exist before anyone runs the new installer.
+5. Publish, **only after the repo is public**, by the owner, from their own
+   accounts: `npm publish` in `packages/npm`; `python3 -m build` then
+   `twine upload` in `packages/pypi`. Before uploading, check the wheel holds
+   the installer: `unzip -l dist/*.whl | grep bendit/install.sh`.
+
 ## Reporting bugs and ideas
 
 Use the issue templates. For anything security-related, see

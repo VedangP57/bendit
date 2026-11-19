@@ -1,0 +1,109 @@
+=== get on a project with no bendit.json
+exit 0
+--- stdout
+off
+
+=== show on a project with no bendit.json
+exit 0
+--- stdout
+feature        | on/off | why
+browser-driver | off    | (not set)
+ux-design-laws | off    | (not set)
+session-brief  | off    | (not set)
+ls-guard       | off    | (not set)
+
+=== set creates the file
+exit 0
+(silent)
+
+=== get after set
+exit 0
+--- stdout
+on
+
+=== set off
+exit 0
+(silent)
+
+=== get after set off
+exit 0
+--- stdout
+off
+
+=== set another feature
+exit 0
+(silent)
+
+=== set an existing feature again (brief must survive)
+exit 0
+(silent)
+
+=== show after merges
+exit 0
+--- stdout
+feature        | on/off | why
+browser-driver | off    | (not set)
+ux-design-laws | on     | has UI
+session-brief  | on     | still a git project
+ls-guard       | on     | zsh
+
+=== unknown feature
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: unknown feature 'lsguard' (known: browser-driver, ux-design-laws, session-brief, ls-guard)
+
+=== on is not a bool
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'ls-guard': "on" must be true or false, got 'yes'
+
+=== invalid JSON
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: not valid JSON: Expecting property name enclosed in double quotes: line 1 column 14 (char 13)
+
+=== version is not 1
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: "version" must be 1, got 2
+
+=== version missing
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: "version" must be 1, got None
+
+=== why empty
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'ls-guard': "why" must be a non-empty string
+
+=== an unknown key on a feature
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'ls-guard': unknown key 'brief'
+
+=== top level is a list
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: top level must be an object
+
+=== set refuses to overwrite a malformed file
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: top level must be an object
+
+=== set unknown feature
+exit 2
+--- stderr
+features: unknown feature 'lsguard' (known: browser-driver, ux-design-laws, session-brief, ls-guard)
+
+=== no arguments
+exit 2
+--- stderr
+usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <root>
+
+=== write into a read-only .claude
+exit 2
+--- stderr
+features: <tmp>/ro/.claude/bendit.json: could not be written (the old file is untouched): Permission denied
+

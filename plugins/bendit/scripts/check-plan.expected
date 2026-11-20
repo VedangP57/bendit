@@ -1,0 +1,283 @@
+=== the canonical good plan
+exit 0
+(silent)
+
+=== no REQUIRED SUB-SKILL line
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-no-subskill.md:1: the header block has no REQUIRED SUB-SKILL line — add the agentic-worker line from writing-plans: "> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans ..."
+
+=== no **Goal:**
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-no-goal.md:1: the header block has no **Goal:** line — add "**Goal:** <one sentence describing what this builds>"
+
+=== no **Architecture:**
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-no-arch.md:1: the header block has no **Architecture:** line — add "**Architecture:** <2-3 sentences about the approach>"
+
+=== no **Tech Stack:**
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-no-stack.md:1: the header block has no **Tech Stack:** line — add "**Tech Stack:** <key technologies/libraries>"
+
+=== no **Spec:**
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-no-spec.md:1: the header block has no **Spec:** line — add "**Spec:** <path to the spec this plan implements>" — executors read both, so the spec has to travel with the plan
+
+=== no ## Global Constraints
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-no-constraints.md:1: the header block has no ## Global Constraints line — add a "## Global Constraints" section with the spec's project-wide requirements, exact values copied verbatim, one line each
+
+=== no ## Review Focus
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-no-review.md:1: the header block has no ## Review Focus line — add a "## Review Focus" section naming the input classes the spec implies but no task tests (an empty section means you checked and found none)
+
+=== no ## File Structure
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-no-filestructure.md:1: the header block has no ## File Structure line — add a "## File Structure" section mapping every file the plan creates or modifies to its one responsibility, before the tasks
+
+=== title is not an Implementation Plan heading
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-bad-title.md:1: the first line must be the title heading "# <Feature Name> Implementation Plan"
+
+=== Spec path does not exist
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-ghost-spec.md:11: **Spec:** points at "docs/superpowers/specs/never-written.md", which does not exist under <tmp> — write the spec, or fix the path; a plan whose spec is missing has already drifted from it
+
+=== Spec is the template placeholder, not a path
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-tmpl-spec.md:11: **Spec:** does not name a path ('[path to the spec]') — point it at the spec file this plan implements, relative to the repository root
+
+=== Spec given as a markdown link to a real file
+exit 0
+(silent)
+
+=== a task with no **Files:** block
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-no-files.md:33: Task 1 has no **Files:** block — add one and list "Create:"/"Modify:"/"Test:" with exact paths
+<tmp>/docs/superpowers/plans/2026-01-01-no-files.md:75: Task 2 has no **Files:** block — add one and list "Create:"/"Modify:"/"Test:" with exact paths
+
+=== a task with no **Interfaces:** block
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-no-ifaces.md:33: Task 1 has no **Interfaces:** block — add one and state "Consumes:" what this uses from earlier tasks and "Produces:" the exact signatures later tasks rely on — the implementer sees only this task
+<tmp>/docs/superpowers/plans/2026-01-01-no-ifaces.md:75: Task 2 has no **Interfaces:** block — add one and state "Consumes:" what this uses from earlier tasks and "Produces:" the exact signatures later tasks rely on — the implementer sees only this task
+
+=== a step that is not a checkbox step
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-bare-step.md:100: Task 2 has a step that is not a checkbox step: '**Step 3: Implement `main(argv: list[str]) -> int` in `src/c' — write it as "- [ ] **Step N: <one action with a checkable result>**" so execution can track it
+
+=== a task with no steps at all
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-no-steps.md:33: Task 1 has no "- [ ] **Step N:" steps — a task is a list of checkbox steps, each one action with a checkable result
+<tmp>/docs/superpowers/plans/2026-01-01-no-steps.md:33: no task has a step that runs the real thing — every step either runs the test suite or stages a commit. Add a step that exercises the built artifact end to end: a `Run:` line or a ```bash block whose command is not a test runner (pytest/jest/vitest/`claude plugin test`/...) and not shell housekeeping (cd/echo/git/...), or a step that says to drive it by hand ("open a session ...", "in the browser ...", "navigate to ..."). Passing unit tests are evidence about the tests, not about the program.
+<tmp>/docs/superpowers/plans/2026-01-01-no-steps.md:71: Task 2 has no "- [ ] **Step N:" steps — a task is a list of checkbox steps, each one action with a checkable result
+
+=== a task that does not end in a Commit step
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-no-commit.md:62: Task 1 does not end in a Commit step — writing-plans asks for frequent commits, so the last step of every task is "- [ ] **Step N: Commit**" with the git commands
+<tmp>/docs/superpowers/plans/2026-01-01-no-commit.md:103: Task 2 does not end in a Commit step — writing-plans asks for frequent commits, so the last step of every task is "- [ ] **Step N: Commit**" with the git commands
+
+=== a task heading that is not ### Task N:
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-loose-task.md:33: no task has a step that runs the real thing — every step either runs the test suite or stages a commit. Add a step that exercises the built artifact end to end: a `Run:` line or a ```bash block whose command is not a test runner (pytest/jest/vitest/`claude plugin test`/...) and not shell housekeeping (cd/echo/git/...), or a step that says to drive it by hand ("open a session ...", "in the browser ...", "navigate to ..."). Passing unit tests are evidence about the tests, not about the program.
+<tmp>/docs/superpowers/plans/2026-01-01-loose-task.md:76: task heading '### Task Two: the shim' is not in the required form "### Task N: <Component Name>"
+
+=== **Files:**/**Interfaces:** given inline on one line
+exit 0
+(silent)
+
+=== only unit assertions, no live step
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-unit-only.md:33: no task has a step that runs the real thing — every step either runs the test suite or stages a commit. Add a step that exercises the built artifact end to end: a `Run:` line or a ```bash block whose command is not a test runner (pytest/jest/vitest/`claude plugin test`/...) and not shell housekeeping (cd/echo/git/...), or a step that says to drive it by hand ("open a session ...", "in the browser ...", "navigate to ..."). Passing unit tests are evidence about the tests, not about the program.
+
+=== a staged-file continuation line is not a live step
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-unit-only2.md:33: no task has a step that runs the real thing — every step either runs the test suite or stages a commit. Add a step that exercises the built artifact end to end: a `Run:` line or a ```bash block whose command is not a test runner (pytest/jest/vitest/`claude plugin test`/...) and not shell housekeeping (cd/echo/git/...), or a step that says to drive it by hand ("open a session ...", "in the browser ...", "navigate to ..."). Passing unit tests are evidence about the tests, not about the program.
+
+=== claude plugin test does not count as live
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-claude-test.md:33: no task has a step that runs the real thing — every step either runs the test suite or stages a commit. Add a step that exercises the built artifact end to end: a `Run:` line or a ```bash block whose command is not a test runner (pytest/jest/vitest/`claude plugin test`/...) and not shell housekeeping (cd/echo/git/...), or a step that says to drive it by hand ("open a session ...", "in the browser ...", "navigate to ..."). Passing unit tests are evidence about the tests, not about the program.
+
+=== live step is prose — open a session and drive it
+exit 0
+(silent)
+
+=== live step is a curl against the running app
+exit 0
+(silent)
+
+=== placeholder: TBD
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-ph-TBD.md:120: placeholder 'TBD' decides nothing — replace "TBD" with the decision the implementer cannot make alone
+
+=== placeholder: TODO: decide the format
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-ph-TODOdecidetheformat.md:120: placeholder 'TODO' decides nothing — replace "TODO" with the decision the implementer cannot make alone
+
+=== placeholder: implement later
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-ph-implementlater.md:120: placeholder 'implement later' decides nothing — "implement later" defers a decision the plan exists to make — either write the step or drop the task
+
+=== placeholder: fill in details
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-ph-fillindetails.md:120: placeholder 'fill in details' decides nothing — "fill in details" is the detail — name the signature, the file and the values
+
+=== placeholder: similar to Task 1
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-ph-similartoTask1.md:120: placeholder 'similar to Task' decides nothing — "similar to Task N" is not a step — state this task's own files, signatures and assertions, or reference that task's Interfaces block
+
+=== placeholder: add appropriate error handling
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-ph-addappropriateerrorhandling.md:120: placeholder 'add appropriate error handling' decides nothing — name which errors, and what the program does with each
+
+=== placeholder: add appropriate validation
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-ph-addappropriatevalidation.md:120: placeholder 'add appropriate validation' decides nothing — name what is validated, and what happens when it fails
+
+=== placeholder: handle edge cases
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-ph-handleedgecases.md:120: placeholder 'handle edge cases' decides nothing — name the edge cases and the expected behaviour for each
+
+=== placeholder: write tests for the above
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-ph-writetestsfortheabove.md:120: placeholder 'write tests for the above' decides nothing — give the test names and their assertions, with the spec's exact values in them
+
+=== prose that merely mentions tasks and tests
+exit 0
+(silent)
+
+=== ticked steps (- [x] and - [X]) are steps
+exit 0
+(silent)
+
+=== CONTROL: a malformed checkbox is still rejected
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-badbox.md:43: Task 1 has a step that is not a checkbox step: '- [?] **Step 1: Write the failing test**' — write it as "- [ ] **Step N: <one action with a checkable result>**" so execution can track it
+<tmp>/docs/superpowers/plans/2026-01-01-badbox.md:86: Task 2 has a step that is not a checkbox step: '- [?] **Step 1: Write the failing test**' — write it as "- [ ] **Step N: <one action with a checkable result>**" so execution can track it
+
+=== TODO / TBD inside a fenced code block is not a placeholder
+exit 0
+(silent)
+
+=== Task 1 and Task 3 (Task 2 renumbered)
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-gap.md:76: task numbering jumps: this is "Task 3" but it is task 2 in the file — number tasks contiguously from 1, or a dropped task reads as a task nobody wrote
+
+=== the plan starts at Task 2
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-off-by-one.md:33: task numbering jumps: this is "Task 0" but it is task 1 in the file — number tasks contiguously from 1, or a dropped task reads as a task nobody wrote
+<tmp>/docs/superpowers/plans/2026-01-01-off-by-one.md:76: task numbering jumps: this is "Task 1" but it is task 2 in the file — number tasks contiguously from 1, or a dropped task reads as a task nobody wrote
+
+=== a Task heading inside a code fence is not a task
+exit 0
+(silent)
+
+=== filename is not YYYY-MM-DD-<name>.md
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/myplan.md:1: filename "myplan.md" is not YYYY-MM-DD-<feature-name>.md — writing-plans saves plans under that name so they sort by date
+
+=== an empty file
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-empty.md:1: the file is empty — a plan starts with "# <Feature Name> Implementation Plan" and the writing-plans header block
+
+=== a path that does not exist
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-absent.md:1: no such file — check-plan.py checks plan files on disk; with no arguments it checks everything under docs/superpowers/plans/
+
+=== bare run over a directory of good plans
+exit 0
+(silent)
+
+=== bare run discovers plans it was not given
+exit 1
+--- stdout
+<tmp>/docs/superpowers/plans/2026-01-01-bad-title.md:1: the first line must be the title heading "# <Feature Name> Implementation Plan"
+<tmp>/docs/superpowers/plans/2026-01-01-badbox.md:43: Task 1 has a step that is not a checkbox step: '- [?] **Step 1: Write the failing test**' — write it as "- [ ] **Step N: <one action with a checkable result>**" so execution can track it
+<tmp>/docs/superpowers/plans/2026-01-01-badbox.md:86: Task 2 has a step that is not a checkbox step: '- [?] **Step 1: Write the failing test**' — write it as "- [ ] **Step N: <one action with a checkable result>**" so execution can track it
+<tmp>/docs/superpowers/plans/2026-01-01-bare-step.md:100: Task 2 has a step that is not a checkbox step: '**Step 3: Implement `main(argv: list[str]) -> int` in `src/c' — write it as "- [ ] **Step N: <one action with a checkable result>**" so execution can track it
+<tmp>/docs/superpowers/plans/2026-01-01-claude-test.md:33: no task has a step that runs the real thing — every step either runs the test suite or stages a commit. Add a step that exercises the built artifact end to end: a `Run:` line or a ```bash block whose command is not a test runner (pytest/jest/vitest/`claude plugin test`/...) and not shell housekeeping (cd/echo/git/...), or a step that says to drive it by hand ("open a session ...", "in the browser ...", "navigate to ..."). Passing unit tests are evidence about the tests, not about the program.
+<tmp>/docs/superpowers/plans/2026-01-01-empty.md:1: the file is empty — a plan starts with "# <Feature Name> Implementation Plan" and the writing-plans header block
+<tmp>/docs/superpowers/plans/2026-01-01-gap.md:76: task numbering jumps: this is "Task 3" but it is task 2 in the file — number tasks contiguously from 1, or a dropped task reads as a task nobody wrote
+<tmp>/docs/superpowers/plans/2026-01-01-ghost-spec.md:11: **Spec:** points at "docs/superpowers/specs/never-written.md", which does not exist under <tmp> — write the spec, or fix the path; a plan whose spec is missing has already drifted from it
+<tmp>/docs/superpowers/plans/2026-01-01-loose-task.md:33: no task has a step that runs the real thing — every step either runs the test suite or stages a commit. Add a step that exercises the built artifact end to end: a `Run:` line or a ```bash block whose command is not a test runner (pytest/jest/vitest/`claude plugin test`/...) and not shell housekeeping (cd/echo/git/...), or a step that says to drive it by hand ("open a session ...", "in the browser ...", "navigate to ..."). Passing unit tests are evidence about the tests, not about the program.
+<tmp>/docs/superpowers/plans/2026-01-01-loose-task.md:76: task heading '### Task Two: the shim' is not in the required form "### Task N: <Component Name>"
+<tmp>/docs/superpowers/plans/2026-01-01-no-arch.md:1: the header block has no **Architecture:** line — add "**Architecture:** <2-3 sentences about the approach>"
+<tmp>/docs/superpowers/plans/2026-01-01-no-commit.md:62: Task 1 does not end in a Commit step — writing-plans asks for frequent commits, so the last step of every task is "- [ ] **Step N: Commit**" with the git commands
+<tmp>/docs/superpowers/plans/2026-01-01-no-commit.md:103: Task 2 does not end in a Commit step — writing-plans asks for frequent commits, so the last step of every task is "- [ ] **Step N: Commit**" with the git commands
+<tmp>/docs/superpowers/plans/2026-01-01-no-constraints.md:1: the header block has no ## Global Constraints line — add a "## Global Constraints" section with the spec's project-wide requirements, exact values copied verbatim, one line each
+<tmp>/docs/superpowers/plans/2026-01-01-no-files.md:33: Task 1 has no **Files:** block — add one and list "Create:"/"Modify:"/"Test:" with exact paths
+<tmp>/docs/superpowers/plans/2026-01-01-no-files.md:75: Task 2 has no **Files:** block — add one and list "Create:"/"Modify:"/"Test:" with exact paths
+<tmp>/docs/superpowers/plans/2026-01-01-no-filestructure.md:1: the header block has no ## File Structure line — add a "## File Structure" section mapping every file the plan creates or modifies to its one responsibility, before the tasks
+<tmp>/docs/superpowers/plans/2026-01-01-no-goal.md:1: the header block has no **Goal:** line — add "**Goal:** <one sentence describing what this builds>"
+<tmp>/docs/superpowers/plans/2026-01-01-no-ifaces.md:33: Task 1 has no **Interfaces:** block — add one and state "Consumes:" what this uses from earlier tasks and "Produces:" the exact signatures later tasks rely on — the implementer sees only this task
+<tmp>/docs/superpowers/plans/2026-01-01-no-ifaces.md:75: Task 2 has no **Interfaces:** block — add one and state "Consumes:" what this uses from earlier tasks and "Produces:" the exact signatures later tasks rely on — the implementer sees only this task
+<tmp>/docs/superpowers/plans/2026-01-01-no-review.md:1: the header block has no ## Review Focus line — add a "## Review Focus" section naming the input classes the spec implies but no task tests (an empty section means you checked and found none)
+<tmp>/docs/superpowers/plans/2026-01-01-no-spec.md:1: the header block has no **Spec:** line — add "**Spec:** <path to the spec this plan implements>" — executors read both, so the spec has to travel with the plan
+<tmp>/docs/superpowers/plans/2026-01-01-no-stack.md:1: the header block has no **Tech Stack:** line — add "**Tech Stack:** <key technologies/libraries>"
+<tmp>/docs/superpowers/plans/2026-01-01-no-steps.md:33: Task 1 has no "- [ ] **Step N:" steps — a task is a list of checkbox steps, each one action with a checkable result
+<tmp>/docs/superpowers/plans/2026-01-01-no-steps.md:33: no task has a step that runs the real thing — every step either runs the test suite or stages a commit. Add a step that exercises the built artifact end to end: a `Run:` line or a ```bash block whose command is not a test runner (pytest/jest/vitest/`claude plugin test`/...) and not shell housekeeping (cd/echo/git/...), or a step that says to drive it by hand ("open a session ...", "in the browser ...", "navigate to ..."). Passing unit tests are evidence about the tests, not about the program.
+<tmp>/docs/superpowers/plans/2026-01-01-no-steps.md:71: Task 2 has no "- [ ] **Step N:" steps — a task is a list of checkbox steps, each one action with a checkable result
+<tmp>/docs/superpowers/plans/2026-01-01-no-subskill.md:1: the header block has no REQUIRED SUB-SKILL line — add the agentic-worker line from writing-plans: "> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans ..."
+<tmp>/docs/superpowers/plans/2026-01-01-off-by-one.md:33: task numbering jumps: this is "Task 0" but it is task 1 in the file — number tasks contiguously from 1, or a dropped task reads as a task nobody wrote
+<tmp>/docs/superpowers/plans/2026-01-01-off-by-one.md:76: task numbering jumps: this is "Task 1" but it is task 2 in the file — number tasks contiguously from 1, or a dropped task reads as a task nobody wrote
+<tmp>/docs/superpowers/plans/2026-01-01-ph-TBD.md:120: placeholder 'TBD' decides nothing — replace "TBD" with the decision the implementer cannot make alone
+<tmp>/docs/superpowers/plans/2026-01-01-ph-TODOdecidetheformat.md:120: placeholder 'TODO' decides nothing — replace "TODO" with the decision the implementer cannot make alone
+<tmp>/docs/superpowers/plans/2026-01-01-ph-addappropriateerrorhandling.md:120: placeholder 'add appropriate error handling' decides nothing — name which errors, and what the program does with each
+<tmp>/docs/superpowers/plans/2026-01-01-ph-addappropriatevalidation.md:120: placeholder 'add appropriate validation' decides nothing — name what is validated, and what happens when it fails
+<tmp>/docs/superpowers/plans/2026-01-01-ph-fillindetails.md:120: placeholder 'fill in details' decides nothing — "fill in details" is the detail — name the signature, the file and the values
+<tmp>/docs/superpowers/plans/2026-01-01-ph-handleedgecases.md:120: placeholder 'handle edge cases' decides nothing — name the edge cases and the expected behaviour for each
+<tmp>/docs/superpowers/plans/2026-01-01-ph-implementlater.md:120: placeholder 'implement later' decides nothing — "implement later" defers a decision the plan exists to make — either write the step or drop the task
+<tmp>/docs/superpowers/plans/2026-01-01-ph-similartoTask1.md:120: placeholder 'similar to Task' decides nothing — "similar to Task N" is not a step — state this task's own files, signatures and assertions, or reference that task's Interfaces block
+<tmp>/docs/superpowers/plans/2026-01-01-ph-writetestsfortheabove.md:120: placeholder 'write tests for the above' decides nothing — give the test names and their assertions, with the spec's exact values in them
+<tmp>/docs/superpowers/plans/2026-01-01-seeded.md:120: placeholder 'TBD' decides nothing — replace "TBD" with the decision the implementer cannot make alone
+<tmp>/docs/superpowers/plans/2026-01-01-tmpl-spec.md:11: **Spec:** does not name a path ('[path to the spec]') — point it at the spec file this plan implements, relative to the repository root
+<tmp>/docs/superpowers/plans/2026-01-01-unit-only.md:33: no task has a step that runs the real thing — every step either runs the test suite or stages a commit. Add a step that exercises the built artifact end to end: a `Run:` line or a ```bash block whose command is not a test runner (pytest/jest/vitest/`claude plugin test`/...) and not shell housekeeping (cd/echo/git/...), or a step that says to drive it by hand ("open a session ...", "in the browser ...", "navigate to ..."). Passing unit tests are evidence about the tests, not about the program.
+<tmp>/docs/superpowers/plans/2026-01-01-unit-only2.md:33: no task has a step that runs the real thing — every step either runs the test suite or stages a commit. Add a step that exercises the built artifact end to end: a `Run:` line or a ```bash block whose command is not a test runner (pytest/jest/vitest/`claude plugin test`/...) and not shell housekeeping (cd/echo/git/...), or a step that says to drive it by hand ("open a session ...", "in the browser ...", "navigate to ..."). Passing unit tests are evidence about the tests, not about the program.
+<tmp>/docs/superpowers/plans/myplan.md:1: filename "myplan.md" is not YYYY-MM-DD-<feature-name>.md — writing-plans saves plans under that name so they sort by date
+
+=== hook mode: a bad plan
+exit 0
+--- stdout
+{"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": "plan check:\n  2026-10-21-b.md:1: the header block has no REQUIRED SUB-SKILL line — add the agentic-worker line from writing-plans: \"> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans ...\"\n  2026-10-21-b.md:1: the header block has no **Architecture:** line — add \"**Architecture:** <2-3 sentences about the approach>\"\n  2026-10-21-b.md:1: the header block has no **Tech Stack:** line — add \"**Tech Stack:** <key technologies/libraries>\"\n  2026-10-21-b.md:1: the header block has no **Spec:** line — add \"**Spec:** <path to the spec this plan implements>\" — executors read both, so the spec has to travel with the plan\n  2026-10-21-b.md:1: the header block has no ## Global Constraints line — add a \"## Global Constraints\" section with the spec's project-wide requirements, exact values copied verbatim, one line each\n  2026-10-21-b.md:1: the header block has no ## Review Focus line — add a \"## Review Focus\" section naming the input classes the spec implies but no task tests (an empty section means you checked and found none)\n  2026-10-21-b.md:1: the header block has no ## File Structure line — add a \"## File Structure\" section mapping every file the plan creates or modifies to its one responsibility, before the tasks\n  2026-10-21-b.md:1: the plan has no tasks — a plan is a numbered list of \"### Task N: <Component Name>\" sections, each ending in an independently testable deliverable\n  2026-10-21-b.md:3: placeholder 'TBD' decides nothing — replace \"TBD\" with the decision the implementer cannot make alone\n  (advisory — a plan is written in passes; fix these before it is executed)"}}
+
+=== hook mode: not a plan
+exit 0
+(silent)
+
+=== hook mode: unparseable payload
+exit 0
+(silent)
+

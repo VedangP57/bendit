@@ -244,8 +244,10 @@ def addon_scope_line():
 
 
 def project_root(given):
-    """The project root, resolved like prove.sh: the git toplevel of <given>,
-    else $CLAUDE_PROJECT_DIR, else <given> itself. Absolute."""
+    """The project root for an explicit <given>: its git toplevel, else <given>
+    itself. Never $CLAUDE_PROJECT_DIR: a path the caller named must not yield to
+    the session's project (the env var is the default only when no path is given,
+    see main). Absolute."""
     given = os.path.abspath(given)
     try:
         p = subprocess.run(['git', '-C', given, 'rev-parse', '--show-toplevel'],
@@ -255,9 +257,6 @@ def project_root(given):
             return top
     except (OSError, subprocess.SubprocessError):
         pass
-    env = os.environ.get('CLAUDE_PROJECT_DIR', '')
-    if env and os.path.isdir(env):
-        return os.path.abspath(env)
     return given
 
 
@@ -287,10 +286,13 @@ def features_report(given):
 def main(argv):
     if '--features' in argv:
         i = argv.index('--features')
-        if i + 1 >= len(argv):
-            print('usage: selfcheck.py --features <root>', file=sys.stderr)
-            return 2
-        return features_report(argv[i + 1])
+        if i + 1 < len(argv) and not argv[i + 1].startswith('--'):
+            return features_report(argv[i + 1])
+        env = os.environ.get('CLAUDE_PROJECT_DIR', '')
+        if env and os.path.isdir(env):  # no path given: the session's project
+            return features_report(env)
+        print('usage: selfcheck.py --features <root>', file=sys.stderr)
+        return 2
     hook = '--hook' in argv
     if hook:
         try:

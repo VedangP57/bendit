@@ -29,6 +29,9 @@ PY="$(command -v "${PY:-python3}")"
 T=$(mktemp -d); T=$(cd "$T" && pwd -P); pass=0; fail=0
 trap 'chmod -R u+rwX "$T" 2>/dev/null; rm -rf "$T"' EXIT
 export GIT_CEILING_DIRECTORIES="$T"
+# Hermetic: inside a Claude Code session this names the session's project. Cases
+# that need it set it deliberately, inline.
+unset CLAUDE_PROJECT_DIR
 # A tmp dir of the suite's own, so "it cleaned up" is checkable.
 export TMPDIR="$T/tmpd"; mkdir -p "$TMPDIR"
 chk() { if [ "$2" = "$3" ]; then printf '  ok    %s\n' "$1"; pass=$((pass+1));
@@ -329,6 +332,20 @@ rm "$SR/.claude/bendit.json"
 FE_OUT="$(cd "$SR/pkg/deep" && PATH="$T/stub-user:$PATH" "$PY" "$KIT/scripts/selfcheck.py" --features . 2>&1)"; FE_RC=$?
 chk "subdirectory, good root file: exit 0" "$FE_RC" 0
 has "  ...shows the root file's row" "declined by the person" "$FE_OUT"
+
+# An explicit path never yields to the session's project: CLAUDE_PROJECT_DIR
+# names ANOTHER project with a different bendit.json, and a non-git fixture path
+# must still report the fixture's own file.
+OP="$T/otherproj"; mkdir -p "$OP"
+"$PY" "$SD/features.py" set "$OP" browser-driver off "OTHER-PROJECT-REASON"
+NG="$T/nongit-fixture"; mkdir -p "$NG"
+"$PY" "$SD/features.py" set "$NG" ls-guard off "FIXTURE-REASON"
+FE_OUT="$(CLAUDE_PROJECT_DIR="$OP" PATH="$T/stub-user:$PATH" "$PY" "$KIT/scripts/selfcheck.py" --features "$NG" 2>&1)"; FE_RC=$?
+FE_OUT2="$(CLAUDE_PROJECT_DIR="$OP" PATH="$T/stub-user:$PATH" "$PY" "$KIT/scripts/selfcheck.py" --features 2>&1)"
+has "no path given: CLAUDE_PROJECT_DIR is the default" "OTHER-PROJECT-REASON" "$FE_OUT2"
+has "explicit non-git --features path reports the fixture's file" "FIXTURE-REASON" "$FE_OUT"
+case "$FE_OUT" in *OTHER-PROJECT-REASON*) o=leaked ;; *) o=clean ;; esac
+chk "  ...and never the CLAUDE_PROJECT_DIR project's" "$o" clean
 
 echo
 echo "IT CLEANS UP"

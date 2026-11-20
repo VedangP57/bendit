@@ -15,7 +15,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/prove.sh" .
 1. **selfcheck** fires one known-bad probe at every hook in `hooks/hooks.json`,
    run the way Claude Code runs it. A row marked `OFF` is a guard protecting
    nothing: it could not start, crashed, or let the probe through.
-2. **selfcheck --features** prints this project's `.claude/bendit.json` (found from the git root, so it works from a subfolder; the path used is printed) as a
+2. **selfcheck --features** prints this project's `.claude/bendit.json` (the path given is resolved to its git root, so it works from a subfolder, else used as given; `$CLAUDE_PROJECT_DIR` is read only when no path is given; the path used is printed) as a
    table (`feature | on/off | why`), then one `add-on scope:` line. When that
    line says `bendit-web is installed for every project, not only this one`,
    the add-on is enabled at user scope: report it as a warning and give its

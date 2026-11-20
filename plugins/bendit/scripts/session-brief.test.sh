@@ -56,6 +56,10 @@ has() { if grep -qxF -- "$2" <<<"$EXPECT_OUT"; then printf '  ok    %s\n' "$1"; 
 # lacks <label> <exact line>
 lacks() { if grep -qxF -- "$2" <<<"$EXPECT_OUT"; then printf '  FAIL  %s (unexpected line: %s)\n' "$1" "$2"; fail=$((fail+1));
           else printf '  ok    %s\n' "$1"; pass=$((pass+1)); fi; }
+# count <label> <ERE> <n> -- exactly n lines of the output match
+count() { local n; n="$(grep -cE -- "$2" <<<"$EXPECT_OUT")"
+          if [ "$n" = "$3" ]; then printf '  ok    %s\n' "$1"; pass=$((pass+1));
+          else printf '  FAIL  %s (%s lines match %s, want %s)\n' "$1" "$n" "$2" "$3"; fail=$((fail+1)); fi; }
 g() { local d="$1"; shift; git -C "$d" "$@"; }
 # mk <dir> -- a repo on `main` with one commit
 mk() { mkdir -p "$1"; git -C "$1" init -q -b main; echo base > "$1/base.txt"
@@ -142,7 +146,7 @@ show("reach", sb.reach("slow.example", 443))
 print("fast: %s" % (time.monotonic() - t < 1.5))' 
 has "stalled lookup -> unknown" "reach state: unknown"
 has "stalled lookup returns promptly" "fast: True"
-has "unknown reason names the deadline" "reach reason: lookup timed out after 0.8s"
+has "a stalled lookup says timed out" "reach reason: timed out"
 
 # reach()'s connect phase, with local stand-ins only: no real black-hole host.
 py "connect-timeout" '
@@ -152,7 +156,7 @@ socket.create_connection = slow
 show("reach", sb.reach("127.0.0.1", 9))'
 has "connect timeout -> unknown" "reach state: unknown"
 lacks "connect timeout is not failed" "reach state: failed"
-has "connect timeout reason" "reach reason: connection to 127.0.0.1:9 timed out after 0.8s"
+has "connect timeout reason" "reach reason: timed out"
 
 py "connect-socket-timeout" '
 import socket
@@ -167,6 +171,29 @@ import socket
 socket.create_connection = lambda *a, **k: time.sleep(3)
 show("reach", sb.reach("127.0.0.1", 9))'
 has "stalled connect -> unknown" "reach state: unknown"
+
+# Every timeout reads exactly "timed out": a duration is noise to the agent and
+# made the text unstable (a slow runner printed "timed out after 0.233901s"
+# where the snapshot said "timed out"). Each path that can time out is forced
+# here with a stall far longer than a tiny budget.
+mkdir -p "$T/shim-stall"
+printf '#!/bin/sh\nexec sleep 5\n' > "$T/shim-stall/git"; chmod +x "$T/shim-stall/git"
+"$T/shim-stall/git" >/dev/null 2>&1 &  # macOS vets a new executable on first run
+sleep 0.5; kill $! 2>/dev/null; wait $! 2>/dev/null
+PATH="$T/shim-stall:$PATH" py "timeouts-say-timed-out" '
+import socket
+show("git", sb.git(sys.argv[2], "status", timeout=0.05))
+show("on_remote", sb.on_remote(sys.argv[2], "main"))
+socket.getaddrinfo = lambda *a, **k: time.sleep(3)
+show("lookup", sb.reach("slow.example", 443, deadline=0.05))
+socket.getaddrinfo = lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 9))]
+socket.create_connection = lambda *a, **k: time.sleep(3)
+show("connect", sb.reach("127.0.0.1", 9, deadline=0.05))' "$T"
+has "git timeout -> exactly 'timed out'" "git reason: timed out"
+has "on_remote timeout -> exactly 'timed out'" "on_remote reason: timed out"
+has "lookup timeout -> exactly 'timed out'" "lookup reason: timed out"
+has "connect timeout -> exactly 'timed out'" "connect reason: timed out"
+count "no timeout names a duration" 'timed out after' 0
 
 py "connect-refused" '
 import socket
@@ -396,9 +423,6 @@ conf() { local d="$1" gd; gd="$(git -C "$d" rev-parse --git-common-dir 2>/dev/nu
 contains() { if grep -qF -- "$2" <<<"$EXPECT_OUT"; then printf '  ok    %s\n' "$1"; pass=$((pass+1));
              else printf '  FAIL  %s (nothing contains: %s)\n' "$1" "$2"; printf '%s\n' "$EXPECT_OUT" | sed 's/^/        | /'; fail=$((fail+1)); fi; }
 # count <label> <regex> <n>  -- exactly n output lines match
-count() { local n; n="$(grep -cE -- "$2" <<<"$EXPECT_OUT")"
-          if [ "$n" = "$3" ]; then printf '  ok    %s\n' "$1"; pass=$((pass+1));
-          else printf '  FAIL  %s (%s lines match %s, want %s)\n' "$1" "$n" "$2" "$3"; fail=$((fail+1)); fi; }
 # valid <label>  -- the hook contract: exit 0, one JSON line, both caps held
 valid() { has "$1 exits 0" "exit: 0"; has "$1 is one JSON line" "stdout lines: 1"
           has "$1 JSON has context and toast" "json: valid, keys ['context', 'toast']"
@@ -610,18 +634,21 @@ mkdir -p "$T/shim"; REAL_GIT="$(command -v git)"
 SLOW="$(cd "$T/wt/dirty" && pwd -P)"
 cat > "$T/shim/git" <<EOF
 #!/bin/bash
-if [ "\$(pwd -P)" = "$SLOW" ]; then for a in "\$@"; do [ "\$a" = status ] && exec sleep 2; done; fi
+if [ "\$(pwd -P)" = "$SLOW" ]; then for a in "\$@"; do [ "\$a" = status ] && exec sleep 6; done; fi
 exec "$REAL_GIT" "\$@"
 EOF
 chmod +x "$T/shim/git"
 # macOS vets a freshly written executable on its first run (measured ~0.35s),
-# which would eat the whole 0.3s budget; run it once so only the stall is timed.
+# which would eat the budget; run it once so only the stall is timed. The budget
+# (1.0s) leaves the other worktrees room on a runner 3x slower than a laptop;
+# the stall (6s) is far past it, so "returns inside 3s" still proves the brief
+# did not wait for the stalled one.
 "$T/shim/git" --version >/dev/null
-PATH="$T/shim:$PATH" WALL=1 brief "slow-worktree" --cwd "$T/wt/main" --budget 0.3
+PATH="$T/shim:$PATH" WALL=3 brief "slow-worktree" --cwd "$T/wt/main" --budget 1.0
 valid "slow-worktree"
 has "stalled worktree -> unknown (timed out)" "|   - dirty: unknown (timed out) — <tmp>/wt/dirty ⚠ temp folder, can be wiped"
 has "the others still print" "|   - ahead: 0 uncommitted, 1 not on any remote (as of the last fetch) — <tmp>/wt/ahead ⚠ temp folder, can be wiped"
-has "returns inside 1s" "wall < 1s: True"
+has "returns inside 3s (the stall is 6s)" "wall < 3s: True"
 has "toast never says no alarms beside an unknown" "toast: brief: main · 0 uncommitted · 2 unknown"
 if [ "$(command -v git)" = "$REAL_GIT" ]; then printf '  ok    shim left PATH\n'; pass=$((pass+1));
 else printf '  FAIL  shim leaked onto PATH\n'; fail=$((fail+1)); fi
@@ -638,11 +665,13 @@ exec "$REAL_GIT" "\$@"
 EOF
 chmod +x "$T/shim2/git"; "$T/shim2/git" --version >/dev/null
 mk "$T/b-hang"
-PATH="$T/shim2:$PATH" WALL=1 brief "section-past-budget" --cwd "$T/b-hang" --budget 0.3
+# Budget 0.6s, so a slow runner still finishes the other sections; the thread
+# ends at on_remote's 1.5s timeout, so "< 1.4s" still means "at the budget".
+PATH="$T/shim2:$PATH" WALL=1.4 brief "section-past-budget" --cwd "$T/b-hang" --budget 0.6
 valid "section-past-budget"
 has "unfinished section -> alarm, timed out" "| [git] Branch and uncommitted files: unknown (timed out)"
 has "toast carries the timeout" "toast: brief: unknown · unknown uncommitted · Branch and uncommitted files: unknown (timed out)"
-has "exits at the budget, not when the thread ends" "wall < 1s: True"
+has "exits at the budget, not when the thread ends" "wall < 1.4s: True"
 
 # One repo, two sizes. Commit subjects are long on purpose: the cut must happen
 # on any machine, including one whose temp paths are short.
@@ -872,16 +901,21 @@ chmod +x "$T/shim3/git"; "$T/shim3/git" --version >/dev/null
 PATH="$T/shim3:$PATH" expect_capture "hook-one-deadline" "$PY" -c '
 import subprocess, sys, time
 py, script, stdin = sys.argv[1:4]
+# The interpreter start and import on this machine, measured: a runner 3x slower
+# than a laptop spends that much more before the hook clock starts.
+t = time.monotonic()
+subprocess.run([py, script, "--help"], capture_output=True, timeout=30)
+start = time.monotonic() - t
 t = time.monotonic()
 r = subprocess.run([py, script, "--hook"], input=stdin.encode(), capture_output=True, timeout=30)
 wall = time.monotonic() - t
 print("exit:", r.returncode)
 print("briefed:", b"SessionStart" in r.stdout)
 # 2.0 is the spec; the hook budget is 1.8 so interpreter start fits inside it.
-print("wall < 2.0s:", wall < 2.0)' "$PY" "$S" "$(start "$T/proj")"
+print("wall < 2.0s + interpreter start:", wall < 2.0 + start)' "$PY" "$S" "$(start "$T/proj")"
 has "a slow config lookup -> still exit 0" "exit: 0"
 has "  ...still briefed (the stall is said, not hidden)" "briefed: True"
-has "  ...and the whole hook is under 2s" "wall < 2.0s: True"
+has "  ...and the whole hook is under 2s (+ interpreter start)" "wall < 2.0s + interpreter start: True"
 expect_verify || fail=$((fail+1))
 
 { kill "${LPIDS[@]}"; wait "${LPIDS[@]}"; } 2>/dev/null

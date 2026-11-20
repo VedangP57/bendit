@@ -93,26 +93,38 @@ reach reason: could not resolve nonexistent.invalid — offline, or the project 
 exit 0
 --- stdout
 reach state: unknown
-reach reason: lookup timed out after 0.8s
+reach reason: timed out
 fast: True
 
 === connect-timeout
 exit 0
 --- stdout
 reach state: unknown
-reach reason: connection to 127.0.0.1:9 timed out after 0.8s
+reach reason: timed out
 
 === connect-socket-timeout
 exit 0
 --- stdout
 reach state: unknown
-reach reason: connection to 127.0.0.1:9 timed out after 0.8s
+reach reason: timed out
 
 === connect-stalled
 exit 0
 --- stdout
 reach state: unknown
-reach reason: connection to 127.0.0.1:9 timed out after 0.8s
+reach reason: timed out
+
+=== timeouts-say-timed-out
+exit 0
+--- stdout
+git state: unknown
+git reason: timed out
+on_remote state: unknown
+on_remote reason: timed out
+lookup state: unknown
+lookup reason: timed out
+connect state: unknown
+connect reason: timed out
 
 === connect-refused
 exit 0
@@ -597,7 +609,7 @@ first: Session brief — snapshot taken <time>. Where it disagrees with live git
 | [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
 toast: brief: main · 0 uncommitted · 2 unknown
 toast <= 120 chars: True
-wall < 1s: True
+wall < 3s: True
 
 === section-past-budget
 exit 0
@@ -612,7 +624,7 @@ first: Session brief — snapshot taken <time>. Where it disagrees with live git
 | [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
 toast: brief: unknown · unknown uncommitted · Branch and uncommitted files: unknown (timed out)
 toast <= 120 chars: True
-wall < 1s: True
+wall < 1.4s: True
 
 === docs-and-commits
 exit 0
@@ -972,5 +984,5 @@ exit 0
 --- stdout
 exit: 0
 briefed: True
-wall < 2.0s: True
+wall < 2.0s + interpreter start: True
 

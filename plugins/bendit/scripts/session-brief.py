@@ -80,13 +80,19 @@ def _unknown(reason):
     return Probe("unknown", None, reason)
 
 
+# Every timeout reads exactly this: a duration is noise to the agent, and it
+# made the text unstable (one path said "timed out after 0.233901s" on a slow
+# machine, another "timed out" for the same stall).
+TIMED_OUT = "timed out"
+
+
 def git(cwd, *args, timeout=1.5):
     """Run git in cwd. Stdout is returned unstripped: -z output is NUL-framed."""
     try:
         r = subprocess.run(["git", "--no-optional-locks", *args], cwd=cwd,
                            capture_output=True, timeout=timeout)
     except subprocess.TimeoutExpired:
-        return _unknown(f"timed out after {timeout:g}s")
+        return _unknown(TIMED_OUT)
     except OSError as e:  # git missing, or cwd is not a directory
         return _failed(f"could not run git: {e}")
     if r.returncode != 0:
@@ -157,7 +163,7 @@ def on_remote(cwd, branch):
                             "--quiet", f"refs/remotes/origin/{branch}"],
                            cwd=cwd, capture_output=True, timeout=1.5)
     except subprocess.TimeoutExpired:
-        return _unknown("timed out after 1.5s")
+        return _unknown(TIMED_OUT)
     except OSError as e:
         return _failed(f"could not run git: {e}")
     if r.returncode == 0:
@@ -203,7 +209,7 @@ def reach(host, port, deadline=0.8):
     """
     done, addrs, err = _within(lambda: socket.getaddrinfo(host, port, type=socket.SOCK_STREAM), deadline)
     if not done:
-        return _unknown(f"lookup timed out after {deadline:g}s")
+        return _unknown(TIMED_OUT)
     if err is not None or not addrs:
         return _failed(f"could not resolve {host} — offline, or the project no longer exists; can't tell which")
     end = time.monotonic() + deadline
@@ -227,7 +233,7 @@ def reach(host, port, deadline=0.8):
 
     done, result, err = _within(connect, deadline + 0.2)
     if not done or result == "timeout":
-        return _unknown(f"connection to {host}:{port} timed out after {deadline:g}s")
+        return _unknown(TIMED_OUT)
     if err is not None:  # not an OSError, so not evidence the service is down
         return _unknown(f"connection to {host}:{port} not checked: {type(err).__name__}: {err}")
     if result == "refused":
@@ -538,7 +544,7 @@ def sec_worktrees(cwd, root, end):
             name = w["branch"] or f"detached at {(w['head'] or '?')[:7]}"
             where = _show_path(w["path"])
             if not f.done():
-                unknown.append(f"{name}: unknown (timed out) — {where}")
+                unknown.append(f"{name}: unknown ({TIMED_OUT}) — {where}")
             elif f.exception() is not None:
                 e = f.exception()
                 unknown.append(f"{name}: unknown ({type(e).__name__}: {e}) — {where}")
@@ -707,7 +713,7 @@ def build(cwd, config, budget):
     branch = count = "unknown"
     for tag, label, f in futs:
         if not f.done():
-            r = {"alarms": [_alarm(tag, f"{label}: unknown (timed out)")]}
+            r = {"alarms": [_alarm(tag, f"{label}: unknown ({TIMED_OUT})")]}
         elif f.exception() is not None:
             e = f.exception()
             r = {"alarms": [_alarm(tag, f"{label}: unknown ({type(e).__name__}: {e})")]}

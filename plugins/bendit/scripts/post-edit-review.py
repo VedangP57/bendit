@@ -238,6 +238,12 @@ def _plan_notes(raw: str) -> list:
         return []    # a reporter must never break the thing it reports on
 
 
+# Half the hook's own 10 s limit (hooks.json): a hung checker must give up while
+# this hook can still print the band-aid notes, not be killed with it. The env
+# var exists only so the suite can exercise the timeout quickly.
+_IMPORT_CHECK_TIMEOUT = float(os.environ.get('BENDIT_TEST_IMPORT_CHECK_TIMEOUT') or 5)
+
+
 def _mod_import_notes(raw: str) -> list:
     """Check a mod's directory for a sibling export a module forgot to import.
 
@@ -260,7 +266,7 @@ def _mod_import_notes(raw: str) -> list:
         out = subprocess.run(
             [sys.executable, str(Path(__file__).with_name('check-mod-imports.py')),
              '--no-recurse', str(p.parent)],
-            capture_output=True, text=True, timeout=10)
+            capture_output=True, text=True, timeout=_IMPORT_CHECK_TIMEOUT)
         # Only the checker's own report counts: an uncaught crash also exits 1,
         # and its traceback is not advice.
         if out.returncode == 1 and out.stderr.startswith('mod import check:'):

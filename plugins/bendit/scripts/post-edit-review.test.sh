@@ -308,6 +308,22 @@ bout="$(pay "$MOD/index.ts" | python3 "$BR/post-edit-review.py" 2>&1)"; bcode=$?
 pchk "a crash inside the import checker yields exit 0" "$bcode" 0
 pchk "and its traceback is not passed off as a note" "$bout" ""
 
+# A hung import checker must time out BEFORE the hook's own 10 s limit, so the
+# band-aid note for the same edit survives. The limit is shortened by a test-only
+# env var; the product value is 5 s.
+printf 'import time\ntime.sleep(30)\n' > "$BR/check-mod-imports.py"
+printf '// @ts-ignore\nconst f = (n) => n > SHOWN_LIMIT_MS\n' > "$MOD/index.ts"   # the edit has landed
+hp="$(python3 -c "import json,sys;print(json.dumps({'tool_name':'Edit','tool_input':{'file_path':sys.argv[1],'old_string':'const f','new_string':'// @ts-ignore\nconst f'}}))" "$MOD/index.ts")"
+t0=$(python3 -c 'import time;print(time.time())')
+hout="$(printf '%s' "$hp" | BENDIT_TEST_IMPORT_CHECK_TIMEOUT=0.5 python3 "$BR/post-edit-review.py" 2>&1)"; hcode=$?
+el=$(python3 -c "import time,sys;print(int(time.time()-float(sys.argv[1]) < 5))" "$t0")
+pchk "a hung import checker: the hook still exits 2 for the band-aid" "$hcode" 2
+pchk "the band-aid note is still delivered" "$(has "$hout" '@ts-ignore')" yes
+pchk "no import note from the hung checker" "$(has "$hout" 'mod import check')" no
+pchk "it returned well before the hook's 10 s limit" "$el" 1
+pchk "the product timeout is 5 s, below the hook's 10 s" \
+  "$(python3 -c 'import importlib.util,sys;s=importlib.util.spec_from_file_location("p",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);print(m._IMPORT_CHECK_TIMEOUT)' "$H")" 5.0
+
 echo
 echo "WHAT IT SAYS (snapshot)"
 expect_verify || fail=$((fail+1))

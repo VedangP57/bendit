@@ -294,6 +294,24 @@ chk "saveState where git would commit it refused" "$(drive "$W/ss6.log" "$G" sc/
 has "  ...saying git would commit it" "git would commit" "$(cat "$W/ss6.log")"
 chk "  ...and nothing was written" "$([ -e "$G/sc/plain-user.json" ] || [ -e "$G/plain-user.json" ] && echo y || echo n)" "n"
 
+# Fail closed: "could git commit this?" must be CONFIRMED no, not merely not-yes.
+NODE_BIN="$(command -v node)"
+drive_path() { local pth="$1" log="$2" cwd="$3"; shift 3; (cd "$cwd" && env -u PORT PATH="$pth" "$NODE_BIN" "$DRIVE" "$@" >"$log" 2>&1); echo $?; }
+NOGIT="$W/nogit-bin"; mkdir -p "$NOGIT"
+sstate ignored fixtures/auth-state/user.json
+chk "saveState with git missing from PATH refused" "$(drive_path "$NOGIT" "$W/ss7.log" "$G" sc/ignored.json --base "file://$G/sc" --out "$W/out-ss7")" "2"
+has "  ...saying it could not confirm, and why" "could not confirm" "$(cat "$W/ss7.log")"
+has "  ...naming git not found" "git not found" "$(cat "$W/ss7.log")"
+FAKEGIT="$W/fakegit-bin"; mkdir -p "$FAKEGIT"
+printf '#!/bin/sh\necho "fatal: detected dubious ownership in repository at /x" >&2\nexit 128\n' > "$FAKEGIT/git"; chmod +x "$FAKEGIT/git"
+chk "saveState when git exits 128 (dubious ownership) refused" "$(drive_path "$FAKEGIT:$PATH" "$W/ss8.log" "$G" sc/ignored.json --base "file://$G/sc" --out "$W/out-ss8")" "2"
+has "  ...saying it could not confirm" "could not confirm" "$(cat "$W/ss8.log")"
+has "  ...quoting git's error" "dubious ownership" "$(cat "$W/ss8.log")"
+NR="$W/norepo"; mkdir -p "$NR/sc"; cp "$ST/page.html" "$NR/sc/page.html"
+printf '{"name":"nr","steps":[{"goto":"/page.html"},{"saveState":"user.json"}]}\n' > "$NR/sc/nr.json"
+chk "saveState in a folder that is not in any git repository allowed" "$(drive "$W/ss9.log" "$NR" sc/nr.json --base "file://$NR/sc" --out "$W/out-ss9")" "0"
+chk "saveState to a git-ignored path in a repo allowed (control)" "$(drive "$W/ss10.log" "$G" sc/ignored.json --base "file://$G/sc" --out "$W/out-ss10")" "0"
+
 # --- step names are filenames: they must not climb out of the evidence dir.
 echo
 echo "EVIDENCE DIR GUARDS"

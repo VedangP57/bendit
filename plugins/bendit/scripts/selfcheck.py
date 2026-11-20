@@ -6,6 +6,8 @@
     selfcheck.py --features <root>
                               the project's features table, and a warning when
                               the bendit-web add-on is enabled at user scope
+    selfcheck.py --session    did bendit's hooks start in THIS Claude window?
+                              (/bendit:doctor; exit 0 live, 1 not live, 3 unknown)
 
 WHY. A hook that cannot start is a guard that is OFF, and nothing says so.
 macOS revoked a terminal's access to the folder the plugin lived in; every hook
@@ -28,6 +30,18 @@ and an internal error is reported in the same JSON, never raised. hooks.json
 runs this as `python3 ... || echo '<fallback JSON>'`, so even a selfcheck that
 cannot start (no python3, an unreadable plugin folder) still speaks.
 
+THIS WINDOW (--session). Every check above runs the hook scripts by hand; none
+shows that Claude Code loaded them into the window the person is typing in. A
+window opened before bendit was installed has none of its hooks, and nothing
+said so. So --hook, which only runs when Claude Code started bendit's hooks,
+leaves a marker named after the payload's `session_id`, and --session looks for
+the one named after CLAUDE_CODE_SESSION_ID, which Claude Code sets in its Bash
+tool's environment. Both are the same id: checked on Claude Code 2.1.329 with a
+headless session, on startup and on --resume. The markers live outside every
+project (one window may visit several), in
+${BENDIT_LIVE_DIR:-${XDG_CACHE_HOME:-~/.cache}/bendit/live-sessions}; markers
+older than 30 days are removed. No id, or no marker: never "live".
+
 Exit (table mode): 0 every hook answered, 1 something is OFF or unchecked.
 """
 import json
@@ -37,6 +51,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 sys.dont_write_bytecode = True
@@ -283,7 +298,66 @@ def features_report(given):
     return 0
 
 
+LIVE_STALE = 30 * 86400
+
+
+def live_dir():
+    explicit = os.environ.get('BENDIT_LIVE_DIR')
+    if explicit:
+        return explicit
+    cache = os.environ.get('XDG_CACHE_HOME') or os.path.join(os.path.expanduser('~'), '.cache')
+    return os.path.join(cache, 'bendit', 'live-sessions')
+
+
+def marker_name(sid):
+    """A session id is data from outside: keep it to one safe file name."""
+    if not isinstance(sid, str):
+        return ''
+    return ''.join(c for c in sid.strip() if c.isalnum() or c in '-_')[:64]
+
+
+def mark_live(payload_text):
+    """--hook: Claude Code started bendit's hooks in this session. Never raises:
+    a marker that cannot be written only makes --session say "not live"."""
+    try:
+        payload = json.loads(payload_text or '')
+        name = marker_name(payload.get('session_id') if isinstance(payload, dict) else None)
+        if not name:
+            return
+        d = live_dir()
+        os.makedirs(d, exist_ok=True)
+        cutoff = time.time() - LIVE_STALE
+        for old in os.listdir(d):
+            p = os.path.join(d, old)
+            try:
+                if os.path.isfile(p) and os.path.getmtime(p) < cutoff:
+                    os.remove(p)
+            except OSError:
+                pass
+        with open(os.path.join(d, name), 'w') as f:
+            f.write(str(payload.get('source', '')) + '\n')
+    except Exception:  # noqa: BLE001 -- this runs at every session start
+        pass
+
+
+def session_report():
+    sid = os.environ.get('CLAUDE_CODE_SESSION_ID', '')
+    name = marker_name(sid)
+    if not name:
+        print('window: unknown -- Claude Code did not say which window this is '
+              '(CLAUDE_CODE_SESSION_ID is not set), so the marker cannot be looked up')
+        return 3
+    if os.path.isfile(os.path.join(live_dir(), name)):
+        print(f"window: live -- bendit's hooks started in this Claude window (session {sid})")
+        return 0
+    print(f"window: not live -- bendit's hooks did not start in this Claude window (session {sid}): "
+          'it was opened before bendit was set up, or bendit is not installed for this project')
+    return 1
+
+
 def main(argv):
+    if '--session' in argv:
+        return session_report()
     if '--features' in argv:
         i = argv.index('--features')
         if i + 1 < len(argv) and not argv[i + 1].startswith('--'):
@@ -297,7 +371,9 @@ def main(argv):
     if hook:
         try:
             if not sys.stdin.isatty():
-                sys.stdin.read()    # the SessionStart payload; nothing in it changes the check
+                # The SessionStart payload: nothing in it changes the check; its
+                # session_id names this window's marker.
+                mark_live(sys.stdin.read())
         except (OSError, ValueError):
             pass
     results, total = gather()

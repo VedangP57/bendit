@@ -602,11 +602,63 @@ exit 1
 
 git is missing or does not run (it reads and records your changes).
   To install it, bendit would run:
-    sudo pacman -Sy --noconfirm git
+    sudo pacman -S --needed --noconfirm git
   Run that now? [y/N] 
 
 git is required, so bendit cannot go on without it.
 Install it, then run this again.
+
+=== linux, pacman, install fails
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      missing   any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+git is missing or does not run (it reads and records your changes).
+  To install it, bendit would run:
+    sudo pacman -S --needed --noconfirm git
+  Run that now? [y/N] 
+  The install command failed (exit 1), and git is still not ready.
+  Run `sudo pacman -Syu` yourself first (a stale package database), then run this again.
+
+git is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== linux, pacman, no terminal
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      missing   any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+Missing: git
+  git: sudo pacman -S --needed --noconfirm git
+    (if this fails, run `sudo pacman -Syu` yourself first)
+There is no terminal to ask on, so nothing was installed. Run the commands
+above yourself, or run this installer from a terminal.
+
+=== linux dnf, node 18
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+✗ node     18.19.0   20+     drives the browser for a web app
+✓ chrome   found     any     the browser bendit looks at your app with
+
+node is missing or older than 20 (it drives the browser for a web app).
+  bendit cannot install it automatically here. Get Node.js 20 or newer from https://nodejs.org/ (or with nvm).
+  dnf's own nodejs can be older than 20; NodeSource's packages are new enough.
+
+Skipping node: the browser driver will be off, so bendit cannot look at
+your web app until that is installed. Everything else will work.
+
+This folder is not a git repository; /adopt will offer git init.
+This machine is ready. Fetching bendit...
 
 === linux apt, node 18
 exit 0

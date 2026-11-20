@@ -460,7 +460,28 @@ chk "no sudo: exits 1"                  "$EXPECT_CODE" 1
 I="$T/i6p"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/git"
 stub "$I" uname 0 Linux; stub "$I" pacman 0; stub "$I" sudo 0; stub "$I" id 0 1000; printf 'n\n' > "$I/ans"
 BENDIT_TTY="$I/ans" expect_capture "linux, pacman" run_installer "$I"
-chk "pacman: refreshes the database"    "$(nodots "$EXPECT_STDOUT" '^    sudo pacman -Sy --noconfirm git$')" 1
+chk "pacman: installs without a partial upgrade" "$(nodots "$EXPECT_STDOUT" '^    sudo pacman -S --needed --noconfirm git$')" 1
+chk "pacman: never -Sy (a partial upgrade)" "$(nodots "$EXPECT_STDOUT" 'pacman -Sy ')" 0
+I="$T/i6pf"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/git"
+stub "$I" uname 0 Linux; stub "$I" pacman 1; stub "$I" sudo 1; stub "$I" id 0 1000; printf 'y\n' > "$I/ans"
+BENDIT_TTY="$I/ans" expect_capture "linux, pacman, install fails" run_installer "$I"
+chk "pacman failed: the command ran"    "$(callsfor "$I" 'sudo [pacman] [-S] [--needed] [--noconfirm] [git]')" 1
+chk "pacman failed: says to upgrade first" "$(nodots "$EXPECT_STDOUT" 'Run `sudo pacman -Syu` yourself first')" 1
+I="$T/i6pt"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/git"
+stub "$I" uname 0 Linux; stub "$I" pacman 0; stub "$I" sudo 0; stub "$I" id 0 1000
+expect_capture "linux, pacman, no terminal" run_installer "$I"
+chk "pacman, no terminal: lists the command" "$(nodots "$EXPECT_STDOUT" '^  git: sudo pacman -S --needed --noconfirm git$')" 1
+chk "pacman, no terminal: says to upgrade first" "$(nodots "$EXPECT_STDOUT" 'if this fails, run `sudo pacman -Syu` yourself first')" 1
+chk "pacman, no terminal: nothing ran"  "$(callsfor "$I" sudo)$(callsfor "$I" pacman)" 00
+I="$T/i6dn"; sandbox "$I" chmod; ok_tools "$I"; real_python "$I"; real_git "$I"; claude_reads "$I"
+stub "$I" uname 0 Linux; stub "$I" dnf 0; stub "$I" sudo 0; stub "$I" id 0 1000; stub "$I" node 0 "v18.19.0"
+printf '{"dependencies":{"next":"14"}}\n' > "$I/proj/package.json"; mkdir -p "$I/apps/Google Chrome.app"; printf 'y\n' > "$I/ans"
+KIT_SOURCE="$KIT" TEST_APPS="$I/apps" BENDIT_TTY="$I/ans" expect_capture "linux dnf, node 18" run_installer "$I"
+chk "dnf node: no automatic install"    "$(nodots "$EXPECT_STDOUT" 'dnf install -y nodejs')" 0
+chk "dnf node: nothing ran"             "$(callsfor "$I" sudo)$(callsfor "$I" dnf)" 00
+chk "dnf node: points at nodejs.org"    "$(nodots "$EXPECT_STDOUT" 'nodejs.org')" 1
+chk "dnf node: names NodeSource"        "$(nodots "$EXPECT_STDOUT" "dnf's own nodejs .*NodeSource")" 1
+chk "dnf node: carries on without it"   "$EXPECT_CODE" 0
 I="$T/i6d"; sandbox "$I" chmod; ok_tools "$I"; real_python "$I"; real_git "$I"; claude_reads "$I"
 stub "$I" uname 0 Linux; stub "$I" apt-get 0; stub "$I" sudo 0; stub "$I" id 0 1000; stub "$I" node 0 "v18.19.0"
 printf '{"dependencies":{"next":"14"}}\n' > "$I/proj/package.json"; mkdir -p "$I/apps/Google Chrome.app"; printf 'y\n' > "$I/ans"

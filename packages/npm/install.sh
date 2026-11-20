@@ -261,17 +261,18 @@ install_cmd() {
         return 0
       fi
       # apt's own nodejs is older than NODE_MIN (18 on Ubuntu 24.04 and Debian
-      # 12, 12 on 22.04), so it is no route for node. A fresh image has no
-      # package lists until apt-get update, and pacman's may be stale.
+      # 12, 12 on 22.04), and dnf's can be too (RHEL, Rocky and Alma streams),
+      # so neither is a route for node. A fresh image has no package lists
+      # until apt-get update. pacman -Sy without -u is a partial upgrade, which
+      # Arch does not support, so pacman installs from the database as it is.
       case "$pm:$item" in
         apt-get:python3) say "${s}apt-get update && ${s}apt-get install -y python3" ;;
         apt-get:git)     say "${s}apt-get update && ${s}apt-get install -y git" ;;
         dnf:python3)     say "${s}dnf install -y python3" ;;
         dnf:git)         say "${s}dnf install -y git" ;;
-        dnf:node)        say "${s}dnf install -y nodejs" ;;
-        pacman:python3)  say "${s}pacman -Sy --noconfirm python" ;;
-        pacman:git)      say "${s}pacman -Sy --noconfirm git" ;;
-        pacman:node)     say "${s}pacman -Sy --noconfirm nodejs" ;;
+        pacman:python3)  say "${s}pacman -S --needed --noconfirm python" ;;
+        pacman:git)      say "${s}pacman -S --needed --noconfirm git" ;;
+        pacman:node)     say "${s}pacman -S --needed --noconfirm nodejs" ;;
       esac ;;
   esac
   return 0
@@ -283,12 +284,27 @@ manual_pointer() {
     git)     say "Get git from https://git-scm.com/downloads" ;;
     node)
       say "Get Node.js $NODE_MIN or newer from https://nodejs.org/ (or with nvm)."
-      if [ "$(uname -s)" = Linux ] && command -v apt-get >/dev/null 2>&1; then
-        say "  apt's own nodejs is older than $NODE_MIN; NodeSource's packages are new enough."
+      if [ "$(uname -s)" = Linux ]; then
+        if command -v apt-get >/dev/null 2>&1; then
+          say "  apt's own nodejs is older than $NODE_MIN; NodeSource's packages are new enough."
+        elif command -v dnf >/dev/null 2>&1; then
+          say "  dnf's own nodejs can be older than $NODE_MIN; NodeSource's packages are new enough."
+        fi
       fi ;;
     chrome)  say "Get Chrome from https://www.google.com/chrome/" ;;
     claude)  say "See https://code.claude.com/docs/en/setup" ;;
   esac
+}
+
+# pacman_hint <cmd> [failed] -- a pacman install can fail on a stale database;
+# bendit never upgrades the system for you, so it says how.
+pacman_hint() {
+  case "$1" in *pacman\ *) ;; *) return 0 ;; esac
+  if [ -n "${2:-}" ]; then
+    say "  Run \`sudo pacman -Syu\` yourself first (a stale package database), then run this again."
+  else
+    say "    (if this fails, run \`sudo pacman -Syu\` yourself first)"
+  fi
 }
 
 why_missing() {
@@ -363,6 +379,7 @@ $cmd
   var="FOUND_$item"; now="${!var:-}"; var="NEED_$item"; need="${!var:-}"
   if [ "$rc" != 0 ]; then
     say "  The install command failed (exit $rc), and $item is still not ready."
+    pacman_hint "$cmd" failed
   elif [ -z "$now" ]; then
     say "  $tool said it worked, but $item is still not found."
   elif [ "$now" = "found but did not run" ] || [ "$now" = "stub only" ]; then
@@ -381,7 +398,7 @@ no_terminal() {
   say "Missing: $all"
   for item in $all; do
     cmd="$(install_cmd "$item")"
-    if [ -n "$cmd" ]; then say "  $item: $cmd"; else say "  $item: $(manual_pointer "$item")"; fi
+    if [ -n "$cmd" ]; then say "  $item: $cmd"; pacman_hint "$cmd"; else say "  $item: $(manual_pointer "$item")"; fi
   done
   say "There is no terminal to ask on, so nothing was installed. Run the commands"
   say "above yourself, or run this installer from a terminal."

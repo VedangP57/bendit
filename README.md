@@ -297,8 +297,11 @@ wrong (grant, scaffold, plugin path) and no other number is worth reading.
 
 Multi-session orchestration and database-policy helpers. They exist in the
 private kit this was extracted from but are unproven or stack-specific; each may
-ship later, only with a measured result. (The browser driver and the session
-brief, once listed here, now ship as per-project features, not yet measured.) No GUI, and no support for agents other than Claude Code.
+ship later, only with a measured result. No GUI, and no support for agents
+other than Claude Code.
+
+In v0.2.0 this list also included session-start project briefs and a browser
+driver; both now ship as per-project features (not yet measured).
 
 ## Repository layout
 

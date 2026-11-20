@@ -208,30 +208,46 @@ const statePath = (key, p) => {
   return dest;
 };
 const storageStatePath = scenario.storageState ? statePath('storageState', scenario.storageState) : null;
-const saveStatePaths = new Map();
-for (const step of Array.isArray(scenario.steps) ? scenario.steps : []) {
-  if (!step || typeof step !== 'object' || !('saveState' in step)) continue;
+// Git is asked with a scrubbed environment: GIT_DIR / GIT_CEILING_DIRECTORIES /
+// GIT_WORK_TREE (a git hook sets the first, a test harness the second) make git
+// answer "not a git repository" inside a real one, which would read as "nothing
+// can commit this". LC_ALL=C pins the wording matched below.
+const gitEnv = () => {
+  const e = { ...process.env };
+  for (const k of Object.keys(e)) if (k.startsWith('GIT_')) delete e[k];
+  e.LC_ALL = 'C'; e.LANG = 'C';
+  return e;
+};
+// Confines the path and confirms git would not commit it. Fail CLOSED: allowed only
+// when git says the path is ignored (0), or says the folder is genuinely outside
+// any repository. A missing git, or git failing for any other reason, is "could
+// not confirm", not "fine". Run at start-up AND again right before the write.
+const checkSaveState = (step, when = '') => {
   const dest = statePath('saveState', step.saveState);
-  // Fail CLOSED: allowed only when git says the path is ignored (0), or says the
-  // folder is genuinely outside any repository (nothing can commit it). A missing
-  // git, or git failing for any other reason, is "could not confirm", not "fine".
+  const tag = when ? ` (${when})` : '';
   const gitText = (r) => (r.error ? r.error.code === 'ENOENT' ? 'git not found' : r.error.message
     : String(r.stderr || '').trim().split('\n')[0] || `git exited ${r.status}`);
-  const refuse = (why) => die(`REFUSING saveState ${step.saveState}: could not confirm ${dest} is git-ignored: ${why}. `
+  const refuse = (why) => die(`REFUSING saveState ${step.saveState}${tag}: could not confirm ${dest} is git-ignored: ${why}. `
     + 'A saved login is a credential; fix git, or save under fixtures/auth-state/ once git works.');
-  const ig = spawnSync('git', ['-C', scenarioDir, 'check-ignore', '-q', dest], { encoding: 'utf8' });
+  const opts = { encoding: 'utf8', env: gitEnv() };
+  const ig = spawnSync('git', ['-C', scenarioDir, 'check-ignore', '-q', dest], opts);
   if (ig.status === 1) {
-    die(`REFUSING saveState ${step.saveState}: ${dest} is not git-ignored, so git would commit `
+    die(`REFUSING saveState ${step.saveState}${tag}: ${dest} is not git-ignored, so git would commit `
       + 'the saved login. Save it under fixtures/auth-state/ (the scaffold ignores that folder), '
       + 'or add the path to .gitignore.');
   }
   if (ig.status !== 0) {
     if (ig.error || ig.status === null) refuse(gitText(ig));
-    const rp = spawnSync('git', ['-C', scenarioDir, 'rev-parse', '--is-inside-work-tree'], { encoding: 'utf8' });
+    const rp = spawnSync('git', ['-C', scenarioDir, 'rev-parse', '--is-inside-work-tree'], opts);
     const notRepo = !rp.error && rp.status !== null && rp.status !== 0 && /not a git repository/i.test(String(rp.stderr || ''));
     if (!notRepo) refuse(gitText(ig.status === 128 && String(ig.stderr || '').trim() ? ig : rp));
   }
-  saveStatePaths.set(step, dest);
+  return dest;
+};
+const saveStatePaths = new Map();
+for (const step of Array.isArray(scenario.steps) ? scenario.steps : []) {
+  if (!step || typeof step !== 'object' || !('saveState' in step)) continue;
+  saveStatePaths.set(step, checkSaveState(step));
 }
 
 // --- the browser, BEFORE the previous evidence is touched -------------------------
@@ -444,7 +460,8 @@ try {
         // workspace). Minting a token is not enough for an app whose gate is
         // downstream of it; the only honest way to get that state is to
         // complete the real ceremony once and keep the result.
-        const dest = saveStatePaths.get(step);
+        // Re-checked: a slow login can outlast a .gitignore edit made since start-up.
+        const dest = checkSaveState(step, 'checked again before writing');
         mkdirSync(dirname(dest), { recursive: true });
         await ctx.storageState({ path: dest });
         record(i, step, 'ok', dest);

@@ -308,9 +308,41 @@ chk "saveState when git exits 128 (dubious ownership) refused" "$(drive_path "$F
 has "  ...saying it could not confirm" "could not confirm" "$(cat "$W/ss8.log")"
 has "  ...quoting git's error" "dubious ownership" "$(cat "$W/ss8.log")"
 NR="$W/norepo"; mkdir -p "$NR/sc"; cp "$ST/page.html" "$NR/sc/page.html"
+if git -C "$NR" rev-parse >/dev/null 2>&1; then
+  printf '  FAIL  precondition: %s is inside a git repository, so the not-a-repo case cannot be tested (set TMPDIR to a folder outside any repo)\n' "$NR"; fail=$((fail+1))
+fi
 printf '{"name":"nr","steps":[{"goto":"/page.html"},{"saveState":"user.json"}]}\n' > "$NR/sc/nr.json"
 chk "saveState in a folder that is not in any git repository allowed" "$(drive "$W/ss9.log" "$NR" sc/nr.json --base "file://$NR/sc" --out "$W/out-ss9")" "0"
 chk "saveState to a git-ignored path in a repo allowed (control)" "$(drive "$W/ss10.log" "$G" sc/ignored.json --base "file://$G/sc" --out "$W/out-ss10")" "0"
+# The ambient git environment must not decide the answer: a hook sets GIT_DIR,
+# a harness sets GIT_CEILING_DIRECTORIES, and either makes git say "not a repository".
+gdrive() { local log="$1" cwd="$2"; shift 2; (cd "$cwd" && env -u PORT "$@" node "$DRIVE" "${GARGS[@]}" >"$log" 2>&1); echo $?; }
+GARGS=(sc/ignored.json --base "file://$G/sc" --out "$W/out-ss11")
+chk "ignored path, GIT_DIR=<nonexistent> in the environment: still allowed" "$(gdrive "$W/ss11.log" "$G" GIT_DIR="$W/nonexist")" "0"
+GARGS=(sc/open.json --base "file://$G/sc" --out "$W/out-ss12")
+chk "un-ignored path, GIT_DIR=<nonexistent>: still refused" "$(gdrive "$W/ss12.log" "$G" GIT_DIR="$W/nonexist")" "2"
+has "  ...because git would commit it" "git would commit" "$(cat "$W/ss12.log")"
+GARGS=(sc/open.json --base "file://$G/sc" --out "$W/out-ss13")
+chk "un-ignored path, GIT_CEILING_DIRECTORIES=<repo root>: still refused" "$(gdrive "$W/ss13.log" "$G" GIT_CEILING_DIRECTORIES="$G")" "2"
+has "  ...because git would commit it" "git would commit" "$(cat "$W/ss13.log")"
+GARGS=(sc/open.json --base "file://$G/sc" --out "$W/out-ss14")
+chk "un-ignored path, GIT_DIR= (empty): still refused" "$(gdrive "$W/ss14.log" "$G" GIT_DIR=)" "2"
+GARGS=(sc/ignored.json --base "file://$G/sc" --out "$W/out-ss15")
+chk "ignored path, GIT_CEILING_DIRECTORIES=<repo root>: still allowed" "$(gdrive "$W/ss15.log" "$G" GIT_CEILING_DIRECTORIES="$G")" "0"
+
+# The check is repeated at write time: .gitignore removed after the start-up check
+# (a slow login can take minutes) must stop the write.
+R="$W/raceproj"; mkdir -p "$R/sc/fixtures/auth-state"; git -C "$R" init -q; cp "$ST/page.html" "$R/sc/page.html"
+printf '*\n' > "$R/sc/fixtures/auth-state/.gitignore"
+printf '{"name":"race","steps":[{"goto":"/page.html"},{"waitMs":100},{"waitMs":4000},{"saveState":"fixtures/auth-state/user.json"}]}\n' > "$R/sc/race.json"
+(cd "$R" && env -u PORT node "$DRIVE" sc/race.json --base "file://$R/sc" --out "$W/out-ss16" >"$W/ss16.log" 2>&1; echo $? > "$W/ss16.code") &
+RP=$!
+for _ in $(seq 1 100); do grep -q "waitMs" "$W/ss16.log" 2>/dev/null && break; /bin/sleep 0.2; done
+rm -f "$R/sc/fixtures/auth-state/.gitignore"
+wait "$RP"
+chk "saveState refused when .gitignore vanished after the start-up check" "$(cat "$W/ss16.code")" "2"
+has "  ...by the write-time re-check" "before writing" "$(cat "$W/ss16.log")"
+chk "  ...and nothing was written" "$([ -e "$R/sc/fixtures/auth-state/user.json" ] && echo y || echo n)" "n"
 
 # --- step names are filenames: they must not climb out of the evidence dir.
 echo

@@ -72,6 +72,8 @@ the scenario's baseUrl, then this checkout's port in bendit's registry. None
 of them is exit 2: there is no default port.
 
 Rules: "steps" must be non-empty; expectNotVisible means NO match is visible;
+storageState and saveState are relative to the scenario's folder and must stay
+inside it, and a saveState git would commit is refused (a login is a credential);
 screenshot/snapshot names are reduced to one filename segment; --out must be
 inside the working directory or the temp dir, and is replaced on every run.
 
@@ -186,6 +188,38 @@ const inside = (child, parent) => { const r = relative(parent, child); return !!
   if (existsSync(out) && readdirSync(out).length && !existsSync(join(out, OUT_MARKER))) {
     refuse(`it already holds files and no ${OUT_MARKER} marker, so a drive run did not make it`);
   }
+}
+
+// --- saved logins: beside the scenario, and never where git would commit them ---
+// storageState and saveState hold a session: cookies and tokens, a credential.
+// Both resolve against the scenario file's folder, as baselines do, so the
+// same scenario reads and writes the same file whatever the cwd. A path that
+// leaves that folder is refused, and so is a saveState that git would commit
+// (the scaffold git-ignores scenarios/fixtures/auth-state/). Checked before
+// the browser starts, so a refused scenario touches nothing.
+const scenarioDir = dirname(resolve(scenarioPath));
+const statePath = (key, p) => {
+  if (typeof p !== 'string' || !p) die(`REFUSING ${key} ${JSON.stringify(p)}: it must be a path`);
+  const dest = resolve(scenarioDir, p);
+  if (!inside(real(dest), real(scenarioDir))) {
+    die(`REFUSING ${key} ${p}: it resolves to ${dest}, outside the scenario's folder ${scenarioDir}. `
+      + 'A saved login is a credential: keep it under the scenario\'s folder (fixtures/auth-state/ is git-ignored there).');
+  }
+  return dest;
+};
+const storageStatePath = scenario.storageState ? statePath('storageState', scenario.storageState) : null;
+const saveStatePaths = new Map();
+for (const step of Array.isArray(scenario.steps) ? scenario.steps : []) {
+  if (!step || typeof step !== 'object' || !('saveState' in step)) continue;
+  const dest = statePath('saveState', step.saveState);
+  const ig = spawnSync('git', ['-C', scenarioDir, 'check-ignore', '-q', dest], { encoding: 'utf8' });
+  // 0 ignored; 1 not ignored; 128 not a git repository (nothing can commit it).
+  if (ig.status === 1) {
+    die(`REFUSING saveState ${step.saveState}: ${dest} is not git-ignored, so git would commit `
+      + 'the saved login. Save it under fixtures/auth-state/ (the scaffold ignores that folder), '
+      + 'or add the path to .gitignore.');
+  }
+  saveStatePaths.set(step, dest);
 }
 
 // --- the browser, BEFORE the previous evidence is touched -------------------------
@@ -304,7 +338,7 @@ const locate = (page, sel) => {
 let failed = false;
 try {
   const ctx = await browser.newContext(
-    scenario.storageState ? { storageState: scenario.storageState } : {}
+    storageStatePath ? { storageState: storageStatePath } : {}
   );
   const page = await ctx.newPage();
 
@@ -398,7 +432,7 @@ try {
         // workspace). Minting a token is not enough for an app whose gate is
         // downstream of it; the only honest way to get that state is to
         // complete the real ceremony once and keep the result.
-        const dest = resolve(step.saveState);
+        const dest = saveStatePaths.get(step);
         mkdirSync(dirname(dest), { recursive: true });
         await ctx.storageState({ path: dest });
         record(i, step, 'ok', dest);

@@ -263,6 +263,37 @@ chk "goto 200 with expectStatus 404 fails" "$(drive "$W/g200bad.log" "$W" g200ba
 chk "goto 200 passes (control)" "$(drive "$W/g200.log" "$W" g200.json --base "$H" --out "$W/out-g200")" "0"
 kill "$SRV" 2>/dev/null; wait "$SRV" 2>/dev/null; SRV=""
 
+# --- saved logins: resolved against the scenario's folder, never outside it,
+# and never somewhere git would commit. The fixture .gitignore is the one the
+# scaffold writes (scaffold-verification-skill.test.sh checks it does).
+echo
+echo "SAVED STATE (a login is a credential)"
+G="$W/stateproj"; mkdir -p "$G/sc/fixtures/auth-state"; git -C "$G" init -q
+cp "$ST/page.html" "$G/sc/page.html"
+printf '%s\n' '# saveState writes logins here: credentials, never committed.' '*' '!.gitignore' > "$G/sc/fixtures/auth-state/.gitignore"
+sstate() { printf '{"name":"%s","steps":[{"goto":"/page.html"},{"saveState":"%s"}]}\n' "$1" "$2" > "$G/sc/$1.json"; }
+sstate save fixtures/auth-state/user.json
+chk "saveState relative to the scenario's folder (run from the repo root)" "$(drive "$W/ss1.log" "$G" sc/save.json --base "file://$G/sc" --out "$W/out-ss1")" "0"
+chk "  ...landed beside the scenario" "$([ -s "$G/sc/fixtures/auth-state/user.json" ] && echo y || echo n)" "y"
+chk "  ...not under the working directory" "$([ -e "$G/fixtures" ] && echo y || echo n)" "n"
+chk "  ...and git ignores it" "$(git -C "$G" check-ignore -q sc/fixtures/auth-state/user.json && echo ignored || echo tracked)" "ignored"
+printf '{"name":"use","storageState":"fixtures/auth-state/user.json","steps":[{"goto":"/page.html"}]}\n' > "$G/sc/use.json"
+chk "storageState is read from the scenario's folder too (run from elsewhere)" "$(drive "$W/ss2.log" "$W" "$G/sc/use.json" --base "file://$G/sc" --out "$W/out-ss2")" "0"
+sstate up ../escaped.json
+chk "saveState outside the scenario's folder refused" "$(drive "$W/ss3.log" "$G" sc/up.json --base "file://$G/sc" --out "$W/out-ss3")" "2"
+has "  ...saying why" "REFUSING saveState" "$(cat "$W/ss3.log")"
+chk "  ...and nothing was written there" "$([ -e "$G/escaped.json" ] || [ -e "$W/escaped.json" ] && echo y || echo n)" "n"
+sstate abs "$W/abs-state.json"
+chk "an absolute saveState outside the folder refused" "$(drive "$W/ss4.log" "$G" sc/abs.json --base "file://$G/sc" --out "$W/out-ss4")" "2"
+chk "  ...and nothing was written there" "$([ -e "$W/abs-state.json" ] && echo y || echo n)" "n"
+printf '{"name":"useup","storageState":"../user.json","steps":[{"goto":"/page.html"}]}\n' > "$G/sc/useup.json"
+chk "storageState outside the scenario's folder refused" "$(drive "$W/ss5.log" "$G" sc/useup.json --base "file://$G/sc" --out "$W/out-ss5")" "2"
+has "  ...saying why" "REFUSING storageState" "$(cat "$W/ss5.log")"
+sstate open plain-user.json
+chk "saveState where git would commit it refused" "$(drive "$W/ss6.log" "$G" sc/open.json --base "file://$G/sc" --out "$W/out-ss6")" "2"
+has "  ...saying git would commit it" "git would commit" "$(cat "$W/ss6.log")"
+chk "  ...and nothing was written" "$([ -e "$G/sc/plain-user.json" ] || [ -e "$G/plain-user.json" ] && echo y || echo n)" "n"
+
 # --- step names are filenames: they must not climb out of the evidence dir.
 echo
 echo "EVIDENCE DIR GUARDS"

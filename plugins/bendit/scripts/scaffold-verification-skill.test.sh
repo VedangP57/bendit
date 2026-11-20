@@ -70,6 +70,12 @@ has "  ...documenting the loopback rule" "loopback" "$(cat "$R/.env.verify.examp
 has "  ...and that PORT comes from the registry, not the file" "PORT" "$(cat "$R/.env.verify.example" 2>/dev/null)"
 SC="$R/.claude/skills/verify-repo/scenarios"
 chk "a smoke scenario is generated" "$([ -f "$SC/smoke.sh" ] && echo y)" "y"
+# saveState writes a login (a credential) under scenarios/fixtures/auth-state/:
+# git must ignore what lands there, and commit the rule that ignores it.
+chk "a saved login under scenarios/fixtures/auth-state/ is git-ignored" "$(git -C "$R" check-ignore -q "$SC/fixtures/auth-state/user.json" && echo ignored || echo tracked)" "ignored"
+chk "  ...by a .gitignore git would commit" "$([ -f "$SC/fixtures/auth-state/.gitignore" ] && ! git -C "$R" check-ignore -q "$SC/fixtures/auth-state/.gitignore" && echo committed || echo no)" "committed"
+chk "  CONTROL: a scenario beside it is not ignored" "$(git -C "$R" check-ignore -q "$SC/smoke.sh" && echo ignored || echo tracked)" "tracked"
+has "  ...and SKILL.md says where saved logins go" "fixtures/auth-state/" "$(cat "$R/.claude/skills/verify-repo/SKILL.md")"
 doc()  ( cd "$R" && PORT="$PORT" "$V" doctor 2>&1 )
 drv()  ( cd "$R" && PORT="$PORT" "$V" drive "$@" 2>&1; echo "rc=$?" )
 ENVF="$R/.env.verify.local"
@@ -385,8 +391,10 @@ echo
 echo "REFUSALS"
 o=$(bash "$SCAF" "$L" 2>&1; echo "rc=$?"); has "an existing harness is not overwritten without --force" "already exists" "$o"; has "  ...exit 2" "rc=2" "$o"
 printf '. "$PROBE"\nexpect_ok /\n' > "$R/.claude/skills/verify-repo/scenarios/mine.sh"
+printf 'admin.json\n' >> "$R/.claude/skills/verify-repo/scenarios/fixtures/auth-state/.gitignore"
 bash "$SCAF" "$R" --force >/dev/null 2>&1
 chk "--force regenerates but KEEPS the user's scenarios" "$([ -f "$R/.claude/skills/verify-repo/scenarios/mine.sh" ] && echo kept)" "kept"
+chk "  ...and the user's auth-state .gitignore" "$(grep -c '^admin.json$' "$R/.claude/skills/verify-repo/scenarios/fixtures/auth-state/.gitignore")" "1"
 o=$(bash "$SCAF" "$NG" 2>&1; echo "rc=$?"); has "a folder outside git is refused" "not inside a git repository" "$o"; has "  ...exit 2" "rc=2" "$o"
 o=$(bash "$SCAF" "$R" --kind banana 2>&1; echo "rc=$?"); has "a bad --kind is refused" "rc=2" "$o"
 o=$(bash "$SCAF" 2>&1; echo "rc=$?"); has "no repo path prints usage" "usage: scaffold-verification-skill.sh" "$o"

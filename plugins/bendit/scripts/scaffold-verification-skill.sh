@@ -1021,6 +1021,15 @@ PROBEEOF
       printf 'expect_ok %s\n' "$SMOKE_PATH"
     } > "$SK/scenarios/smoke.sh"
   fi
+  # After the smoke (which is written only into an empty scenarios/).
+  # A browser scenario's saveState is a login (cookies, tokens): a credential.
+  # drive.mjs refuses one git would commit; this folder is where it can go.
+  # Committed, ignoring all but itself; kept on --force, the user may add to it.
+  if [ ! -f "$SK/scenarios/fixtures/auth-state/.gitignore" ]; then
+    mkdir -p "$SK/scenarios/fixtures/auth-state"
+    printf '%s\n' '# saveState writes logins here: credentials, never committed.' '*' '!.gitignore' \
+      > "$SK/scenarios/fixtures/auth-state/.gitignore"
+  fi
 
   FW="${FRAMEWORKS:-unknown framework}"
   cat > "$SK/SKILL.md" <<MDEOF
@@ -1090,7 +1099,10 @@ the same app on the same port. One name is one scenario: a \`<name>.sh\` and a
 Steps: \`goto\` (HTTP >= 400 fails unless \`expectStatus\` names it), \`click\`,
 \`fill\`, \`press\`, \`expectVisible\`, \`expectNotVisible\`, \`expectText\`,
 \`screenshot\`, \`snapshot\` (compared with a committed baseline in
-\`<name>.json.baselines/\`), \`saveState\`, \`evalJs\`, \`waitMs\`. Address elements
+\`<name>.json.baselines/\`), \`saveState\`, \`evalJs\`, \`waitMs\`. A saved login
+(\`saveState\`, read back with a top-level \`storageState\`) is a credential: give a
+path under \`fixtures/auth-state/\`, which is git-ignored; both resolve against
+\`scenarios/\` and a path outside it, or one git would commit, is refused. Address elements
 by role, label and text, never by CSS class. It needs Node, Chrome (or the
 browser \`BENDIT_BROWSER_CHANNEL\` names) and Playwright, which is installed once
 per machine, outside this repo: \`bash <bendit>/scripts/drive-setup.sh\`

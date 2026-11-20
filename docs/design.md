@@ -9,7 +9,7 @@ An open-source Claude Code plugin that lets anyone give their coding agent a
 method for growing their own rules from their own mistakes and measuring whether
 each rule works.
 
-It is extracted from a private kit used daily across one person's portfolio. The
+It is extracted from a private kit used daily across one person's projects. The
 private kit stays private; this repo holds only the generic, tested core plus the
 tools to adapt it.
 
@@ -45,12 +45,15 @@ gate in this kit fails closed and refuses to report success on empty input.
 
 ## Non-goals (v1)
 
-- Multi-session orchestration, a browser driver, database (Supabase/RLS) helpers.
-  They exist privately but are unproven or stack-specific. They may ship later,
-  each only with a measured result. (v2 adds a SessionStart self-check,
+- Multi-session orchestration, database (Supabase/RLS) helpers. They exist
+  privately but are unproven or stack-specific. They may ship later, each only
+  with a measured result. (v2 adds a SessionStart self-check,
   `scripts/selfcheck.py`, which only test-fires the guards and stays silent when
-  they work; the session brief, `scripts/session-brief.py`, ships per project,
-  off unless `.claude/bendit.json` turns `session-brief` on, not yet measured.)
+  they work. Two pieces once listed here now ship per project, each off unless
+  `.claude/bendit.json` turns it on, neither yet measured: the session brief,
+  `scripts/session-brief.py`, and the real-browser driver, `lib/drive/drive.mjs`,
+  whose one dependency, Playwright, `scripts/drive-setup.sh` installs into the
+  cache folder, never into a project.)
 - Supporting non-Claude-Code agents.
 - A GUI.
 
@@ -78,9 +81,11 @@ gate in this kit fails closed and refuses to report success on empty input.
 ```
 bendit/
   README.md                         public intro, quickstart, evidence, ladder
+  install.sh                        one-command installer: check, ask, fetch to cache, hand over to /adopt
+  packages/npm, packages/pypi       `npx bendit`, `pipx run bendit` wrappers (packages/sync.sh copies install.sh)
   LICENSE                           MIT, "Bendit contributors"
   .claude-plugin/marketplace.json
-  .github/workflows/ci.yml, ci.sh   stages: shell imports privacy validate test
+  .github/workflows/ci.yml, ci.sh   stages: shell imports privacy validate test, over every plugins/*/
   docs/design.md                    this file
   docs/ladder.md                    the method + generic failure classes F1..F12
   plugins/bendit/
@@ -105,17 +110,23 @@ bendit/
       probes.py                     one known-bad payload per hook (prove.sh, selfcheck)
       selfcheck.py                  SessionStart: test-fires every guard, loud only if one is off
       session-brief.py              SessionStart startup|clear: where the repo stands, when bendit.json turns session-brief on
+      features.py                   the one reader and writer of .claude/bendit.json
+      check-plan.py, check-mod-imports.py  advisory notes run inside post-edit-review.py
+      controlled-vocabulary.py      /vocabulary; no hook runs it
+      drive-setup.sh                installs Playwright for lib/drive into the cache
       *.test.sh, *.expected
+    lib/drive/                      drive.mjs (real-browser scenarios) + selftest/
     skills/
       adopt-bendit/SKILL.md + references/*.md
       checks-that-can-lie, encode-lessons-in-structure,
-      engineering-habits, create-verification-skill
-    commands/ adopt.md, ship.md, review-diff.md, verify.md, new-guard.md, doctor.md
+      engineering-habits, create-verification-skill, blast-radius
+    commands/ adopt.md, ship.md, review-diff.md, verify.md, new-guard.md, doctor.md, vocabulary.md
     templates/
       guard/guard.py, guard.test.sh  copy-and-edit starting point
       AGENTS.md                       project rules skeleton (ladder-ordered)
       verify-harness                  .claude/verify-harness example
     evals/ README.md (method), blocks-dangerous-bash/ example case
+  plugins/bendit-web/               add-on, installed per project by /adopt: skills/ux-design-laws
 ```
 
 ## Configuration (plugin.json userConfig)
@@ -156,6 +167,10 @@ without a hand-run command; only a failed allocation refuses.
 3. **Install**: plugin via marketplace if reachable; else vendor `plugins/bendit`
    into the project's `.claude/vendor/bendit/` and record the source and
    commit in `VENDORED_FROM` beside it.
+   **Features** (3b): print the detected features, ask before installing each
+   missing dependency (Chrome, Node, Playwright, the `bendit-web` add-on; a no
+   turns that feature off, never stops adoption), then write every feature to
+   `.claude/bendit.json` in one `features.py` chain.
 4. **Build the project layer**: `.claude/verify-harness`, AGENTS.md from template
    (ladder-ordered, short), verify skill via scaffold-verification-skill.sh if the
    project has a runnable app, CI workflow if absent.
@@ -163,7 +178,8 @@ without a hand-run command; only a failed allocation refuses.
    every hook in hooks.json gets a known-bad payload (exit 2, stderr naming
    bendit) and a known-good one (exit 0), the Stop gate is dry-run in a
    throwaway repo, the project's harness is run; it prints check | result |
-   evidence rung. Then one live, in-session probe (a harmless force push) whose
+   evidence rung; a feature that is on is run (FAIL if it does not work), one
+   that is off is UNUSED. Then one live, in-session probe (a harmless force push) whose
    refusal must name bendit; another kit refusing first is
    "inconclusive". Refuse to call adoption done if any check fails.
 6. **Hand over**: a short report: what is enforced, what is advice, what was not

@@ -50,9 +50,11 @@ When you report what you verified, use the evidence rungs:
 
 ## Releasing
 
-1. Bump the version in all four places, to the same value: `BENDIT_VERSION` in
-   `install.sh`, `version` in `plugins/bendit/.claude-plugin/plugin.json`,
-   `packages/npm/package.json` and `packages/pypi/pyproject.toml`.
+1. Bump the version in all five places, to the same value: `BENDIT_VERSION` in
+   `install.sh`, `version` in `plugins/bendit/.claude-plugin/plugin.json` and
+   `plugins/bendit-web/.claude-plugin/plugin.json`, `packages/npm/package.json`
+   and `packages/pypi/pyproject.toml` (`scripts/packages.test.sh` fails if they
+   differ).
 2. Run `packages/sync.sh` (copies `install.sh` into both wrappers) and commit.
 3. `bash .github/workflows/ci.sh` must end `CI passed: ...`.
 4. Tag `vX.Y.Z`, then push main and the tag together:

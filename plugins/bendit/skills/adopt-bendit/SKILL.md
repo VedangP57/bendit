@@ -127,10 +127,16 @@ FEATURES (.claude/bendit.json)    | on/off | why             | measured?
 
 ENFORCED (refuses, exit 2)        | proved by
 <guard>                           | prove.sh rows + live check
+ls guard (if ls-guard is on)      | prove.sh feature: ls-guard row; not yet measured
 Stop gate + .claude/verify-harness| prove.sh Stop gate + harness rows
+browser scenarios (if the harness runs verify and browser-driver is on) | prove.sh feature: browser-driver row; not yet measured
 
-ADVICE (skills/commands; the agent may ignore them)
+ADVICE (skills/commands/notes; the agent may ignore them)
 <skill or command>                | when it applies
+session brief (if on)             | session start; never blocks; not yet measured
+plan and import notes             | after an edit to a plan or a mod's .ts; not yet measured
+blast-radius                      | auth, payments, policies, migrations, secrets, webhooks; not yet measured
+ux-design-laws (bendit-web)       | UI work, only where the add-on is installed; not yet measured
 /vocabulary                       | on request; no hook runs it; not yet measured
 
 NOT POSSIBLE HERE, AND WHY

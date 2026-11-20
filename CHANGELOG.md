@@ -4,22 +4,95 @@ All notable changes. Dates are UTC.
 
 ## [Unreleased]
 
+Nothing below has an eval result yet: every new piece is *not yet measured*.
+
 ### Added
-- **One-command installer** (`install.sh`; macOS and Linux). Checks the machine,
-  asks before every install (default no, no `--yes`), fetches bendit at the
-  matching release tag into the cache folder and starts Claude Code on
-  `/adopt`. Writes nothing in the project. Flags `--check`, `--version`,
-  `--help`; settings `BENDIT_SOURCE`, `BENDIT_REF`, `BENDIT_CACHE`; exit codes
-  0, 1, 2.
+- **One-command installer** (`install.sh`; macOS and Linux). Checks the machine
+  (`claude`, `git`, `python3` 3.9+; for a web app also Node 20+ and Google
+  Chrome), asks before every install (default no, no `--yes`), fetches bendit at
+  the matching release tag into the cache folder and starts Claude Code on
+  `/adopt`; with no terminal it prints that command instead. Writes nothing in
+  the project. Flags `--check`, `--version`, `--help`; settings
+  `BENDIT_SOURCE`, `BENDIT_REF`, `BENDIT_CACHE`; exit codes 0, 1, 2.
 - **Wrappers** for the same installer: `npx bendit` (`packages/npm`) and
   `pipx run bendit` / `uvx bendit` (`packages/pypi`), kept identical to
   `install.sh` by `packages/sync.sh`.
-- README quickstart and a release checklist in `CONTRIBUTING.md`.
+- **Per-project features** in `.claude/bendit.json`: `browser-driver`,
+  `ux-design-laws`, `session-brief`, `ls-guard`, each on or off with why.
+  `scripts/features.py` is the one reader and writer; a malformed file
+  (unknown key, wrong type, duplicate key) is an error every reader refuses,
+  never "all off".
+- **ls guard** (`block-ls-parsing.py`, `PreToolUse`): refuses parsing `ls`
+  output (a pipe into a text tool, `$(ls)`, backticks, `<( )`, a `for` list),
+  only where `ls-guard` is on.
+- **Session brief** (`session-brief.py`, `SessionStart` startup and clear):
+  branch, push state, uncommitted files, other worktrees with unfinished work,
+  and only the liveness probes the project's `brief` config lists; only where
+  `session-brief` is on. It never prints URL credentials or a non-URL env
+  value, and every timeout says "timed out".
+- **Real-browser scenarios**: a `scenarios/<name>.json` in a generated verify
+  skill runs in Google Chrome through `lib/drive/drive.mjs`;
+  `scripts/drive-setup.sh` installs Playwright 1.65.1 into
+  `<cache>/drive/<version>/` (never a project, never a browser download;
+  `--check` exits 0 or 1).
+- **`bendit-web` add-on** with the `ux-design-laws` skill, listed in the
+  marketplace; `/adopt` installs it with `--scope project` for a web app.
+- **`blast-radius` skill**, stack-neutral, with `paths:` globs for auth,
+  sessions, secrets, policies, migrations, webhooks, payments, `.env*` and CI
+  workflows.
+- **Controlled vocabulary** (`controlled-vocabulary.py`, `/vocabulary`):
+  reports inflated wording, requirements phrased as advice and completion
+  claims with no observation; no hook runs it.
+- **Plan linter and missing-import notes** (`check-plan.py`,
+  `check-mod-imports.py`), run inside the post-edit review as notes, never a
+  block.
+- README "Features" section, quickstart, and a release checklist in
+  `CONTRIBUTING.md`.
+
+### Changed
+- **`/adopt`** gains step 3b: detect the features (detect.md §8), ask before
+  each missing dependency (Chrome, Node, Playwright, `bendit-web`), and write
+  every feature to `.claude/bendit.json` in one chained `features.py` call. A
+  "no" turns that feature off with why `you declined <it>`; it never stops
+  adoption. The report lists the features and every new piece.
+- **`prove.sh`** gives each feature a row: PASS or FAIL when it is on (each is
+  run: the driver's selftest in a real browser, `claude plugin list --json`
+  for the add-on in this project, the ls guard on `ls | wc -l`, the brief
+  naming the branch), UNUSED when it is off, which is not a failure. The
+  privacy row also scans `.claude/bendit.json`.
+- **`/doctor`** prints the features table (`selfcheck.py --features`) and warns
+  when `bendit-web` is enabled at user scope.
+- **CI** validates and budget-checks every `plugins/*/`; the shell stage runs
+  suites in parallel (half the CPUs, `BENDIT_CI_JOBS`), the suites that bind
+  ports or run Chrome one at a time after it, each killed with what it started
+  at `BENDIT_CI_SUITE_TIMEOUT` (default 240 s). GitHub CI installs Playwright
+  with `drive-setup.sh` and checks Chrome is present.
+- The Bash guard refuses setting `BENDIT_TTY` (pre-answering the installer).
+
+### Fixed
+- The import check times out (5 s) before its hook does (10 s), so a hung
+  checker no longer loses the band-aid notes with it.
+- A malformed `bendit.json` makes the ls guard refuse only what it would
+  refuse anyway, not every Bash call.
+- The installer never runs macOS's `/usr/bin` git and python3 stubs (each run
+  opens Apple's dialog), has no apt route for Node (apt's is below 20), and
+  counts only Google Chrome: Chromium cannot be driven.
 
 ### Not yet seen in a live session
 - The installer has not been run from GitHub or the registries: the repo is
   private, so the curl URL, `npx bendit` and `pipx run bendit` do not work for
-  anyone yet.
+  anyone yet. It was run from a local clone (`BENDIT_SOURCE`) with no
+  terminal, on a Next.js-shaped, a Python and a Go throwaway project.
+- `/adopt`'s interactive flow has not been driven end to end by a person: its
+  headless parts (the detect.md §8 commands, the `features.py` chain,
+  `prove.sh`) were run by hand on those three projects.
+- `prove.sh`'s `ux-design-laws` PASS path (an entry with `projectEnabled` true
+  for this project) has been seen only with stubbed `claude plugin list`
+  output; `bendit-web` has not been installed into a real project.
+- That Claude Code offers `blast-radius` from its skill `paths:` globs is
+  assumed, not observed.
+- That the session brief, the ls guard and the plan and import notes reach the
+  agent in a real session (each was tested by running its hook).
 
 ## [0.2.0] - 2026-11-19
 

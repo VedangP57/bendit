@@ -97,17 +97,50 @@ the layer that holds it, are in [docs/ladder.md](docs/ladder.md).
 | **Enforced** | parsing the output of `ls` (a pipe into `wc`, `$(ls)`, a `for` list), only in a project whose `.claude/bendit.json` turns `ls-guard` on because `ls` there is a formatting alias or function; not yet measured | `PreToolUse` hook, exit 2 |
 | **Enforced** | edits to files named `*.gen.*`; allocations in `*.hot.*` files | `PreToolUse` hook, exit 2 (opt in by file name) |
 | **Enforced** | ending a turn that edited code without running the project's verification command | `Stop` hook runs `.claude/verify-harness`; an escape exists and is always shown to you |
+| **Enforced** | a web app's behaviour in a real browser: a `scenarios/<name>.json` in the generated verify skill is run in Google Chrome by `lib/drive/drive.mjs` (Playwright 1.65.1, which `scripts/drive-setup.sh` installs into bendit's cache, never into the project; no browser is downloaded); only as far as your harness runs the verify skill's `verify`; not yet measured | the Stop gate runs the harness, `verify` runs every scenario, and a failing scenario fails the harness |
 | Check | that every guard can still run and refuse (python3 missing, a folder macOS made unreadable, a broken install) | `SessionStart` hook: silent when healthy; otherwise tells you and the agent which guards are off and how to fix it. Run `/doctor` any time |
 | Advice | a session-start brief: branch, push state, uncommitted files, other worktrees with unfinished work, and only the liveness probes the project lists; only in a project whose `.claude/bendit.json` turns `session-brief` on; not yet measured | `SessionStart` hook (startup and clear); it never blocks, and a malformed config is an alarm in the brief |
 | Advice | after an edit: a plan under `docs/superpowers/plans/` is linted for the sections and task shape the plan format requires; a TypeScript module in a plugin mod (a directory holding `hooks.json`) is checked for a sibling export it uses but never imports; not yet measured | `PostToolUse` hook, folded into the post-edit review; a note to the agent, never a block, and a crash in either check yields no note |
 | Advice | band-aid patterns in edits, suppressed stderr | `PostToolUse` hooks: they speak after the tool ran and cannot block |
 | Advice | skills: `checks-that-can-lie`, `encode-lessons-in-structure`, `engineering-habits` | loaded when relevant; the agent may ignore them |
+| Advice | skill `blast-radius`: before a change to auth, payments, database policies, migrations, secrets, webhooks or customer data, map what else it reaches and state the evidence rung of each claim; not yet measured | its `paths:` globs (auth, session, secrets, policies, migrations, webhooks, payments, `.env*`, CI workflows) tell Claude Code when it applies; the agent may ignore it |
+| Advice | skill `ux-design-laws`, in the add-on `bendit-web`: UX laws applied to any interface the agent builds or reviews; not yet measured | only in a project where `/adopt` installed `bendit-web` with `--scope project` (a web app); the agent may ignore it |
 | Advice | a controlled vocabulary for agent prose (`scripts/controlled-vocabulary.py`, `/vocabulary`): flags inflated wording, requirements phrased as advice, and completion claims that name no observation; nothing runs it unless you do, and no hook is wired; not yet measured | `/vocabulary` or `--check FILE` in your own CI; it reports and never blocks |
 | Advice | commands: `/ship`, `/review-diff`, `/verify`, `/doctor`, `/vocabulary` | checklists the agent runs when asked |
 
 Guards read shell commands with a small lexer, so a rule asks about the command
 that would actually run (through `sudo`, `env`, `bash -c`, `xargs`…), and quoted
 text such as a commit message never trips one.
+
+## Features (per project)
+
+Four pieces are optional, and each project gets only the ones that fit it.
+`/adopt` detects them, asks before installing anything a feature needs, and
+records the result in `.claude/bendit.json` (committed, so the team shares it),
+one line per feature: on or off, and why, citing what it found
+(`package.json:6 next`, `type ls in zsh: ls is a shell function`).
+
+| feature | what it does | `/adopt` turns it on when | it needs | measured? |
+|---|---|---|---|---|
+| `browser-driver` | JSON browser scenarios for `/verify`, run in a real Chrome | a web app: `package.json` names `next`, `react`, `vue`, `svelte`, `@sveltejs/kit`, `nuxt`, `astro`, `vite`, `@angular/core`, `solid-js` or `@remix-run/react` as a dependency, or the root has `index.html` | Node 20+, Google Chrome (Chromium cannot be driven), and Playwright, which `/adopt` offers to install with `scripts/drive-setup.sh` | not yet measured |
+| `ux-design-laws` | the `ux-design-laws` skill | a web app (the same signal) | the `bendit-web` add-on, installed with `--scope project` so it loads in this project only | not yet measured |
+| `session-brief` | the session-start brief (where the repo stands) | the project is a git repository | nothing | not yet measured |
+| `ls-guard` | the guard against parsing `ls` | `ls` in your shell is an alias or a function, not the real `ls` | nothing | not yet measured |
+
+- **Who reads the file.** The `ls-guard` and `session-brief` hooks act only when
+  their feature is on. For `browser-driver` and `ux-design-laws` the file
+  records the choice; what makes them work is the dependency (a JSON scenario
+  runs wherever one exists, and the skill loads wherever the add-on is
+  installed).
+- **Saying no is fine.** Declining a dependency turns its feature off with why
+  `you declined <it>`; it never stops adoption.
+- **`prove.sh` checks every feature that is on**, by running it: the browser
+  driver's selftest in a real browser, the add-on installed for this project,
+  the ls guard refusing `ls | wc -l`, the brief naming the checked-out branch.
+  A feature that is off is reported as `UNUSED`, which is not a failure; a
+  feature that is on and does not work is a `FAIL`. `/doctor` prints the table.
+- **A malformed `bendit.json` is never read as "all off"**: every reader
+  refuses and names the file.
 
 ## Quickstart
 
@@ -131,7 +164,10 @@ Chromium alone cannot be driven), fetches bendit at the matching release tag int
 - **It asks before every install.** The default answer is no, there is no
   `--yes`, and a `sudo` command is shown in the question before it can run.
   With no terminal to ask on, it installs nothing, lists what is missing and
-  exits 1.
+  exits 1; if nothing is missing, it fetches bendit and prints the
+  `claude --plugin-dir <cache>/v<version>/plugins/bendit "/adopt"` command to
+  run instead of starting Claude Code. Playwright, for a web app's browser
+  driver, is not the installer's: `/adopt` asks about it (see Features).
 - **The installer itself writes only under the cache folder above**: nothing
   in your project and no Claude Code settings. The install commands you
   approve (a package manager, or the Claude Code installer) write wherever they
@@ -171,12 +207,14 @@ Then, in your project:
 
 `/adopt` detects your stack (Node with pnpm/npm/yarn/bun, Python with
 uv/poetry/pip, Go, Rust; anything else it asks about), asks only what it could
-not detect, one question at a time, shows every file before writing it, and
+not detect, one question at a time, shows every file before writing it,
+records the project's features in `.claude/bendit.json` (see Features), and
 builds the project layer: `AGENTS.md`, `.claude/verify-harness` (the command
 that means "verified" here), and optionally a verification skill and CI. Then it
 **proves** the setup with `scripts/prove.sh`: every guard is fed a known-bad
 payload and must refuse (and a known-good one it must allow), the Stop gate is
-dry-run in a throwaway repo, the harness is run, and the result is printed as a
+dry-run in a throwaway repo, the harness is run, every feature that is on is
+run, and the result is printed as a
 table with the evidence rung of each row. It will not call adoption complete if
 any check fails. You can run the same check yourself at any time:
 
@@ -251,15 +289,16 @@ wrong (grant, scaffold, plugin path) and no other number is worth reading.
 - Python 3.9+ (standard library only) for every hook. Hooks make no network calls.
 - Any language project; `/adopt` detects Node, Python, Go and Rust and asks about
   anything else.
+- The browser driver (web apps only) needs Node 20+ and Google Chrome.
 - Windows is not supported in v1 (untested).
 - Claude Code only.
 
 ## Not in v1
 
-Multi-session orchestration, a browser driver for verification, and
-database-policy helpers. They exist in the private kit this was extracted from
-but are unproven or stack-specific; each may ship later, only with a measured
-result. No GUI, and no support for agents other than Claude Code.
+Multi-session orchestration and database-policy helpers. They exist in the
+private kit this was extracted from but are unproven or stack-specific; each may
+ship later, only with a measured result. (The browser driver and the session
+brief, once listed here, now ship as per-project features, not yet measured.) No GUI, and no support for agents other than Claude Code.
 
 ## Repository layout
 
@@ -267,13 +306,17 @@ result. No GUI, and no support for agents other than Claude Code.
 .claude-plugin/marketplace.json
 docs/ladder.md                      the method and failure classes F1-F12
 docs/design.md                      design decisions for v1
+install.sh                          the one-command installer
+packages/                           npx and pipx wrappers around install.sh
 plugins/bendit/
   hooks/hooks.json                  which guard runs on which tool
   scripts/                          guards, gates, test suites (*.test.sh)
-  skills/                           practice skills + adopt-bendit
-  commands/                         /adopt /new-guard /ship /review-diff /verify /doctor
+  skills/                           practice skills, blast-radius, adopt-bendit
+  commands/                         /adopt /new-guard /ship /review-diff /verify /doctor /vocabulary
+  lib/drive/                        the real-browser driver (drive.mjs) and its selftest
   templates/                        guard template, AGENTS.md skeleton
   evals/                            measuring whether a rule changes behaviour
+plugins/bendit-web/                 add-on for web apps: the ux-design-laws skill
 ```
 
 Every behaviour has a shell test suite (`scripts/*.test.sh`) using snapshot

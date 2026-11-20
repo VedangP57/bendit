@@ -11,7 +11,8 @@ Format, version 1:
 The "brief" object (session-brief only) is validated key by key, see
 BRIEF_KEYS: env_files and probe_env_vars are lists of strings, local_ports a
 list of integers 1-65535, docs_glob a string or null; any other key, or a
-wrong type, is malformed.
+wrong type, is malformed. env_files is read highest priority first (.env.local
+beats .env), and probe_env_vars must name variables whose values are URLs.
 
 A malformed file is never read as "everything off": load() raises
 FeaturesError naming the file, and every caller must refuse (fail closed).

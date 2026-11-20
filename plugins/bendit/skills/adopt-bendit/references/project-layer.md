@@ -68,6 +68,10 @@ drifts from the truth on the first change. So there is one config file,
 ls-guard hook and the session-brief hook. SKILL.md step 3b writes it through
 `KIT/scripts/features.py`, never by hand.
 
+In the session-brief's `brief` config, `env_files` is read highest priority
+first (`.env.local` beats `.env`), and `probe_env_vars` must name variables
+whose values are URLs (a value without `://` is reported as not probed).
+
 | fact | lives in | read by |
 |---|---|---|
 | integration branch | `AGENTS.md`: `- Integration branch: \`<name>\`` | `/ship`, `/review-diff` |

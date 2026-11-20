@@ -377,7 +377,7 @@ def sec_here(cwd, end):
 
 
 def _host_port(value):
-    """(host, port) from a URL or bare host:port. Never raises, and never looks
+    """(host, port) from a URL (callers pass only values containing "://"). Never raises, and never looks
     inside the userinfo: a password is skipped by position, not parsed.
 
     Not urlsplit: an unencoded `[...]` in a password (`admin:[tok]@db...`) made
@@ -426,6 +426,8 @@ def sec_env_probe(root, files, var, end, why=None):
         if not read:
             return {2: [f"[files] {var}: not set (no {', '.join(files)} present)"]}
         return {2: [f"[files] {var}: not set in {', '.join(read)}"]}
+    if "://" not in value:  # not a URL: it may be a secret, so neither parse nor print it
+        return {"alarms": [_alarm("[files]", f"{var} is not a URL; not probed")]}
     host, port = _host_port(value)
     if not host or not port:
         return {"alarms": [_alarm("[files]", f"{var}: unknown (no host and port in its value)")]}

@@ -393,6 +393,16 @@ valid "probe-bracketed-password"
 has "a [..] password still probes host:port, with its time" "| [probe <hh:mm>] DB_URL (x.invalid:5432) failed: could not resolve x.invalid — offline, or the project no longer exists; can't tell which"
 count "the password is never printed" 's3cret' 0
 
+# A value that is not a URL is never parsed as host:port nor printed: `token:1234`
+# would have read as host "token", port 1234 and been echoed as "VAR (token:1234)".
+mk "$T/b-nonurl"; printf 'API_TOKEN=tok3nvalue:1234\n' > "$T/b-nonurl/.env.local"
+conf "$T/b-nonurl" '{"probe_env_vars": ["API_TOKEN"]}'
+brief "probe-non-url" --cwd "$T/b-nonurl"
+valid "probe-non-url"
+has "a non-URL value is reported as not probed" "| [files] API_TOKEN is not a URL; not probed"
+count "the non-URL value is never printed" 'tok3nvalue' 0
+count "...nor any part of it as host:port" '1234' 0
+
 # listen <4|6>  -- a loopback-only listener in the background, for the rest of
 # the suite; sets LPORT, or LPORT="" if that loopback cannot be bound here.
 LPIDS=()
@@ -464,7 +474,7 @@ lacks "no env file is never 'not set in' it" "| [files] APP_URL: not set in .env
 mk "$T/b-alarms"; vars=""
 for i in $(seq -w 1 30); do
   v="A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_$i"; vars="$vars${vars:+, }\"$v\""
-  printf '%s=no-host-or-port-here\n' "$v" >> "$T/b-alarms/.env.local"
+  printf '%s=http://\n' "$v" >> "$T/b-alarms/.env.local"
 done
 conf "$T/b-alarms" "{\"probe_env_vars\": [$vars]}"
 brief "alarms-over-cap" --cwd "$T/b-alarms" --budget 5

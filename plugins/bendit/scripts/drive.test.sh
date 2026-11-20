@@ -307,8 +307,13 @@ chk "  ...and \$HOME's canary survives" "$([ -e "$W/fakehome/canary" ] && echo y
 MC="$W/mutantkit/lib/drive"; mkdir -p "$MC"; cp "$KIT/lib/drive/package.json" "$MC/"
 grep -v "if (forbidden.includes(out)) refuse(" "$DRIVE" > "$MC/drive.mjs"
 chk "  (the mutant really lost the rule)" "$(grep -c 'forbidden.includes(out)' "$MC/drive.mjs")" "0"
-fakehome "$W/v1m.log" "$MC/drive.mjs" >/dev/null
+VM=$(fakehome "$W/v1m.log" "$MC/drive.mjs")
 hasnt "  CONTROL: without the rule the \$HOME reason is gone" "$ROOTMSG" "$(cat "$W/v1m.log")"
+# ...and not vacuously: the mutant RAN and was stopped by the next rule (the
+# marker), not by a crash or a missing Playwright that also lacks the reason.
+chk "  CONTROL: the mutant still refused (exit 2)" "$VM" "2"
+has "  CONTROL: ...on the marker rule" ".bendit-drive-evidence" "$(cat "$W/v1m.log")"
+chk "  CONTROL: ...and \$HOME's canary survives the mutant" "$([ -e "$W/fakehome/canary" ] && echo y || echo n)" "y"
 mkdir -p "$PROJ/sub"
 chk "--out <git toplevel> refused" "$(drive "$W/v1e.log" "$PROJ/sub" "$ST/pass.json" --base "file://$ST" --out "$PROJ")" "2"
 has "  ...as the repository root" "$ROOTMSG" "$(cat "$W/v1e.log")"

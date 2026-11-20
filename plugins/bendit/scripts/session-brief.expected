@@ -170,6 +170,20 @@ db.example.com:6543 -> ('db.example.com', 6543)
 https://h.example.com:notaport/ -> ('h.example.com', None)
 mysql://h.example.com/x -> ('h.example.com', None)
 
+=== host-port-userinfo
+exit 0
+--- stdout
+hash-in-password -> ('h', 5432)
+slash-in-password -> ('h', 5432)
+query-in-password -> ('h.example.com', 5432)
+no-userinfo-single-label -> ('x', 1234)
+not-host-like -> (None, 1234)
+not-host-like-after-at -> (None, 5432)
+empty-host -> (None, 5432)
+ipv4 -> ('10.0.0.7', 5432)
+ipv6-junk-after-bracket -> (None, 5432)
+ipv6-not-hex -> (None, 5432)
+
 === no-network-by-default
 exit 0
 --- stdout
@@ -271,6 +285,40 @@ first: Session brief — snapshot taken <time>. Where it disagrees with live git
 | [git] Uncommitted: ?? .env.local
 | [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
 toast: brief: main · 1 uncommitted · API_TOKEN is not a URL; not probed
+toast <= 120 chars: True
+
+=== probe-hash-in-password
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [probe <hh:mm>] DB_URL (x.invalid:5432) failed: could not resolve x.invalid — offline, or the project no longer exists; can't tell which
+| [git] Branch: main — 1 uncommitted file.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Uncommitted: ?? .env.local
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 1 uncommitted · DB_URL: can't resolve host — offline or gone, can't tell which
+toast <= 120 chars: True
+
+=== probe-not-host-like
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [files] API_URL has no usable host and port; not probed
+| [git] Branch: main — 1 uncommitted file.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Uncommitted: ?? .env.local
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 1 uncommitted · API_URL has no usable host and port; not probed
 toast <= 120 chars: True
 
 === local-port-v4-only
@@ -380,26 +428,26 @@ json: valid, keys ['context', 'toast']
 context <= 2000 chars: True
 first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
 | Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
-| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_01: unknown (no host and port in its value)
-| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_02: unknown (no host and port in its value)
-| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_03: unknown (no host and port in its value)
-| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_04: unknown (no host and port in its value)
-| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_05: unknown (no host and port in its value)
-| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_06: unknown (no host and port in its value)
-| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_07: unknown (no host and port in its value)
-| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_08: unknown (no host and port in its value)
-| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_09: unknown (no host and port in its value)
-| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_10: unknown (no host and port in its value)
-| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_11: unknown (no host and port in its value)
-| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_12: unknown (no host and port in its value)
-| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_13: unknown (no host and port in its value)
-| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_14: unknown (no host and port in its value)
-| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_15: unknown (no host and port in its value)
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_01 has no usable host and port; not probed
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_02 has no usable host and port; not probed
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_03 has no usable host and port; not probed
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_04 has no usable host and port; not probed
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_05 has no usable host and port; not probed
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_06 has no usable host and port; not probed
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_07 has no usable host and port; not probed
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_08 has no usable host and port; not probed
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_09 has no usable host and port; not probed
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_10 has no usable host and port; not probed
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_11 has no usable host and port; not probed
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_12 has no usable host and port; not probed
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_13 has no usable host and port; not probed
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_14 has no usable host and port; not probed
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_15 has no usable host and port; not probed
 | [brief] Alarms cut to stay under 2000 characters: 15 not shown.
 | [git] Branch: main — 1 uncommitted file.
 | [git] Push: not on origin (as of the last fetch).
 | [brief] Not shown, to stay under 2000 characters: this branch's commits, uncommitted file names.
-toast: brief: main · 1 uncommitted · A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_01: unknown (no host and port in its value)
+toast: brief: main · 1 uncommitted · A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_01 has no usable host and port; not probed
 toast <= 120 chars: True
 
 === env-unreadable

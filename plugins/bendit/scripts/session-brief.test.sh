@@ -265,6 +265,35 @@ has "no scheme, host:port" "db.example.com:6543 -> ('db.example.com', 6543)"
 has "a bad port is no port, not an exception" "https://h.example.com:notaport/ -> ('h.example.com', None)"
 has "unknown scheme, no port -> no port" "mysql://h.example.com/x -> ('h.example.com', None)"
 
+# The authority is NOT cut at the first / ? or # before userinfo is dropped: a
+# password may hold them raw, and cutting first left `u:1234` as "host:port".
+# Everything before the LAST @ is userinfo, whatever it holds; then the host
+# must look like a hostname, IPv4 or [IPv6], or there is no host to print.
+py "host-port-userinfo" '
+cases = [("hash-in-password", "postgres://u:1234#x@h:5432"),
+         ("slash-in-password", "postgres://u:p/q@h:5432"),
+         ("query-in-password", "postgres://u:p?q@h.example.com/db"),
+         ("no-userinfo-single-label", "tok://x:1234"),
+         ("not-host-like", "tok://s3cr!t:1234"),
+         ("not-host-like-after-at", "postgres://u:p@s3cr%t:5432"),
+         ("empty-host", "postgres://u:p@:5432"),
+         ("ipv4", "postgres://u:p@10.0.0.7:5432/db"),
+         ("ipv6-junk-after-bracket", "postgres://u:p@[::1]x:5432"),
+         ("ipv6-not-hex", "postgres://u:p@[zz]:5432")]
+for label, v in cases:
+    print("%s -> %r" % (label, sb._host_port(v)))'
+has "# in the password: the host after the LAST @" "hash-in-password -> ('h', 5432)"
+has "/ in the password: the host after the LAST @" "slash-in-password -> ('h', 5432)"
+has "? in the password: the host after the LAST @" "query-in-password -> ('h.example.com', 5432)"
+has "no @ means no userinfo: a single-label host (a compose service) is a host" "no-userinfo-single-label -> ('x', 1234)"
+has "a host that is not hostname-shaped is no host" "not-host-like -> (None, 1234)"
+has "...after an @ too" "not-host-like-after-at -> (None, 5432)"
+has "an empty host is no host" "empty-host -> (None, 5432)"
+has "IPv4 host" "ipv4 -> ('10.0.0.7', 5432)"
+has "junk after ] is no host" "ipv6-junk-after-bracket -> (None, 5432)"
+has "[...] that is not an IPv6 address is no host" "ipv6-not-hex -> (None, 5432)"
+count "the password is never the host" "1234'|'p/q|'u'" 0
+
 # --- no network unless listed -------------------------------------------------
 # The brief's only network traffic is the probes a project LISTS. Here the
 # resolver and connect are stubs that record any call, so "no probe ran" is
@@ -403,6 +432,23 @@ has "a non-URL value is reported as not probed" "| [files] API_TOKEN is not a UR
 count "the non-URL value is never printed" 'tok3nvalue' 0
 count "...nor any part of it as host:port" '1234' 0
 
+# A password holding a raw # / ? used to end the authority early, so the probe
+# line printed `DB_URL (admin:1234)`: the password, as a host label.
+mk "$T/b-hashpw"; printf 'DB_URL=postgres://admin:1234#x@x.invalid:5432/db\n' > "$T/b-hashpw/.env.local"
+conf "$T/b-hashpw" '{"probe_env_vars": ["DB_URL"]}'
+brief "probe-hash-in-password" --cwd "$T/b-hashpw"
+valid "probe-hash-in-password"
+has "a # in the password still probes the real host" "| [probe <hh:mm>] DB_URL (x.invalid:5432) failed: could not resolve x.invalid — offline, or the project no longer exists; can't tell which"
+count "the password is never printed" '1234' 0
+
+# A host that is not hostname-, IPv4- or [IPv6]-shaped is not echoed at all.
+mk "$T/b-nothost"; printf 'API_URL=tok://s3cr!tval:1234\n' > "$T/b-nothost/.env.local"
+conf "$T/b-nothost" '{"probe_env_vars": ["API_URL"]}'
+brief "probe-not-host-like" --cwd "$T/b-nothost"
+valid "probe-not-host-like"
+has "a non-host is reported as not probed" "| [files] API_URL has no usable host and port; not probed"
+count "  ...and never printed" 's3cr|1234' 0
+
 # listen <4|6>  -- a loopback-only listener in the background, for the rest of
 # the suite; sets LPORT, or LPORT="" if that loopback cannot be bound here.
 LPIDS=()
@@ -481,7 +527,7 @@ brief "alarms-over-cap" --cwd "$T/b-alarms" --budget 5
 valid "alarms-over-cap"
 has "branch line survives long alarms" "| [git] Branch: main — 1 uncommitted file."
 has "push line survives long alarms" "| [git] Push: not on origin (as of the last fetch)."
-has "first alarm shown whole" "| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_01: unknown (no host and port in its value)"
+has "first alarm shown whole" "| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_01 has no usable host and port; not probed"
 contains "the alarm cut is named" "| [brief] Alarms cut to stay under 2000 characters: "
 
 mk "$T/b-envdir"; mkdir "$T/b-envdir/.env.local"

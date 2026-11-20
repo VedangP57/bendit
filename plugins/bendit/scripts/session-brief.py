@@ -376,9 +376,20 @@ def sec_here(cwd, end):
     return out
 
 
+_HOSTNAME = re.compile(r"[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?)*\.?")
+_IPV6 = re.compile(r"[0-9a-f:.]*:[0-9a-f:.]*")
+
+
 def _host_port(value):
-    """(host, port) from a URL (callers pass only values containing "://"). Never raises, and never looks
-    inside the userinfo: a password is skipped by position, not parsed.
+    """(host, port) from a URL (callers pass only values containing "://"). Never raises.
+    host is None unless it looks like a hostname, an IPv4 address or a
+    bracketed IPv6 address, so whatever is returned is safe to print.
+
+    Userinfo is dropped FIRST: everything up to the last @ goes, whatever it
+    holds. Cutting the authority at the first / ? # before that let a password
+    holding one of them raw (`admin:1234#x@db`) come back as host "admin",
+    port 1234 -- printed as the probe's label. With no @ there is no userinfo
+    (RFC 3986), so `tok://x:1234` is host x, port 1234, like `redis://cache:6379`.
 
     Not urlsplit: an unencoded `[...]` in a password (`admin:[tok]@db...`) made
     it raise on 3.14, so the probe read "unknown (ValueError ...)" and lost its
@@ -388,17 +399,21 @@ def _host_port(value):
     if not sep:
         scheme, rest = "", value
     scheme = scheme.lower()
-    auth = re.split(r"[/?#]", rest, maxsplit=1)[0]
-    auth = auth.rpartition("@")[2]  # everything up to the LAST @ is userinfo
+    rest = rest.rpartition("@")[2]  # everything up to the LAST @ is userinfo
+    auth = re.split(r"[/?#]", rest, maxsplit=1)[0].strip().lower()
     if auth.startswith("["):  # [IPv6]:port
-        host, _, tail = auth[1:].partition("]")
+        host, close, tail = auth[1:].partition("]")
         port_s = tail[1:] if tail.startswith(":") else ""
+        if not close or (tail and not tail.startswith(":")) or not _IPV6.fullmatch(host):
+            host = ""
     else:
         host, _, port_s = auth.partition(":")
+        if len(host) > 253 or not _HOSTNAME.fullmatch(host):
+            host = ""
     port = int(port_s) if port_s.isdigit() and 0 < int(port_s) < 65536 else None
     if port is None and not port_s:
         port = DEFAULT_PORTS.get(scheme)
-    return host.strip().lower() or None, port
+    return host or None, port
 
 
 def _probe_lines(label, short_label, p, stamp):
@@ -430,7 +445,7 @@ def sec_env_probe(root, files, var, end, why=None):
         return {"alarms": [_alarm("[files]", f"{var} is not a URL; not probed")]}
     host, port = _host_port(value)
     if not host or not port:
-        return {"alarms": [_alarm("[files]", f"{var}: unknown (no host and port in its value)")]}
+        return {"alarms": [_alarm("[files]", f"{var} has no usable host and port; not probed")]}
     stamp = time.strftime("%H:%M")
     # Only host:port is ever printed: the value may carry credentials.
     p = reach(host, port, deadline=min(0.8, max(0.05, _left(end) / 2.5)))

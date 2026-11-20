@@ -9,7 +9,9 @@
 #
 #   shell     every plugins/bendit/scripts/*.test.sh suite (only bendit has
 #             scripts; a plugin that gains some means changing $PLUGIN below),
-#             several at once (BENDIT_CI_JOBS=1 runs them one at a time)
+#             several at once (BENDIT_CI_JOBS=1 runs them one at a time),
+#             those that open ports one at a time after, each under a time
+#             limit (BENDIT_CI_SUITE_TIMEOUT, default 240 s)
 #   imports   byte-compiles every scripts/*.py under python3, and again under
 #             /usr/bin/python3 when it exists (3.9 on macOS: the oldest Python
 #             the kit supports), so syntax or an annotation 3.9 rejects fails
@@ -34,13 +36,29 @@ PLUGIN=./plugins/bendit              # the plugin that has scripts/ (shell, impo
 PLUGINS=(./plugins/*/)               # every plugin: validate and budget
 OUT="$(mktemp -d)"
 failed=()
+RUNNING=()                           # suite wrappers still running (cleanup kills them)
 
 fail() { echo "FAIL: $*" >&2; }
 
-# Suites run CONCURRENTLY: each makes its own mktemp -d and touches nothing
-# shared, so the only thing serial order bought was wall time (4:51 here,
-# against the Stop gate's 300 s budget). Each suite's output goes to its own file and is
-# printed whole, in suite order, so the log reads as it did serially.
+# Ctrl-C, or the Stop gate killing the harness, must not orphan suites: they
+# hold ports and app processes. Each wrapper (runsuite.py below) puts its
+# suite in a session of its own and kills that whole group when it is
+# signalled -- or when it sees this script is gone, which covers SIGKILL.
+cleanup() {
+  local p
+  for p in "${RUNNING[@]+"${RUNNING[@]}"}"; do kill -TERM "$p" 2>/dev/null; done
+  for p in "${RUNNING[@]+"${RUNNING[@]}"}"; do wait "$p" 2>/dev/null; done
+  RUNNING=()
+  rm -rf "$OUT"
+}
+trap cleanup EXIT
+trap 'echo "ci.sh: interrupted, stopping every running suite" >&2; exit 130' INT
+trap 'echo "ci.sh: terminated, stopping every running suite" >&2; exit 143' TERM
+
+# Suites run CONCURRENTLY: each makes its own mktemp -d, so the only thing
+# serial order bought was wall time (4:51 here, against the Stop gate's 300 s
+# budget). Each suite's output goes to its own file and is printed whole, in
+# suite order, so the log reads as it did serially.
 # BENDIT_CI_JOBS caps the pool (default: half the CPUs, at least 2) -- not
 # every core, because some suites assert that a hook answers within its time
 # budget, and a fully loaded machine would test the machine, not the hook.
@@ -51,13 +69,66 @@ ci_jobs() {
   echo "$n"
 }
 
+# The suites that open ports or start apps: ports.test.sh needs :3100 free,
+# and the others bind or serve. They run ONE AT A TIME, after the pool, so no
+# two of them -- and no pool suite -- ever share a moment. ci.test.sh fails if
+# a suite that binds is missing from this list.
+SERIAL_SUITES=(ports scaffold-verification-skill session-brief verify-readiness)
+is_serial() { local n; for n in "${SERIAL_SUITES[@]}"; do [ "$(basename "$1" .test.sh)" = "$n" ] && return 0; done; return 1; }
+
+# One suite per wrapper: its own session (so its whole process group can be
+# killed), a time limit (BENDIT_CI_SUITE_TIMEOUT, default 240 s; the slowest
+# suite takes about 60 s alone), exit 124 on timeout. Python, not timeout(1):
+# macOS has no timeout(1), and python3 is already required by the imports stage.
+cat > "$OUT/runsuite.py" <<'PY'
+import os, signal, subprocess, sys, time
+limit, log, suite, parent = float(sys.argv[1]), sys.argv[2], sys.argv[3], int(sys.argv[4])
+with open(log, "w") as out:
+    p = subprocess.Popen(["bash", suite], stdin=subprocess.DEVNULL, stdout=out,
+                         stderr=subprocess.STDOUT, start_new_session=True)
+def kill_group():
+    for sig, grace in ((signal.SIGTERM, 3.0), (signal.SIGKILL, 0)):
+        try:
+            os.killpg(p.pid, sig)
+        except OSError:
+            return
+        end = time.time() + grace
+        while p.poll() is None and time.time() < end:
+            time.sleep(0.1)
+def on_signal(signum, _frame):
+    kill_group(); sys.exit(128 + signum)
+for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+    signal.signal(s, on_signal)
+end = time.time() + limit
+while p.poll() is None:
+    if time.time() > end:
+        kill_group()
+        with open(log, "a") as out:
+            out.write("\nTIMEOUT: %s did not finish within %gs; its process group was killed\n" % (suite, limit))
+        sys.exit(124)
+    if os.getppid() != parent:   # ci.sh is gone (even SIGKILL): take the suite with it
+        kill_group(); sys.exit(137)
+    time.sleep(0.2)
+try:
+    os.killpg(p.pid, signal.SIGTERM)  # leftovers the suite started and did not stop
+except OSError:
+    pass
+sys.exit(p.returncode if p.returncode >= 0 else 128 - p.returncode)
+PY
+
 stage_shell() {
-  local suites=() s i rc=0 ran=0 jobs
-  local -a pids=() idx=() codes=()
+  local suites=() s i rc=0 ran=0 jobs limit="${BENDIT_CI_SUITE_TIMEOUT:-240}"
+  local -a pool=() lane=() idx=() codes=()
   for s in "$PLUGIN"/scripts/*.test.sh; do [ -f "$s" ] && suites+=("$s"); done
   if [ "${#suites[@]}" -eq 0 ]; then fail "no $PLUGIN/scripts/*.test.sh found, so NOTHING was run"; return 1; fi
+  for i in "${!suites[@]}"; do if is_serial "${suites[$i]}"; then lane+=("$i"); else pool+=("$i"); fi; done
   jobs="$(ci_jobs)"
-  echo "--- ${#suites[@]} suites, up to $jobs at a time"
+  echo "--- ${#suites[@]} suites: ${#pool[@]} up to $jobs at a time, then ${#lane[@]} one at a time (they open ports); ${limit}s limit each"
+  # start <i> -- suite i in the background, under its wrapper
+  start() {
+    python3 "$OUT/runsuite.py" "$limit" "$OUT/suite-$1.log" "${suites[$1]}" "$$" </dev/null &
+    RUNNING+=("$!"); idx+=("$1")
+  }
   # reap -- wait until ANY running suite has finished, record its exit code and
   # free its slot. Bash 3.2 (macOS /bin/bash) has no `wait -n`, so it polls:
   # bash reaps a finished child itself, after which `kill -0` fails and `wait`
@@ -66,27 +137,32 @@ stage_shell() {
   reap() {
     local k
     while :; do
-      for k in "${!pids[@]}"; do
-        if ! kill -0 "${pids[$k]}" 2>/dev/null; then
-          wait "${pids[$k]}"; codes[${idx[$k]}]=$?
-          unset "pids[$k]" "idx[$k]"; pids=("${pids[@]+"${pids[@]}"}"); idx=("${idx[@]+"${idx[@]}"}")
+      for k in "${!RUNNING[@]}"; do
+        if ! kill -0 "${RUNNING[$k]}" 2>/dev/null; then
+          wait "${RUNNING[$k]}"; codes[${idx[$k]}]=$?
+          unset "RUNNING[$k]" "idx[$k]"
+          RUNNING=("${RUNNING[@]+"${RUNNING[@]}"}"); idx=("${idx[@]+"${idx[@]}"}")
           return
         fi
       done
       sleep 0.2
     done
   }
-  for i in "${!suites[@]}"; do
-    while [ "${#pids[@]}" -ge "$jobs" ]; do reap; done
-    bash "${suites[$i]}" </dev/null >"$OUT/suite-$i.log" 2>&1 &
-    pids+=("$!"); idx+=("$i")
+  for i in "${pool[@]+"${pool[@]}"}"; do
+    while [ "${#RUNNING[@]}" -ge "$jobs" ]; do reap; done
+    start "$i"
   done
-  while [ "${#pids[@]}" -gt 0 ]; do reap; done
+  while [ "${#RUNNING[@]}" -gt 0 ]; do reap; done
+  for i in "${lane[@]+"${lane[@]}"}"; do start "$i"; reap; done
   for i in "${!suites[@]}"; do
     s="${suites[$i]}"
     echo "--- bash $s"
     cat "$OUT/suite-$i.log"
-    if [ "${codes[$i]}" -eq 0 ]; then ran=$((ran+1)); else fail "$s exited non-zero"; rc=1; fi
+    case "${codes[$i]}" in
+      0) ran=$((ran+1)) ;;
+      124) fail "$s timed out after ${limit}s (killed)"; rc=1 ;;
+      *) fail "$s exited non-zero"; rc=1 ;;
+    esac
   done
   echo "shell: ${ran}/${#suites[@]} suites passed"
   return $rc
@@ -155,6 +231,5 @@ for st in "${stages[@]}"; do
   echo "=== $st"
   if "stage_$st"; then echo "=== $st: ok"; else echo "=== $st: FAILED"; failed+=("$st"); fi
 done
-rm -rf "$OUT"
 if [ "${#failed[@]}" -gt 0 ]; then echo "CI FAILED: ${failed[*]}" >&2; exit 1; fi
 echo "CI passed: ${stages[*]}"

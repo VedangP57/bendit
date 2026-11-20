@@ -4,6 +4,25 @@ All notable changes. Dates are UTC.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-20
+
+### Changed
+- `/bendit:adopt` ends with exactly what to do next: "Two last steps:" — the
+  approval command to paste into a new Terminal window (only when the check is
+  not yet approved), then "Close Claude and open it again in this project, then
+  type /bendit:doctor." Step 2 is dropped when bendit is already running in
+  this window.
+- `/bendit:doctor` says whether bendit is running in THIS window (a SessionStart
+  marker per session, outside the project), always runs the live force-push
+  test, never says "active" while a guard is OFF, and ends with "What to do
+  next:" — the approval command first, then every other fix, then reopen.
+- The one-line undo works pasted exactly as printed (any indent), keeps CRLF
+  line endings and skips files that are missing.
+- `scaffold-verification-skill.sh --harness-owner`: a harness tracked in git is
+  the person's, even when it still has a `TODO(bendit):` line.
+- The setup summary uses plainer words (no `.git/info/exclude` row; exact paths
+  move to "Also noted:" in the record).
+
 ## [0.4.0] - 2026-11-20
 
 ### Added

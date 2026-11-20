@@ -70,7 +70,7 @@ look alike; the first hook to refuse is the one you see.
 | a refusal whose message names bendit (`BLOCKED by bendit ...`, `[bendit] ...`) | **PASS**, rung 5 |
 | git's own "does not appear to be a git repository" error | **FAIL**: the guard is not wired. Check `claude plugin list` and that this session started after the install |
 | a refusal from a different kit or hook (its message names another plugin) | **inconclusive: another guard answered first**. Not a pass and not a fail: bendit's hook may be wired and simply never got the call. Report it as that, with the message you saw |
-| this session started before the install | **pending a new session**: say so, do not mark it either way |
+| this session started before the install (`python3 "$KIT/scripts/selfcheck.py" --session` says `window: not live`) | **pending a new session**: say so, do not mark it either way |
 
 Project guards added with `/bendit:new-guard` get the same pair: their own suite
 (`.claude/hooks/<name>.test.sh`), then a live probe of their own.

@@ -32,6 +32,11 @@ export GIT_CEILING_DIRECTORIES="$T"
 # Hermetic: inside a Claude Code session this names the session's project. Cases
 # that need it set it deliberately, inline.
 unset CLAUDE_PROJECT_DIR
+# Hermetic too: the session id of THIS Claude window, and where the
+# SessionStart hook leaves its "bendit started here" marker (never the real
+# cache: every hook run below would leave one there).
+unset CLAUDE_CODE_SESSION_ID
+export BENDIT_LIVE_DIR="$T/live"
 # A tmp dir of the suite's own, so "it cleaned up" is checkable.
 export TMPDIR="$T/tmpd"; mkdir -p "$TMPDIR"
 chk() { if [ "$2" = "$3" ]; then printf '  ok    %s\n' "$1"; pass=$((pass+1));
@@ -346,6 +351,106 @@ has "no path given: CLAUDE_PROJECT_DIR is the default" "OTHER-PROJECT-REASON" "$
 has "explicit non-git --features path reports the fixture's file" "FIXTURE-REASON" "$FE_OUT"
 case "$FE_OUT" in *OTHER-PROJECT-REASON*) o=leaked ;; *) o=clean ;; esac
 chk "  ...and never the CLAUDE_PROJECT_DIR project's" "$o" clean
+
+echo
+echo "THIS WINDOW (--session: did bendit's hooks start in this Claude window?)"
+# The SessionStart hook (selfcheck --hook) leaves a marker named after the
+# session_id in its payload; /bendit:doctor asks --session, which reads
+# CLAUDE_CODE_SESSION_ID -- the same id, as Claude Code hands it to the Bash
+# tool. Run the way doctor runs it: python3 on the script, from any folder.
+win() {  # win [session id or -unset] -- leaves WIN_RC, WIN_OUT
+  if [ "${1:-}" = -unset ]; then
+    WIN_OUT="$(env -u CLAUDE_CODE_SESSION_ID "$PY" "$KIT/scripts/selfcheck.py" --session 2>&1)"; WIN_RC=$?
+  else
+    WIN_OUT="$(CLAUDE_CODE_SESSION_ID="$1" "$PY" "$KIT/scripts/selfcheck.py" --session 2>&1)"; WIN_RC=$?
+  fi
+}
+startup() {  # startup <session id> <source> -- the SessionStart hook, as Claude Code runs it
+  printf '{"session_id":"%s","cwd":"%s","hook_event_name":"SessionStart","source":"%s"}' "$1" "$T" "$2" \
+    | CLAUDE_PLUGIN_ROOT="$KIT" /bin/sh -c "$HOOKCMD" >"$T/st.out" 2>"$T/st.err"; ST_RC=$?
+}
+rm -rf "$BENDIT_LIVE_DIR"
+startup "win-started-here" startup
+chk "the SessionStart hook still exits 0" "$ST_RC" 0
+chk "  ...and is still silent" "$(cat "$T/st.out" "$T/st.err")" ""
+chk "  ...and leaves a marker named after its session_id" \
+    "$([ -f "$BENDIT_LIVE_DIR/win-started-here" ] && echo y || echo n)" y
+win "win-started-here"
+chk "--session, same id as the hook got: exit 0" "$WIN_RC" 0
+has "  ...says live" "window: live" "$WIN_OUT"
+win "win-opened-before"
+chk "--session, a window whose hook never ran: exit 1" "$WIN_RC" 1
+has "  ...says not live" "window: not live" "$WIN_OUT"
+case "$WIN_OUT" in *"window: live"*) o=claimed ;; *) o=no ;; esac
+chk "  ...and never claims live" "$o" no
+win -unset
+chk "--session, no CLAUDE_CODE_SESSION_ID: exit 3" "$WIN_RC" 3
+has "  ...says unknown" "window: unknown" "$WIN_OUT"
+win ""
+chk "--session, an empty CLAUDE_CODE_SESSION_ID: unknown too (exit 3)" "$WIN_RC" 3
+startup "win-resumed" resume
+win "win-resumed"
+chk "a resumed window (source resume) is live too" "$WIN_RC" 0
+# A session id is data from outside: it must never name a path outside the dir.
+# From $T/live, ../../<name> lands in the folder ABOVE $T: look there, and
+# under $T, for anything carrying the name; the marker folder must hold
+# exactly one file.
+ESC="bendit-escaped-$$"
+rm -rf "$BENDIT_LIVE_DIR"
+startup "../../$ESC" startup
+chk "a session_id with ../ writes nothing outside the marker folder" \
+    "$(/usr/bin/find "$(dirname "$T")" -maxdepth 1 -name "*$ESC*" | wc -l | tr -d ' ')|$(/usr/bin/find "$T" -name "*$ESC*" ! -path "$BENDIT_LIVE_DIR/*" | wc -l | tr -d ' ')" "0|0"
+chk "  ...and leaves exactly one marker, inside it" \
+    "$(/usr/bin/find "$BENDIT_LIVE_DIR" -type f | wc -l | tr -d ' ')" 1
+win "../../$ESC"
+chk "  ...and --session reads it back by the same safe name" "$WIN_RC" 0
+# No payload, or one that is not JSON: no marker, no noise, still exit 0.
+rm -rf "$BENDIT_LIVE_DIR"
+printf 'not json' | CLAUDE_PLUGIN_ROOT="$KIT" /bin/sh -c "$HOOKCMD" >"$T/st.out" 2>&1; rc=$?
+chk "a payload that is not JSON: exit 0, silent" "$rc|$(cat "$T/st.out")" "0|"
+chk "  ...and no marker (nothing names the session)" \
+    "$(if [ -d "$BENDIT_LIVE_DIR" ]; then /usr/bin/find "$BENDIT_LIVE_DIR" -type f | wc -l | tr -d ' '; else echo 0; fi)" 0
+# A marker folder that cannot be written must never break a session start.
+if [ "$(id -u)" -ne 0 ]; then
+  mkdir -p "$T/ro"; chmod 555 "$T/ro"
+  printf '{"session_id":"ro-win"}' | BENDIT_LIVE_DIR="$T/ro/live" CLAUDE_PLUGIN_ROOT="$KIT" /bin/sh -c "$HOOKCMD" >"$T/st.out" 2>&1; rc=$?
+  chk "an unwritable marker folder: the hook still exits 0, silent" "$rc|$(cat "$T/st.out")" "0|"
+  o="$(CLAUDE_CODE_SESSION_ID=ro-win BENDIT_LIVE_DIR="$T/ro/live" "$PY" "$KIT/scripts/selfcheck.py" --session 2>&1)"; rc=$?
+  chk "  ...and --session then says not live, never live" "$rc" 1
+  has "  ...naming the folder it cannot write, so the cause is visible" "can't write $T/ro" "$o"
+  chmod 755 "$T/ro"
+fi
+# The live test pushes to `bendit-probe`. Harmless only while that name reaches
+# nothing: --session says whether it is safe to run here (the current folder).
+lt() {  # lt <dir> -- the "live test:" line --session prints, run from <dir>
+  (cd "$1" && CLAUDE_CODE_SESSION_ID=win-started-here "$PY" "$KIT/scripts/selfcheck.py" --session 2>&1) | grep '^live test:'
+}
+LP="$T/lt-plain"; mkdir -p "$LP"; git -C "$LP" init -q
+has "no remote or folder named bendit-probe: the live test may run" "live test: run" "$(lt "$LP")"
+LR="$T/lt-remote"; mkdir -p "$LR"; git -C "$LR" init -q; git -C "$LR" remote add bendit-probe "$T/somewhere"
+has "a git remote named bendit-probe: the live test is skipped" "live test: skip" "$(lt "$LR")"
+has "  ...saying why" "git remote named bendit-probe" "$(lt "$LR")"
+LF="$T/lt-folder"; mkdir -p "$LF/bendit-probe"; git -C "$LF" init -q
+has "a folder named bendit-probe here: skipped" "live test: skip" "$(lt "$LF")"
+has "  ...saying why" "named bendit-probe in this folder" "$(lt "$LF")"
+LN="$T/lt-nogit"; mkdir -p "$LN"
+has "not a git repository: the push fails anyway, may run" "live test: run" "$(lt "$LN")"
+
+# Old markers are removed, so they cannot pile up: 30 days.
+mkdir -p "$BENDIT_LIVE_DIR"; : > "$BENDIT_LIVE_DIR/old-win"; : > "$BENDIT_LIVE_DIR/recent-win"
+"$PY" -c 'import os, sys, time; t = time.time() - 31 * 86400; os.utime(sys.argv[1], (t, t))' "$BENDIT_LIVE_DIR/old-win"
+startup "win-new" startup
+chk "a marker older than 30 days is removed when a new window starts" \
+    "$([ -e "$BENDIT_LIVE_DIR/old-win" ] && echo kept || echo removed)" removed
+chk "  ...a recent one is kept" "$([ -e "$BENDIT_LIVE_DIR/recent-win" ] && echo kept || echo removed)" kept
+if [ -z "$PY_GIVEN" ]; then
+  startup "win-snap" startup
+  HERE="$PWD"; cd "$LP" || exit 2   # a folder with no bendit-probe: the same "live test:" line everywhere
+  expect_capture "--session, a window bendit started in" env CLAUDE_CODE_SESSION_ID=win-snap "$PY" "$KIT/scripts/selfcheck.py" --session
+  expect_capture "--session, a window opened before bendit was set up" env CLAUDE_CODE_SESSION_ID=win-before "$PY" "$KIT/scripts/selfcheck.py" --session
+  expect_capture "--session, no session id from Claude Code" env -u CLAUDE_CODE_SESSION_ID "$PY" "$KIT/scripts/selfcheck.py" --session
+  cd "$HERE" || exit 2   # back: the rerun below starts "$0", which may be a relative path
+fi
 
 echo
 echo "IT CLEANS UP"

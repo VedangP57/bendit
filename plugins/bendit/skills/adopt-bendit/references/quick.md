@@ -13,7 +13,10 @@ Rules for the whole path:
   the project folder, guards, generated files, invariants, branches, CI, the
   install route or which package list to use.
 - **Nothing outside the summary.** Every file written and every command that
-  installs something is listed in the summary first. If a step turns out to
+  installs something is listed in the summary first, in everyday words (the
+  `.git/info/exclude` lines are the "private list" in the `.gitignore` row, and
+  the port note is "remember it on this computer"; the report's record section
+  names the exact paths). If a step turns out to
   need something the summary did not list, stop and say so; do not add it.
 - **No per-step shows.** The detailed flow's "show, then write" is replaced by
   the summary. Instead, the final report lists every file written and every
@@ -92,7 +95,7 @@ in your head; the summary is built from it.
 | test | detect.md §2. A Node `scripts.test` that only prints "no test specified" and exits 1 is **no test**. Python: pytest only when detect.md §2's pytest signals are present; else `<python> -m unittest` (the reused environment's python, else `python3`) only when a `test*.py` file exists. |
 | typecheck | detect.md §2. |
 | build | detect.md §2 (only used when there is no test and no typecheck). |
-| the check (`.claude/verify-harness`) | `--harness-owner` printed `kept`: keep it, unchanged ("your existing test check (kept)"). That includes a harness an older bendit generated that someone has since edited or committed: the generated header alone never makes it bendit's. `own` (a `TODO(bendit):` line, or untracked and exactly the scaffold's output, as an earlier run that stopped leaves it) or `absent`: typecheck `&&` test when both exist; else test; else typecheck; else build. None of the four: §3 question A. Lint is never in it. The app is never in it (the web verify skill is still generated, for use on request). |
+| the check (`.claude/verify-harness`) | `--harness-owner` printed `kept`: keep it, unchanged ("your existing test check (kept)"). That includes a harness an older bendit generated that someone has since edited or committed, and any harness git tracks, even one with a `TODO(bendit):` line: the generated header alone never makes it bendit's. `own` (untracked, and either a `TODO(bendit):` line or exactly the scaffold's output, as an earlier run that stopped leaves it) or `absent`: typecheck `&&` test when both exist; else test; else typecheck; else build. None of the four: §3 question A. Lint is never in it. The app is never in it (the web verify skill is still generated, for use on request). |
 | command form | Node: `<pm> run <script>` (so `bun run test`, never `bun test`, which is bun's own runner). Python: uv `uv run <tool>`, poetry `poetry run <tool>`, a Python environment (below) `<env>/bin/python -m <tool>`, else `python3 -m <tool>`. A task-runner target (`make test`) wins, as detect.md §2 says. |
 | Python environment | Reuse, in order: `$VIRTUAL_ENV`, then `.venv/`, `venv/`, `env/` in ROOT (each with `bin/python`). |
 | project packages | Only what the check needs, from the lockfile, never changing it. Node, `node_modules/` missing, or a retry (§0; an install that failed can leave a half-filled `node_modules/`): bun `bun install --frozen-lockfile`, pnpm `pnpm install --frozen-lockfile`, npm `npm ci`, yarn `yarn install --immutable` (Yarn 2+) or `yarn install --frozen-lockfile` (Yarn 1). uv `uv sync --locked`; poetry `poetry install`. Plain Python, and only when the check uses pytest and `<python> -m pytest --version` fails: install into the reused environment, else a new `.venv/` (`python3 -m venv .venv`). In either, first `<python> -m pip install -U pip` (the pip a Python 3.9 environment starts with, 21.2, cannot install a project that has only a `pyproject.toml`; listed in the summary), then `<python> -m pip install -e . pytest` when there is a `pyproject.toml` or `setup.py` (this also writes `<name>.egg-info/` in the project when setuptools builds it: list it), else `<python> -m pip install -r <each requirements*.txt> pytest`. A new `.venv/` is added to `.gitignore` unless `git check-ignore -q .venv` already ignores it. Packages already present: nothing. Node with no lockfile: nothing (an install would create one); the report says the check needs `<pm> install` first. |
@@ -107,7 +110,7 @@ in your head; the summary is built from it.
 | feature dependencies | `browser-driver` on: Node 20+ missing → `brew install node` (macOS with Homebrew); Chrome missing → `brew install --cask google-chrome`; `drive-setup.sh --check` exits 1 → `bash "$KIT/scripts/drive-setup.sh"`. Each only if not already installed. No Homebrew for a missing Node or Chrome: the feature is off with why `Node not found` / `Chrome not found (Chromium cannot be driven)`, and the summary says so. |
 | install route | Already installed for this project at project scope: nothing. `install-route.sh route` prints `github` → bendit from GitHub (anyone else who downloads this project gets it too). `vendor` → a copy inside the project, stated as "works on this computer only". |
 | marketplace conflict | `conflict` exit 0 and silent: nothing. Exit 0 with `switch: <sentence>`: proceed, and put the sentence in the summary and report. Non-zero: §3 question B. |
-| existing AGENTS.md / CLAUDE.md | Absent: create (`AGENTS.md` from `KIT/templates/AGENTS.md`, placeholders with no answer deleted with their line; `CLAUDE.md` the single line `@AGENTS.md`). Present: add only what is missing (project-layer.md §1), never rewrite. |
+| existing AGENTS.md / CLAUDE.md | Absent: create (`AGENTS.md` from `KIT/templates/AGENTS.md`, placeholders with no answer deleted with their line; `CLAUDE.md` the single line `@AGENTS.md`). Present: add only what is missing (project-layer.md §1), never rewrite; a `CLAUDE.md` without the import gets `@AGENTS.md` as the first line, then one blank line, above its own text (exactly what the undo command removes). |
 | dead configuration (detect.md §6) | Not changed. Listed in the report as found. |
 
 ## 2. The one question
@@ -134,8 +137,8 @@ Files I'll add or change in your project
   .claude/verify-harness        the test check above                       (new only)
   .claude/bendit.json           which parts are on, and why
   .claude/skills/verify-<name>/ and .env.verify.example   browser testing  (web apps, also when the test check is kept)
-  .gitignore                    keeps bendit's working notes out of your project's saved history (<n> lines added)
-  .git/info/exclude             the same, on this computer only
+  .gitignore                    keeps bendit's working notes out of your project's saved history (<n> lines added;
+                                a few more go in a private list only this computer reads)
   .venv/                        a private folder for your project's Python packages (only when §1 creates it)
   <name>.egg-info/              a small folder Python's installer writes   (only when §1's install makes it)
 
@@ -148,8 +151,8 @@ What I'll do on this computer
     this computer will now point at the public version on GitHub; <name> may switch back to its own copy
     the next time you open Claude there. Nothing in <name>'s files changes.">
   • The design-advice part (bendit's web add-on).                          (web apps)
-  • Note a web address number (port) for your app in ~/.config/bendit, so it never clashes with your
-    other projects' apps.                                                   (web apps, unless already noted)
+  • Pick a web address number for your app that none of your other projects use, and remember it
+    on this computer.                                                       (web apps, unless already noted)
   • A helper (Playwright) that lets the AI use Chrome, stored in bendit's own folder, not in your project.   (only if not already installed)
   • Install <tool>, which your project uses for <purpose> (with Homebrew).   (only if not already installed;
     e.g. "Install Google Chrome, which browser testing uses to open your app (with Homebrew).")
@@ -215,7 +218,13 @@ report (§6) with NOT COMPLETE, the failing command, its output, and the fix.
 1. `git init` (not a repository only).
 2. **Install bendit.** `github`: `claude plugin marketplace add
    https://github.com/VedangP57/bendit --scope project` then `claude plugin
-   install bendit@bendit --scope project`. `vendor`: install.md Route B steps
+   install bendit@bendit --scope project`. It may print that bendit's 2
+   options (`userConfig`) are not yet set. That is expected: unset, they mean
+   their defaults (the zsh check on; the main branch found from the project).
+   Do not pass `--config` or run `claude plugin configure`: both save the values
+   in `~/.claude/settings.json`, which quick never edits. Say it once, right
+   after the install, in one plain line: "Claude says 2 bendit settings aren't
+   set yet. That's fine: bendit uses its standard settings. Nothing to do." `vendor`: install.md Route B steps
    1–5 (clone into a `mktemp -d`, copy, register, install, `VENDORED_FROM`),
    then remove the temporary clone (`rm -r <that mktemp dir>`).
 3. **Web add-on.** `claude plugin install bendit-web@bendit --scope project`.
@@ -263,11 +272,19 @@ report (§6) with NOT COMPLETE, the failing command, its output, and the fix.
    step 3b, with the real state and why. `.claude/bendit.json` is written
    last on purpose: §0 treats it as "set up", so it exists only once every
    earlier step finished. prove.sh (next) reads it for its feature rows.
-9. **Prove it.** `bash "$KIT/scripts/prove.sh" "$ROOT"`, then the live
-   force-push check, both exactly as prove.md says. Its "approved by you" row
-   fails until the person does last step 1 in §6, and the live check may be
-   "pending a new session": those two alone are expected, and are reported as
-   the two last steps, not as a pass.
+9. **Prove it.** `bash "$KIT/scripts/prove.sh" "$ROOT"`, then
+   `python3 "$KIT/scripts/selfcheck.py" --session` (is bendit running in this
+   Claude window? `window: live`, `not live` or `unknown`; and a `live test:`
+   line). Always run the live force-push check, exactly as prove.md says,
+   whatever the window line says, unless the `live test:` line says `skip`
+   (something here is named `bendit-probe`; the report says so plainly, and
+   the live check is "skipped"). A refusal by bendit means this window is
+   already protected: then last step 2 is left out. Anything else: step 2
+   stays, and the window line only explains why (`not live`: this window was
+   opened before bendit was set up). prove.sh's "approved by you" row fails
+   until the person does last step 1 in §6, and the live check may wait for a
+   reopened Claude: those two alone are expected, and are reported as the last
+   steps, not as a pass.
 
 ## 6. The report
 
@@ -276,9 +293,23 @@ Plain words first, the evidence after. The header is the first that applies:
 - a FAIL other than the two expected rows, or question A skipped:
   `bendit is NOT fully set up: <what failed, plainly>. To fix it: <the fix>.`
 - only the expected rows open: `bendit is almost set up: two last steps.`
-  The "Two last steps" block shows, with only the steps still open.
-- everything passed (an earlier run's harness was already approved):
-  `bendit is set up in <project>.` The "Two last steps" block is left out.
+  (or `one last step.`). The last steps block shows, with only the steps still
+  open.
+- everything passed (the harness already approved, and the live check refused
+  by bendit in this window): `bendit is set up in <project>.` The last steps
+  block is left out, and the report ends with "Nothing else to do."
+
+**What is on screen last.** The report is long, and the person reads its end.
+The full report comes first; the LAST lines are only what the person must do
+next, with nothing after them:
+
+- both steps open: the "Two last steps:" block, exactly as in the template.
+- only step 2 (the check was already approved, as on a re-run):
+  `One last step:` then, on the next line, `  Close Claude and open it again in
+  this project, then type /bendit:doctor.`
+- only step 1 (this window is already protected): `One last step:` then the
+  step 1 lines, unnumbered.
+- NOT COMPLETE: the last line repeats `To fix it: <the fix>.`
 
 Template:
 
@@ -290,12 +321,6 @@ What you got
   • Test check before "done": <the check>. Ran it: <passed in Ns | failed: …>.
   • Browser testing / design advice / project note / file-list check: on or off, with why.
   <the switch sentence, if any>
-
-Two last steps
-  1. Open a new Terminal window (not this chat), paste this, and type y:
-       <the --trust command prove.sh printed, e.g. python3 "<KIT>/scripts/require-verification.py" --trust "<ROOT>">
-     It shows the test check bendit will run and asks you to type y to approve.
-  2. Close and reopen Claude in this project, then run /bendit:doctor.
 
 How to use it
   /bendit:verify       run the full check now (for a web app: start it and click through it)
@@ -318,7 +343,21 @@ How to undo all of it (paste into a Terminal window)
   rm -r <every folder this run created, by exact path: .claude/skills/verify-<name>, .claude/vendor/bendit, .venv, <name>.egg-info>
   rm -r .claude/.bendit-state      (bendit's working notes; only if it was not there before this run)
   rmdir .claude/skills .claude/vendor .claude     (only the ones this run created; rmdir refuses a folder that still has anything else in it, so nothing else is lost)
-  <for every file this run changed: the exact line(s) to delete from it, including .gitignore and .git/info/exclude>
+  python3 -I -c 'if 1:
+      import os, sys
+      for a in sys.argv[1:]:
+          f, line = a.split(":", 1)
+          if not os.path.isfile(f):
+              print(f + ": not found, skipped")
+              continue
+          s = open(f, newline="").read().split("\n")
+          k = [x.rstrip("\r") for x in s]
+          if line in k:
+              i = k.index(line)
+              n = 2 if f == "CLAUDE.md" and i + 2 < len(k) and k[i + 1] == "" else 1
+              del s[i:i + n]
+              open(f, "w", newline="").write("\n".join(s))' 'CLAUDE.md:@AGENTS.md' '.gitignore:.claude/.bendit-state/'
+  <AGENTS.md, when this run added bendit's section to an existing one: the exact lines to delete from it>
   rm -rf .git      (only if this run started tracking the folder; this also deletes anything saved to the project's history since)
   rm -r "<cache dir>/drive"                                      (only if this run installed Playwright)
   Left installed, because other apps may use them: <each install this run did, with its undo:
@@ -335,11 +374,25 @@ What I did (for the record; no action needed)
   Commands run:  <every command, in order, with its exit status>
   prove.sh:      <its table, as printed>
   Live check:    <PASS / FAIL / inconclusive / waits until you reopen Claude>
+  Also noted:    <.git/info/exclude: the lines added; the port, in ~/.config/bendit/ports.json (web apps)>
   Found, not changed: <dead configuration, other tools' privacy notices>
+
+Two last steps:
+  1. Open a new Terminal window (not this chat), paste this, and type y:
+       <the exact --trust command prove.sh printed, e.g. python3 "<KIT>/scripts/require-verification.py" --trust "<ROOT>">
+  2. Close Claude and open it again in this project, then type /bendit:doctor.
 ```
 
 The undo list names real paths from this run, never a placeholder, and
-leaves out lines that do not apply. `claude plugin marketplace remove bendit
+leaves out lines that do not apply. The `python3 -I -c` command removes
+lines this run added, by their exact text (from `CLAUDE.md`, the `@AGENTS.md`
+line and the blank line after it); it runs the same on macOS and Linux, keeps
+each file's line endings, works pasted with or without the indent shown (its
+`if 1:` first line is why), and skips a file that is gone, saying so. Give
+it one `'<file>:<line>'` argument per line this run added to `CLAUDE.md`,
+`.gitignore` or `.git/info/exclude` (so also `'.gitignore:.venv/'` and
+`'.gitignore:!.env.verify.example'` when this run added them), and leave out a
+file this run created: `rm` removes that one. `claude plugin marketplace remove bendit
 --scope project` also removes bendit from the computer's list of plugin
 sources (`~/.claude/plugins/known_marketplaces.json`; seen 2026-11-20 with
 one project). Another project that still names bendit in its own

@@ -418,10 +418,22 @@ printf 'make check\n' > "$O/.claude/verify-harness"
 chk "hand-written -> kept" "$(own "$O")" "kept
 rc=0"
 OB="$T/ownerb"; newrepo "$OB" '{"name":"ownerb","scripts":{"build":"true"}}'
-bash "$SCAF" "$OB" >/dev/null 2>&1; gcommit "$OB" harness
+bash "$SCAF" "$OB" >/dev/null 2>&1
 printf '# my note\n' >> "$OB/.claude/verify-harness"
 has "  (fixture: the build-only harness has a TODO line)" "TODO(bendit):" "$(cat "$OB/.claude/verify-harness")"
-chk "a TODO(bendit): line, even edited and committed -> own" "$(own "$OB")" "own
+chk "a TODO(bendit): line, edited, untracked (a run that stopped) -> own" "$(own "$OB")" "own
+rc=0"
+# Tracked in git, the TODO line no longer makes it bendit's: the project saved
+# that file as its own, so replacing it would overwrite the person's file.
+gcommit "$OB" harness
+chk "a TODO(bendit): line, but TRACKED in git (the person's) -> kept" "$(own "$OB")" "kept
+rc=0"
+git -C "$OB" rm -q --cached .claude/verify-harness
+chk "  ...and untracked again -> own" "$(own "$OB")" "own
+rc=0"
+OS="$T/owners"; newrepo "$OS" '{"name":"owners","scripts":{"build":"true"}}'
+bash "$SCAF" "$OS" >/dev/null 2>&1; git -C "$OS" add .claude/verify-harness
+chk "a TODO(bendit): line, staged but not committed (tracked) -> kept" "$(own "$OS")" "kept
 rc=0"
 OW="$T/ownerw"; newrepo "$OW" '{"name":"ownerw","scripts":{"dev":"node srv.js","test":"true"},"dependencies":{"express":"1"}}'
 bash "$SCAF" "$OW" --pm pnpm >/dev/null 2>&1

@@ -39,10 +39,11 @@
 #                      /bendit:adopt uses it to keep a project's own test
 #                      check, and to resume.
 #   --harness-owner    write nothing; print who owns .claude/verify-harness:
-#                      absent, own (bendit's: it has a TODO(bendit): line, or
-#                      git does not track it and it is byte-for-byte what this
+#                      absent, own (bendit's: git does not track it, and it
+#                      has a TODO(bendit): line or is byte-for-byte what this
 #                      scaffold would write now, with the same options), or
-#                      kept (anyone else's, so never replace it)
+#                      kept (anyone else's, a tracked one included, so never
+#                      replace it)
 #   --dry-run          print what was detected; write nothing
 #
 # exit: 0 generated, nothing left to fill in
@@ -562,16 +563,18 @@ HEOF
   fi
 }
 
-# --harness-owner: read-only. A TODO(bendit): line means a scaffold wrote it and
-# nobody finished it; untracked and byte-identical means nobody has touched it.
-# Anything else -- an edit, or a commit (the project took it as its own) -- is
-# someone's check, so it is kept. Fails closed: when unsure, kept.
+# --harness-owner: read-only. Tracked by git means the project saved it as its
+# own (committed or staged): kept, whatever is in it, a TODO(bendit): line
+# included. Untracked, a TODO(bendit): line means a scaffold wrote it and nobody
+# finished it; untracked and byte-identical means nobody has touched it. Anything
+# else -- an edit -- is someone's check, so it is kept. Fails closed: when
+# unsure, kept.
 if [ -n "$OWNER" ]; then
   H="$REPO/.claude/verify-harness"
   if [ ! -e "$H" ] && [ ! -L "$H" ]; then echo absent; exit 0; fi
+  if git -C "$REPO" ls-files --error-unmatch -- .claude/verify-harness >/dev/null 2>&1; then echo kept; exit 0; fi
   if [ -f "$H" ] && grep -q 'TODO(bendit):' "$H"; then echo own; exit 0; fi
-  if [ -f "$H" ] && [ ! -L "$H" ] && ! git -C "$REPO" ls-files --error-unmatch -- .claude/verify-harness >/dev/null 2>&1 \
-     && [ "$(harness_text | cksum)" = "$(cksum < "$H")" ]; then
+  if [ -f "$H" ] && [ ! -L "$H" ] && [ "$(harness_text | cksum)" = "$(cksum < "$H")" ]; then
     echo own; exit 0
   fi
   echo kept; exit 0

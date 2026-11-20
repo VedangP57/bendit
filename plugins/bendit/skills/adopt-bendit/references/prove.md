@@ -30,7 +30,7 @@ What its rows mean:
 | `<script>: has a probe` | a hook in `hooks.json` that `prove.sh` has no payloads for | the kit gained a hook nobody taught `prove.sh` to test; it cannot vouch for it |
 | `Stop gate: ...` | a throwaway git repo: an edit is marked, a harness that exits 1 must be refused (exit 2), one that exits 0 must be allowed | the gate cannot refuse, or cannot be satisfied |
 | `harness: ...` | the project's `.claude/verify-harness`, as the Stop gate runs it | the harness is red, missing, only comments, too slow, or it changed the working tree |
-| `privacy: ...` | `privacy-scan.py` over `AGENTS.md`, `CLAUDE.md`, `.claude/verify-harness`, `.env.verify.example`, `.claude/skills/` | a home path or a real email in a file meant to be committed (also a portability bug: it fails on every other machine) |
+| `privacy: ...` | `privacy-scan.py` over `AGENTS.md`, `CLAUDE.md`, `.claude/verify-harness`, `.env.verify.example`, `.claude/bendit.json` (its `why` texts and the brief config are committed free text), `.claude/skills/` | a home path or a real email in a file meant to be committed (also a portability bug: it fails on every other machine) |
 | `features: .claude/bendit.json readable` | `features.py`'s reader over the project's `.claude/bendit.json` (absent is fine) | the file is malformed: the message names the file and the problem; repair or delete `.claude/bendit.json`, then re-run SKILL.md step 3b and the script |
 | `feature: <name>` | the feature's own check, only when it is on in `.claude/bendit.json` | the feature is on and its check failed, or there is no check for it yet |
 

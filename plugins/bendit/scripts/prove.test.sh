@@ -141,6 +141,33 @@ expect_capture "ls-guard on" bash "$SD/prove.sh" "$F2b"
 chk "ls-guard on: the check runs the hook and prove passes" "$EXPECT_CODE" "0"
 chk "  ...its row says PASS" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^feature: ls-guard +\| PASS ')" "1"
 
+BENDIT_JSON='{"version":1,"features":{"session-brief":{"on":true,"why":"git project","brief":{"local_ports":[]}}}}'
+F2c="$T/feat-brief"; repo "$F2c" 'exit 0'
+git -C "$F2c" checkout -q -b brief-branch   # not the init default: that differs per machine
+expect_capture "session-brief on" bash "$SD/prove.sh" "$F2c"
+chk "session-brief on: the brief runs on the repo and prove passes" "$EXPECT_CODE" "0"
+chk "  ...its row says PASS" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^feature: session-brief +\| PASS ')" "1"
+# A brief that prints valid JSON but does not name the branch must FAIL the
+# row: the check reads the context, not just the exit code. (It stays silent
+# for --hook, so only the feature row can catch it.)
+K5="$T/kit-blindbrief"; kitcopy "$K5"
+printf 'import sys, json\nif "--cwd" in sys.argv: print(json.dumps({"context": "nothing", "toast": ""}))\n' > "$K5/scripts/session-brief.py"
+expect_capture "session-brief that names no branch" bash "$K5/scripts/prove.sh" "$F2c"
+chk "a brief that does not name the branch fails prove (exit 1)" "$EXPECT_CODE" "1"
+has "  ...saying what is missing" "the brief does not name the checked-out branch" "$EXPECT_STDOUT"
+
+# bendit.json is committed free text (each why, the brief config), so the
+# privacy row scans it. The home path is assembled at run time so this file
+# itself carries none, and the feature is ON so prove.sh never echoes the why
+# (an UNUSED row prints it) into the committed snapshot.
+U="/Us""ers"
+BENDIT_JSON="{\"version\":1,\"features\":{\"ls-guard\":{\"on\":true,\"why\":\"seen in $U/alice/proj\"}}}"
+FP="$T/feat-private"; repo "$FP" 'exit 0'
+expect_capture "home path in a bendit.json why" bash "$SD/prove.sh" "$FP"
+chk "a home path in .claude/bendit.json fails prove (exit 1)" "$EXPECT_CODE" "1"
+chk "  ...on the privacy row" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^privacy: .*\| FAIL ')" "1"
+has "  ...naming the file" ".claude/bendit.json" "$(printf '%s\n' "$EXPECT_STDOUT" | sed -n '/^failures:/,$p')"
+
 BENDIT_JSON='{"version":1,'
 F3="$T/feat-bad"; repo "$F3" 'exit 0'
 expect_capture "malformed bendit.json" bash "$SD/prove.sh" "$F3"

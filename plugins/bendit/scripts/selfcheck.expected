@@ -19,14 +19,15 @@ post-edit-review.py            | PostToolUse Edit|Write|MultiEdit      | ok
 require-verification.py --mark | PostToolUse Edit|Write|MultiEdit|Bash | ok
 warn-suppressed-stderr.py      | PostToolUse Bash                      | ok
 require-verification.py        | Stop                                  | ok
+session-brief.py --hook        | SessionStart startup|clear            | ok
 
-selfcheck: all 10 hooks answered their probe
+selfcheck: all 11 hooks answered their probe
 
 === block-dangerous-bash replaced by exit 0
 exit 0
 --- stdout
 -- systemMessage (the person)
-bendit: 1 of 10 hooks is OFF -- it could not run, or let a known-bad call through, so that check is not protecting you this session. The rest still work.
+bendit: 1 of 11 hooks is OFF -- it could not run, or let a known-bad call through, so that check is not protecting you this session. The rest still work.
   - block-dangerous-bash.py (PreToolUse Bash): exit 0 on its known-bad probe: it no longer refuses `git push --force`
     this guard is OFF. Fix: it runs but lets a known-bad call through: reinstall, or revert a local edit to it.
 After fixing, start a new session or run /bendit:doctor to re-check.

@@ -45,11 +45,12 @@ gate in this kit fails closed and refuses to report success on empty input.
 
 ## Non-goals (v1)
 
-- Multi-session orchestration, session-start project briefs, a browser driver, database
-  (Supabase/RLS) helpers. They exist privately but are unproven or stack-specific.
-  (v2 adds one SessionStart hook, `scripts/selfcheck.py`: it only test-fires the
-  guards and stays silent when they work, so it is not a brief.)
-  They may ship later, each only with a measured result.
+- Multi-session orchestration, a browser driver, database (Supabase/RLS) helpers.
+  They exist privately but are unproven or stack-specific. They may ship later,
+  each only with a measured result. (v2 adds a SessionStart self-check,
+  `scripts/selfcheck.py`, which only test-fires the guards and stays silent when
+  they work; the session brief, `scripts/session-brief.py`, ships per project,
+  off unless `.claude/bendit.json` turns `session-brief` on, not yet measured.)
 - Supporting non-Claude-Code agents.
 - A GUI.
 
@@ -103,6 +104,7 @@ bendit/
       privacy-scan.py               fails on personal data (used by CI and /adopt)
       probes.py                     one known-bad payload per hook (prove.sh, selfcheck)
       selfcheck.py                  SessionStart: test-fires every guard, loud only if one is off
+      session-brief.py              SessionStart startup|clear: where the repo stands, when bendit.json turns session-brief on
       *.test.sh, *.expected
     skills/
       adopt-bendit/SKILL.md + references/*.md
@@ -124,7 +126,8 @@ bendit/
 Per-project state lives in the project, never in the plugin folder, and only
 where something reads it (a config file nothing reads is failure class F1).
 There is one config file, `.claude/bendit.json`, read by `prove.sh` (and so
-`/doctor`) and by the ls-guard hook (the session-brief hook will read it once it ships). It
+`/doctor`), by the ls-guard hook and by the session-brief hook (which reads the
+main checkout's copy, so worktrees share it, and its optional `brief` object). It
 records which optional features
 (`browser-driver`, `ux-design-laws`, `session-brief`, `ls-guard`) are on and
 why, and `/adopt` writes it through `scripts/features.py`. For a web app,

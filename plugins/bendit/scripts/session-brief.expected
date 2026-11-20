@@ -1,0 +1,889 @@
+=== not-a-repo
+exit 0
+--- stdout
+git state: failed
+git reason: git exited 128: fatal: not a git repository (or any of the parent directories): .git
+
+=== corrupt-git
+exit 0
+--- stdout
+git state: failed
+
+=== first-path-intact
+exit 0
+--- stdout
+status state: ok
+branch: main
+upstream: None
+ahead: None
+behind: None
+entry: .M|CLAUDE.md
+
+=== rename-and-space
+exit 0
+--- stdout
+status state: ok
+branch: main
+upstream: None
+ahead: None
+behind: None
+entry: R.|a b.txt -> c d.txt
+entry: ??|café ü.txt
+
+=== detached
+exit 0
+--- stdout
+status state: ok
+branch: None
+upstream: None
+ahead: None
+behind: None
+
+=== mid-rebase
+exit 0
+--- stdout
+status state: ok
+branch: None
+upstream: None
+ahead: None
+behind: None
+entry: UU|f
+
+=== pushed-without-u
+exit 0
+--- stdout
+remote state: ok
+remote value: yes
+status state: ok
+branch: feat
+upstream: None
+ahead: None
+behind: None
+
+=== gone-upstream
+exit 0
+--- stdout
+remote state: ok
+remote value: no
+status state: ok
+branch: gone
+upstream: origin/gone
+ahead: None
+behind: None
+
+=== unpushed-new-branch-0
+exit 0
+--- stdout
+unpushed state: ok
+unpushed value: 0
+
+=== unpushed-new-branch-1
+exit 0
+--- stdout
+unpushed state: ok
+unpushed value: 1
+
+=== dns-fail
+exit 0
+--- stdout
+reach state: failed
+reach reason: could not resolve nonexistent.invalid — offline, or the project no longer exists; can't tell which
+
+=== dns-timeout
+exit 0
+--- stdout
+reach state: unknown
+reach reason: lookup timed out after 0.8s
+fast: True
+
+=== connect-timeout
+exit 0
+--- stdout
+reach state: unknown
+reach reason: connection to 127.0.0.1:9 timed out after 0.8s
+
+=== connect-socket-timeout
+exit 0
+--- stdout
+reach state: unknown
+reach reason: connection to 127.0.0.1:9 timed out after 0.8s
+
+=== connect-stalled
+exit 0
+--- stdout
+reach state: unknown
+reach reason: connection to 127.0.0.1:9 timed out after 0.8s
+
+=== connect-refused
+exit 0
+--- stdout
+reach state: failed
+reach reason: 127.0.0.1:<port> refused or unreachable
+
+=== connect-ok
+exit 0
+--- stdout
+reach state: ok
+reach value: reachable
+
+=== dotenv-last-wins
+exit 0
+--- stdout
+X: 3
+Q: quoted
+Y: None
+missing: None
+
+=== dotenv-priority
+exit 0
+--- stdout
+X: from-local
+Z: only-env
+defaults: ['.env.local', '.env']
+
+=== dotenv-unreadable
+exit 0
+--- stdout
+raised: IsADirectoryError
+
+=== dotenv-grammar
+exit 0
+--- stdout
+A: 'https://a.example.com'
+C: 'https://c.example.com'
+B: 'https://b.example.com'
+E: 'https://e.example.com'
+H: 'keep # this'
+S: 'single # too'
+K: 'back'
+B host: ('b.example.com', 443)
+
+=== host-port-grammar
+exit 0
+--- stdout
+db.example.com:5432/x -> ('db.example.com', 5432)
+db.example.com/x -> ('db.example.com', 5432)
+[::1]:6543/db -> ('::1', 6543)
+https://Example.COM/path?q=1 -> ('example.com', 443)
+http://h.example.com:8080 -> ('h.example.com', 8080)
+db.example.com:6543 -> ('db.example.com', 6543)
+https://h.example.com:notaport/ -> ('h.example.com', None)
+mysql://h.example.com/x -> ('h.example.com', None)
+
+=== no-network-by-default
+exit 0
+--- stdout
+on: True
+network calls: 0
+probe lines: 0
+
+=== no-network-empty-lists
+exit 0
+--- stdout
+on: True
+network calls: 0
+probe lines: 0
+
+=== network-control
+exit 0
+--- stdout
+on: True
+network calls: 1
+probe lines: 1
+
+=== header-and-tags
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: main — 1 uncommitted file.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Uncommitted: .M base.txt
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 1 uncommitted · 1 unknown
+toast <= 120 chars: True
+
+=== zero-commits
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: main — 0 uncommitted files.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 0 uncommitted · 1 unknown
+toast <= 120 chars: True
+
+=== probe-dead-host
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [probe <hh:mm>] APP_URL (x.invalid:443) failed: could not resolve x.invalid — offline, or the project no longer exists; can't tell which
+| [git] Branch: main — 1 uncommitted file.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Uncommitted: ?? .env.local
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 1 uncommitted · APP_URL: can't resolve host — offline or gone, can't tell which
+toast <= 120 chars: True
+
+=== probe-bracketed-password
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [probe <hh:mm>] DB_URL (x.invalid:5432) failed: could not resolve x.invalid — offline, or the project no longer exists; can't tell which
+| [git] Branch: main — 1 uncommitted file.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Uncommitted: ?? .env.local
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 1 uncommitted · DB_URL: can't resolve host — offline or gone, can't tell which
+toast <= 120 chars: True
+
+=== local-port-v4-only
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: main — 0 uncommitted files.
+| [git] Push: not on origin (as of the last fetch).
+| [probe <hh:mm>] localhost:<port>: reachable
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 0 uncommitted · 1 unknown
+toast <= 120 chars: True
+
+=== env-url-localhost-v4-only
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: main — 1 uncommitted file.
+| [git] Push: not on origin (as of the last fetch).
+| [probe <hh:mm>] APP_URL (localhost:<port>): reachable
+| [git] Uncommitted: ?? .env.local
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 1 uncommitted · 1 unknown
+toast <= 120 chars: True
+
+=== local-port-v6-only
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: main — 0 uncommitted files.
+| [git] Push: not on origin (as of the last fetch).
+| [probe <hh:mm>] localhost:<port>: reachable
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 0 uncommitted · 1 unknown
+toast <= 120 chars: True
+
+=== probe-unconfigured
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: main — 1 uncommitted file.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Uncommitted: ?? .env.local
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 1 uncommitted · 1 unknown
+toast <= 120 chars: True
+
+=== probe-var-unset
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: main — 1 uncommitted file.
+| [git] Push: not on origin (as of the last fetch).
+| [files] APP_URL: not set in .env.local
+| [git] Uncommitted: ?? .env.local
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 1 uncommitted · 1 unknown
+toast <= 120 chars: True
+
+=== probe-var-no-env-file
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: main — 0 uncommitted files.
+| [git] Push: not on origin (as of the last fetch).
+| [files] APP_URL: not set (no .env.local, .env present)
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 0 uncommitted · 1 unknown
+toast <= 120 chars: True
+
+=== alarms-over-cap
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_01: unknown (no host and port in its value)
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_02: unknown (no host and port in its value)
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_03: unknown (no host and port in its value)
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_04: unknown (no host and port in its value)
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_05: unknown (no host and port in its value)
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_06: unknown (no host and port in its value)
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_07: unknown (no host and port in its value)
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_08: unknown (no host and port in its value)
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_09: unknown (no host and port in its value)
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_10: unknown (no host and port in its value)
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_11: unknown (no host and port in its value)
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_12: unknown (no host and port in its value)
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_13: unknown (no host and port in its value)
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_14: unknown (no host and port in its value)
+| [files] A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_15: unknown (no host and port in its value)
+| [brief] Alarms cut to stay under 2000 characters: 15 not shown.
+| [git] Branch: main — 1 uncommitted file.
+| [git] Push: not on origin (as of the last fetch).
+| [brief] Not shown, to stay under 2000 characters: this branch's commits, uncommitted file names.
+toast: brief: main · 1 uncommitted · A_DELIBERATELY_LONG_ENVIRONMENT_VARIABLE_NAME_01: unknown (no host and port in its value)
+toast <= 120 chars: True
+
+=== env-unreadable
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [files] APP_URL: unknown (could not read env files: IsADirectoryError: [Errno 21] Is a directory: '<tmp>/b-envdir/.env.local')
+| [git] Branch: main — 0 uncommitted files.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 0 uncommitted · APP_URL: unknown (could not read env files: IsADirectoryError: [Errno 21] Is a directory:…
+toast <= 120 chars: True
+
+=== config-unreadable
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [files] Brief config: unknown (<tmp>/b-plain/.claude/bendit.json: not valid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)); this brief uses the defaults
+| [git] Branch: main — 1 uncommitted file.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Uncommitted: .M base.txt
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 1 uncommitted · bendit.json is malformed
+toast <= 120 chars: True
+
+=== config-wrong-type
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [files] Brief config: unknown (<tmp>/b-plain/.claude/bendit.json: feature 'session-brief': 'brief': 'local_ports' must be a list of integers from 1 to 65535, got ['3000']); this brief uses the defaults
+| [git] Branch: main — 1 uncommitted file.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Uncommitted: .M base.txt
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 1 uncommitted · bendit.json is malformed
+toast <= 120 chars: True
+
+=== unfinished-worktrees
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: main — 0 uncommitted files.
+| [git] Push: origin/main ahead 0, behind 0 as of the last fetch.
+| [git] Other worktrees with unfinished work: 2
+|   - ahead: 0 uncommitted, 1 not on any remote (as of the last fetch) — <tmp>/wt/ahead ⚠ temp folder, can be wiped
+|   - dirty: 1 uncommitted, 0 not on any remote (as of the last fetch) — <tmp>/wt/dirty ⚠ temp folder, can be wiped
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 0 uncommitted · 1 unknown
+toast <= 120 chars: True
+
+=== worktree-reads-main-config
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [probe <hh:mm>] APP_URL (x.invalid:443) failed: could not resolve x.invalid — offline, or the project no longer exists; can't tell which
+| [git] Branch: clean — 1 uncommitted file.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Uncommitted: ?? .env.local
+| [git] Other worktrees with unfinished work: 2
+|   - ahead: 0 uncommitted, 1 not on any remote (as of the last fetch) — <tmp>/wt/ahead ⚠ temp folder, can be wiped
+|   - dirty: 1 uncommitted, 0 not on any remote (as of the last fetch) — <tmp>/wt/dirty ⚠ temp folder, can be wiped
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: clean · 1 uncommitted · APP_URL: can't resolve host — offline or gone, can't tell which
+toast <= 120 chars: True
+
+=== vanished-worktree
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: main — 0 uncommitted files.
+| [git] Push: origin/main ahead 0, behind 0 as of the last fetch.
+| [git] Other worktrees with unfinished work: 2
+|   - ahead: 0 uncommitted, 1 not on any remote (as of the last fetch) — <tmp>/wt/ahead ⚠ temp folder, can be wiped
+|   - dirty: 1 uncommitted, 0 not on any remote (as of the last fetch) — <tmp>/wt/dirty ⚠ temp folder, can be wiped
+| [git] 1 worktree folder(s) missing or unreadable (gone)
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 0 uncommitted · 1 unknown
+toast <= 120 chars: True
+
+=== slow-worktree
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: main — 0 uncommitted files.
+| [git] Push: origin/main ahead 0, behind 0 as of the last fetch.
+| [git] Other worktrees with unfinished work: 1 (+1 unknown)
+|   - dirty: unknown (timed out) — <tmp>/wt/dirty ⚠ temp folder, can be wiped
+|   - ahead: 0 uncommitted, 1 not on any remote (as of the last fetch) — <tmp>/wt/ahead ⚠ temp folder, can be wiped
+| [git] 1 worktree folder(s) missing or unreadable (gone)
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 0 uncommitted · 2 unknown
+toast <= 120 chars: True
+wall < 1s: True
+
+=== section-past-budget
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch and uncommitted files: unknown (timed out)
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: unknown · unknown uncommitted · Branch and uncommitted files: unknown (timed out)
+toast <= 120 chars: True
+wall < 1s: True
+
+=== docs-and-commits
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: feature-with-a-reasonably-long-descriptive-name — 0 uncommitted files.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Commits not in origin/main: 21 (latest 5):
+|   <sha> docs
+|   <sha> change 20: a commit subject long enough to look like a real one, describing what was changed and why, with a ticket reference
+|   <sha> change 19: a commit subject long enough to look like a real one, describing what was changed and why, with a ticket reference
+|   <sha> change 18: a commit subject long enough to look like a real one, describing what was changed and why, with a ticket reference
+|   <sha> change 17: a commit subject long enough to look like a real one, describing what was changed and why, with a ticket reference
+|   +16 more
+| [files] Feature docs that mention this branch's changed files: docs/F5.md, docs/F1.md, docs/F2.md (+2 more)
+toast: brief: feature-with-a-reasonably-long-descriptive-name · 0 uncommitted · no alarms
+toast <= 120 chars: True
+
+=== cap-and-cut
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [probe <hh:mm>] APP_URL (x.invalid:443) failed: could not resolve x.invalid — offline, or the project no longer exists; can't tell which
+| [git] Branch: feature-with-a-reasonably-long-descriptive-name — 41 uncommitted files.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Uncommitted: ?? .env.local, ?? an_uncommitted_file_with_a_long_name_01.txt, ?? an_uncommitted_file_with_a_long_name_02.txt, ?? an_uncommitted_file_with_a_long_name_03.txt, ?? an_uncommitted_file_with_a_long_name_04.txt, ?? an_uncommitted_file_with_a_long_name_05.txt, ?? an_uncommitted_file_with_a_long_name_06.txt, ?? an_uncommitted_file_with_a_long_name_07.txt, +33 more
+| [git] Other worktrees with unfinished work: 12
+|   - wt-01: 1 uncommitted, 21 not on any remote (as of the last fetch) — <tmp>/cap/worktree-number-01 ⚠ temp folder, can be wiped
+|   - wt-02: 1 uncommitted, 21 not on any remote (as of the last fetch) — <tmp>/cap/worktree-number-02 ⚠ temp folder, can be wiped
+|   - wt-03: 1 uncommitted, 21 not on any remote (as of the last fetch) — <tmp>/cap/worktree-number-03 ⚠ temp folder, can be wiped
+|   - wt-04: 1 uncommitted, 21 not on any remote (as of the last fetch) — <tmp>/cap/worktree-number-04 ⚠ temp folder, can be wiped
+|   - wt-05: 1 uncommitted, 21 not on any remote (as of the last fetch) — <tmp>/cap/worktree-number-05 ⚠ temp folder, can be wiped
+|   +7 more
+| [brief] Not shown, to stay under 2000 characters: feature docs, this branch's commits.
+toast: brief: feature-with-a-reasonably-long-descriptive-name · 41 uncommitted · APP_URL: can't resolve host — offline or gone…
+toast <= 120 chars: True
+
+=== docs-not-all-checked
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: topic — 502 uncommitted files.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Uncommitted: ?? docs/A-big.md, ?? docs/F001.md, ?? docs/F002.md, ?? docs/F003.md, ?? docs/F004.md, ?? docs/F005.md, ?? docs/F006.md, ?? docs/F007.md, +494 more
+| [git] Commits not in origin/main: 1 (latest 1):
+|   <sha> m
+| [files] Feature docs that mention this branch's changed files: none of 499; 3 unknown (not checked)
+toast: brief: topic · 502 uncommitted · 1 unknown
+toast <= 120 chars: True
+
+=== push-detached
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: detached at <sha> — 0 uncommitted files.
+| [git] Push: detached HEAD; 1 commit on no remote (as of the last fetch).
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: HEAD · 0 uncommitted · 1 unknown
+toast <= 120 chars: True
+
+=== push-upstream-gone
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: gone — 0 uncommitted files.
+| [git] Push: upstream origin/gone is gone as of the last fetch (often the remote branch was deleted after a merge). Not fetched now.
+| [git] Commits not in origin/main: 2 (latest 2):
+|   <sha> gone
+|   <sha> feat
+toast: brief: gone · 0 uncommitted · no alarms
+toast <= 120 chars: True
+
+=== push-without-u
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: feat — 0 uncommitted files.
+| [git] Push: on origin as origin/feat, but no upstream is set.
+| [git] Other worktrees with unfinished work: 1
+|   - gone: 0 uncommitted, 1 not on any remote (as of the last fetch) — <tmp>/rem ⚠ temp folder, can be wiped
+| [git] Commits not in origin/main: 1 (latest 1):
+|   <sha> feat
+toast: brief: feat · 0 uncommitted · no alarms
+toast <= 120 chars: True
+
+=== docs-off-by-default
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: main — 1 uncommitted file.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Uncommitted: ?? docs/F1.md
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 1 uncommitted · 1 unknown
+toast <= 120 chars: True
+
+=== catch-all
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch and uncommitted files: unknown (could not run git: [Errno 2] No such file or directory: '<tmp>/does-not-exist')
+| [git] Other worktrees: unknown (could not run git: [Errno 2] No such file or directory: '<tmp>/does-not-exist')
+| [git] Commits on this branch: unknown (could not run git: [Errno 2] No such file or directory: '<tmp>/does-not-exist')
+toast: brief: unknown · unknown uncommitted · Branch and uncommitted files: unknown (could not run git: [Errno 2] No such file…
+toast <= 120 chars: True
+
+=== catch-all-probe
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch and uncommitted files: unknown (git exited 128: fatal: not a git repository (or any of the parent directories): .git)
+| [files] APP_URL: unknown (repo root unknown: git exited 128: fatal: not a git repository (or any of the parent directories): .git)
+| [git] Other worktrees: unknown (git exited 128: fatal: not a git repository (or any of the parent directories): .git)
+| [git] Commits on this branch: unknown (git exited 128: fatal: not a git repository (or any of the parent directories): .git)
+| [files] Feature docs: unknown (repo root unknown: git exited 128: fatal: not a git repository (or any of the parent directories): .git)
+toast: brief: unknown · unknown uncommitted · Branch and uncommitted files: unknown (git exited 128: fatal: not a git reposito…
+toast <= 120 chars: True
+
+=== stdout-unwritable
+exit 0
+--- stdout
+closed stdout: exit 0
+broken pipe: exit 0
+
+=== internal-error
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief unavailable: ValueError
+| Session brief unavailable: ValueError
+toast: brief unavailable
+toast <= 120 chars: True
+
+=== hook-off-by-default
+exit 0
+--- stdout
+exit: 0
+stdout: empty
+
+=== hook-feature-off
+exit 0
+--- stdout
+exit: 0
+stdout: empty
+
+=== hook-other-feature-on
+exit 0
+--- stdout
+exit: 0
+stdout: empty
+
+=== hook-startup
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json keys: ['hookSpecificOutput', 'systemMessage']
+event: SessionStart
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: main — 0 uncommitted files.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Other worktrees with unfinished work: 1
+|   - feat: 0 uncommitted, 1 not on any remote (as of the last fetch) — <tmp>/proj-elsewhere ⚠ temp folder, can be wiped
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+systemMessage: brief: main · 0 uncommitted · 1 unknown
+
+=== hook-linked-worktree
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json keys: ['hookSpecificOutput', 'systemMessage']
+event: SessionStart
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: feat — 0 uncommitted files.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Other worktrees with unfinished work: 1
+|   - main: 0 uncommitted, 1 not on any remote (as of the last fetch) — <tmp>/proj ⚠ temp folder, can be wiped
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+systemMessage: brief: feat · 0 uncommitted · 1 unknown
+
+=== hook-clear
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json keys: ['hookSpecificOutput', 'systemMessage']
+event: SessionStart
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: main — 0 uncommitted files.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Other worktrees with unfinished work: 1
+|   - feat: 0 uncommitted, 1 not on any remote (as of the last fetch) — <tmp>/proj-elsewhere ⚠ temp folder, can be wiped
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+systemMessage: brief: main · 0 uncommitted · 1 unknown
+
+=== hook-resume
+exit 0
+--- stdout
+exit: 0
+stdout: empty
+
+=== hook-compact
+exit 0
+--- stdout
+exit: 0
+stdout: empty
+
+=== hook-fork
+exit 0
+--- stdout
+exit: 0
+stdout: empty
+
+=== hook-project-dir-off
+exit 0
+--- stdout
+exit: 0
+stdout: empty
+
+=== hook-project-dir-on
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json keys: ['hookSpecificOutput', 'systemMessage']
+event: SessionStart
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: main — 0 uncommitted files.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Other worktrees with unfinished work: 1
+|   - feat: 0 uncommitted, 1 not on any remote (as of the last fetch) — <tmp>/proj-elsewhere ⚠ temp folder, can be wiped
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+systemMessage: brief: main · 0 uncommitted · 1 unknown
+
+=== hook-not-a-repo
+exit 0
+--- stdout
+exit: 0
+stdout: empty
+
+=== hook-zero-commits
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json keys: ['hookSpecificOutput', 'systemMessage']
+event: SessionStart
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [git] Branch: main — 0 uncommitted files.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+systemMessage: brief: main · 0 uncommitted · 1 unknown
+
+=== hook-malformed
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json keys: ['hookSpecificOutput', 'systemMessage']
+event: SessionStart
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [files] Brief config: unknown (<tmp>/proj/.claude/bendit.json: feature 'session-brief': 'brief': 'local_ports' must be a list of integers from 1 to 65535, got [True]); this brief uses the defaults
+| [git] Branch: main — 0 uncommitted files.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Other worktrees with unfinished work: 1
+|   - feat: 0 uncommitted, 1 not on any remote (as of the last fetch) — <tmp>/proj-elsewhere ⚠ temp folder, can be wiped
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+systemMessage: brief: main · 0 uncommitted · bendit.json is malformed
+
+=== hook-malformed-json
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json keys: ['hookSpecificOutput', 'systemMessage']
+event: SessionStart
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [files] Brief config: unknown (<tmp>/proj/.claude/bendit.json: not valid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)); this brief uses the defaults
+| [git] Branch: main — 0 uncommitted files.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Other worktrees with unfinished work: 1
+|   - feat: 0 uncommitted, 1 not on any remote (as of the last fetch) — <tmp>/proj-elsewhere ⚠ temp folder, can be wiped
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+systemMessage: brief: main · 0 uncommitted · bendit.json is malformed
+
+=== hook-garbage-stdin
+exit 0
+--- stdout
+exit: 0
+stderr: bendit session-brief: not run: JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+stdout: empty
+
+=== hook-stdin-not-an-object
+exit 0
+--- stdout
+exit: 0
+stdout: empty
+
+=== hook-one-deadline
+exit 0
+--- stdout
+exit: 0
+briefed: True
+wall < 2.0s: True
+

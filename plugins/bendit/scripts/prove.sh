@@ -17,7 +17,9 @@
 #              (non-comment lines, one sh script, from the repo root), with
 #              BENDIT_KIT_ROOT pointing at this plugin. Missing is a FAIL.
 #   privacy    the agent-layer files (AGENTS.md, CLAUDE.md, .claude/verify-harness,
-#              .env.verify.example, .claude/skills/) carry no home path or email.
+#              .env.verify.example, .claude/bendit.json, .claude/skills/) carry
+#              no home path or email. bendit.json is committed free text: each
+#              feature's `why` and the session brief's config.
 #
 # It writes NOTHING inside <repo>: probes, the scratch repo and every temp file
 # live under one mktemp -d, removed by a trap. Its own git reads take no
@@ -287,7 +289,8 @@ else:
             f'In YOUR OWN terminal (not through the agent), run: {how}')
 
 # --- the files adoption writes carry no personal data -------------------------------
-cands = [f for f in ('AGENTS.md', 'CLAUDE.md', '.claude/verify-harness', '.env.verify.example')
+cands = [f for f in ('AGENTS.md', 'CLAUDE.md', '.claude/verify-harness', '.env.verify.example',
+                     '.claude/bendit.json')
          if os.path.isfile(os.path.join(repo, f))]
 ls = subprocess.run(['git', '-C', repo, 'ls-files', '--cached', '--others', '--exclude-standard',
                      '--', '.claude/skills'], capture_output=True, text=True)
@@ -360,7 +363,40 @@ def _check_ls_guard(repo, kit):
     return False, f'exit {p.returncode} on `ls | wc -l`, wanted 2 with a message naming bendit' + (f'; stderr: {short(p.stderr, 200)}' if p.stderr.strip() else '')
 
 
-FEATURE_CHECKS = {'ux-design-laws': _check_ux_design_laws, 'ls-guard': _check_ls_guard}
+def _check_session_brief(repo, kit):
+    """ON means the brief, run on THIS repo in its manual mode (--cwd, the
+    same code path the SessionStart hook builds with), prints exactly one valid
+    JSON line whose context names the branch git says is checked out."""
+    try:
+        b = subprocess.run(['git', '-C', repo, 'branch', '--show-current'], capture_output=True,
+                           text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f'could not read the branch: {type(e).__name__}: {e}'
+    branch = b.stdout.strip()
+    if b.returncode != 0:
+        return False, f'could not read the branch: git exited {b.returncode}: {short(b.stderr, 200)}'
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1')
+    env.pop('CLAUDE_PROJECT_DIR', None)
+    try:
+        p = subprocess.run(['python3', os.path.join(kit, 'scripts', 'session-brief.py'), '--cwd', repo],
+                           capture_output=True, text=True, timeout=10, env=env, cwd=repo)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f'could not run the brief: {type(e).__name__}: {e}'
+    lines = p.stdout.splitlines()
+    if p.returncode != 0 or len(lines) != 1:
+        return False, f'exit {p.returncode}, {len(lines)} stdout lines, wanted exit 0 and one JSON line'
+    try:
+        ctx = json.loads(lines[0])['context']
+    except (ValueError, KeyError, TypeError) as e:
+        return False, f'its line is not the brief JSON: {type(e).__name__}: {e}'
+    want = f'[git] Branch: {branch} ' if branch else '[git] Branch: detached at '
+    if want not in ctx:
+        return False, f'the brief does not name the checked-out branch ({want.strip()!r} missing): {short(ctx, 200)}'
+    return True, f'briefs this repo on {branch or "a detached HEAD"}'
+
+
+FEATURE_CHECKS = {'ux-design-laws': _check_ux_design_laws, 'ls-guard': _check_ls_guard,
+                  'session-brief': _check_session_brief}
 label = 'features: .claude/bendit.json readable'
 try:
     feats = F.load(repo)

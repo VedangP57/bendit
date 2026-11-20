@@ -211,6 +211,14 @@ PROBES = {
               lambda d: json.dumps({'session_id': 'bendit-prove', 'cwd': d, 'hook_event_name': 'Stop',
                                     'stop_hook_active': False}), prove=False),
     ],
+    # The brief is advice and never refuses. With no bendit.json in the probe
+    # dir (and CLAUDE_PROJECT_DIR pointed there, so a real session's project is
+    # not read) it is off, and off must mean NO output at all.
+    ('session-brief.py', ('--hook',)): [
+        Probe('silent', 'session-brief --hook: silent with the feature off',
+              lambda d: json.dumps({'session_id': 'bendit-prove', 'cwd': d, 'hook_event_name': 'SessionStart',
+                                    'source': 'startup'}), env=IN_PROBE_DIR),
+    ],
     # The self-check itself: on a working kit it must say NOTHING (exit 0 is not
     # enough -- it exits 0 even when it is shouting).
     ('selfcheck.py', ('--hook',)): [

@@ -98,6 +98,7 @@ the layer that holds it, are in [docs/ladder.md](docs/ladder.md).
 | **Enforced** | edits to files named `*.gen.*`; allocations in `*.hot.*` files | `PreToolUse` hook, exit 2 (opt in by file name) |
 | **Enforced** | ending a turn that edited code without running the project's verification command | `Stop` hook runs `.claude/verify-harness`; an escape exists and is always shown to you |
 | Check | that every guard can still run and refuse (python3 missing, a folder macOS made unreadable, a broken install) | `SessionStart` hook: silent when healthy; otherwise tells you and the agent which guards are off and how to fix it. Run `/doctor` any time |
+| Advice | a session-start brief: branch, push state, uncommitted files, other worktrees with unfinished work, and only the liveness probes the project lists; only in a project whose `.claude/bendit.json` turns `session-brief` on; not yet measured | `SessionStart` hook (startup and clear); it never blocks, and a malformed config is an alarm in the brief |
 | Advice | band-aid patterns in edits, suppressed stderr | `PostToolUse` hooks: they speak after the tool ran and cannot block |
 | Advice | skills: `checks-that-can-lie`, `encode-lessons-in-structure`, `engineering-habits` | loaded when relevant; the agent may ignore them |
 | Advice | commands: `/ship`, `/review-diff`, `/verify`, `/doctor` | checklists the agent runs when asked |
@@ -253,11 +254,10 @@ wrong (grant, scaffold, plugin path) and no other number is worth reading.
 
 ## Not in v1
 
-Multi-session orchestration, session-start project briefs (the only
-session-start hook here is the guard self-check), a browser driver for
-verification, and database-policy helpers. They exist in the private kit this
-was extracted from but are unproven or stack-specific; each may ship later, only
-with a measured result. No GUI, and no support for agents other than Claude Code.
+Multi-session orchestration, a browser driver for verification, and
+database-policy helpers. They exist in the private kit this was extracted from
+but are unproven or stack-specific; each may ship later, only with a measured
+result. No GUI, and no support for agents other than Claude Code.
 
 ## Repository layout
 

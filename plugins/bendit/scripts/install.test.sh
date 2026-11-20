@@ -419,6 +419,37 @@ KIT_SOURCE="$KIT" BENDIT_TTY=/nonexistent expect_capture "ready, no terminal" ru
 chk "no terminal: exits 0"             "$EXPECT_CODE" 0
 chk "no terminal: prints the command"  "$(nodots "$EXPECT_STDOUT" '^  claude --plugin-dir .*/plugins/bendit "/adopt"$')" 1
 chk "no terminal: claude not called"   "$(callsfor "$F" "claude [--plugin-dir]")" 0
+
+# handover_choice <stdin> <stderr> [BENDIT_TTY] -- runs the installer's own
+# handover_stdin with stdin/stderr each either a real pseudo-terminal ("pty") or
+# /dev/null, and prints "<chosen source>|<pty device>". "inherit" means no
+# redirect. Needs python3 for the pty; the function text is cut out of $INSTALL.
+handover_choice() {
+  local fn; fn="$(sed -n '/^handover_stdin() {/,/^}/p' "$INSTALL")"
+  python3 -I - "$1" "$2" "${3:-}" "$fn" <<'PY'
+import os, pty, subprocess, sys
+si, se, bt, fn = sys.argv[1:5]
+m, s = pty.openpty()
+dev = os.ttyname(s)
+null = open(os.devnull)
+env = {"PATH": os.environ["PATH"]}
+if bt: env["BENDIT_TTY"] = bt
+code = fn + '\nhandover_stdin; printf "%s" "${HANDOVER_STDIN:-inherit}"'
+r = subprocess.run(["bash", "-c", code], stdin=s if si == "pty" else null,
+                   stderr=s if se == "pty" else null, stdout=subprocess.PIPE, env=env)
+print("%s|%s" % (r.stdout.decode(), dev))
+PY
+}
+echo "hand-over: where claude reads"
+HC="$(handover_choice pty pty)"
+chk "stdin is a terminal: no redirect"        "${HC%%|*}" inherit
+HC="$(handover_choice null pty)"
+chk "piped, stderr a terminal: real device"   "${HC%%|*}" "${HC#*|}"
+chk "piped: never the /dev/tty alias"         "$([ "${HC%%|*}" = /dev/tty ] && echo alias || echo real)" real
+HC="$(handover_choice null null)"
+chk "no terminal at all: /dev/tty fallback"   "${HC%%|*}" /dev/tty
+HC="$(handover_choice pty pty /some/seam)"
+chk "BENDIT_TTY wins"                         "${HC%%|*}" /some/seam
 F="$T/f5"; ready_kit "$F"; printf 'typed-at-terminal\n' > "$F/ans"
 mkdir -p "$F/h ome" "$F/my app"; ( cd "$F/my app" && git init -q . )
 expect_capture "space in HOME, with a terminal" \

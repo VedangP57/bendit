@@ -16,7 +16,7 @@ If you are writing the same instruction a second time, the instruction is the sy
 | **L2** | deterministic enforcement: a lint rule, a CI gate, a `PreToolUse` hook that exits 2 | it does not depend on anyone reading anything |
 | **L3** | prose: a skill or one `AGENTS.md` line | only for judgement a machine cannot make |
 
-Go down the table and stop at the first layer that works. In this kit, `/new-guard`
+Go down the table and stop at the first layer that works. In this kit, `/bendit:new-guard`
 scaffolds an L2 hook with its test suite.
 
 **If the fix is structural, use only the structural fix.** Adding the prose rule

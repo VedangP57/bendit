@@ -6,7 +6,7 @@
 # and reads the exit code:
 #   0          verified -- the turn may end
 #   non-zero   NOT verified -- the turn is refused, with the tail of the output
-# /verify (scripts/verify.sh) runs it too, when the repo has no app harness.
+# /bendit:verify (scripts/verify.sh) runs it too, when the repo has no app harness.
 #
 # THE ONE RULE. Exit non-zero whenever anything is unverified, and never exit 0
 # having checked nothing. A harness that passes on an empty test suite, a

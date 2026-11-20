@@ -268,7 +268,7 @@ check "a second --init refuses (exit 1)" "1" "$rc"
 check "  ...and left the file alone" "MINE" "$(cat "$I/.claude/vocabulary.json")"
 if grep -q 'already exists' "$TMP/init2"; then ok "  ...and says why on stderr"; else bad "  ...and says why on stderr" "$(cat "$TMP/init2")"; fi
 
-echo '--- a read flag never carries a write: what /vocabulary pre-approves stays read-only'
+echo '--- a read flag never carries a write: what /bendit:vocabulary pre-approves stays read-only'
 # commands/vocabulary.md pre-approves only read forms (`--report *` and the
 # like). A wildcard after a read flag would still admit `--report --init .`,
 # so the script itself must refuse a read flag next to a write flag.
@@ -308,10 +308,10 @@ PYEOF
 }
 V='python3 ${CLAUDE_PLUGIN_ROOT}/scripts/controlled-vocabulary.py'
 for f in "--report ." "--dict" "--check AGENTS.md" "--json ."; do
-  allowed_cmd "$V $f"; check "/vocabulary pre-approves the read form '$f'" "0" "$?"
+  allowed_cmd "$V $f"; check "/bendit:vocabulary pre-approves the read form '$f'" "0" "$?"
 done
 for f in "--init ." "--fix ." "--baseline ." "--html out.html ." "."; do
-  allowed_cmd "$V $f"; check "/vocabulary does NOT pre-approve '$f' (it asks the person)" "1" "$?"
+  allowed_cmd "$V $f"; check "/bendit:vocabulary does NOT pre-approve '$f' (it asks the person)" "1" "$?"
 done
 
 echo '--- --self-test ignores a local dictionary'

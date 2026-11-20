@@ -2,7 +2,7 @@
 """Refuse parsing the output of `ls`, in a project where `ls` is not the real ls.
 
 OFF BY DEFAULT. This guard runs only where the project's `.claude/bendit.json`
-turns `ls-guard` on (/adopt does that when it finds `ls` is a shell alias or
+turns `ls-guard` on (/bendit:adopt does that when it finds `ls` is a shell alias or
 function). Absent file or `"on": false` -> exit 0 at once. A malformed file is
 never read as "off": the ls check still runs, and a command that would be
 refused as ls-parsing is refused (exit 2) with a message naming the file.

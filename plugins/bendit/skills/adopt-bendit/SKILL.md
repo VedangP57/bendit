@@ -36,7 +36,7 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
    table with sources.
    *Stop* if the directory is your home directory or `/`, or the user does not
    confirm this is the project root. If it is not a git repository, ask whether
-   to run `git init`; `/ship`, `/review-diff` and the Stop gate need git.
+   to run `git init`; `/bendit:ship`, `/bendit:review-diff` and the Stop gate need git.
 2. **Interview.** Follow `references/interview.md`. Print the answers table and
    get one "yes, go" before anything is written.
 3. **Install.** Follow `references/install.md` (marketplace, else vendor).
@@ -111,7 +111,7 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
    *Stop* on any FAIL: adoption is **not done**. Report what failed, its
    output, and the next step. Do not soften it into a pass.
 6. **Hand over.** Print the report below, then point at `references/grow.md`
-   for turning the next repeated mistake into a guard (`/new-guard`).
+   for turning the next repeated mistake into a guard (`/bendit:new-guard`).
 
 ## The report
 
@@ -124,7 +124,7 @@ LIVE WIRING                       | PASS / FAIL / inconclusive / pending | 5
 
 FEATURES (.claude/bendit.json)    | on/off | why             | measured?
 <every feature>                   | on/off | <its source>    | not yet measured
-(an off feature: install its missing dependency or add-on, then re-run /adopt)
+(an off feature: install its missing dependency or add-on, then re-run /bendit:adopt)
 
 ENFORCED (refuses, exit 2)        | proved by
 <guard>                           | prove.sh rows + live check
@@ -138,12 +138,12 @@ session brief (if on)             | session start; never blocks; not yet measure
 plan and import notes             | after an edit to a plan or a mod's .ts; not yet measured
 blast-radius                      | auth, payments, policies, migrations, secrets, webhooks; not yet measured
 ux-design-laws (bendit-web)       | UI work, only where the add-on is installed; not yet measured
-/vocabulary                       | on request; no hook runs it; not yet measured
+/bendit:vocabulary                       | on request; no hook runs it; not yet measured
 
 NOT POSSIBLE HERE, AND WHY
 <item>                            | <reason, with source>
 
-NEXT: the next time you correct the same mistake twice, run /new-guard.
+NEXT: the next time you correct the same mistake twice, run /bendit:new-guard.
 ```
 
 Keep "enforced" and "advice" strictly apart. A PostToolUse hook cannot block

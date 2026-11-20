@@ -49,7 +49,7 @@ what it means and the fix the output names:
 - `Permission denied`, a missing file, a crash -> reinstall:
   `claude plugin install bendit@bendit`.
 - `python3` not found -> put Python 3.9+ on the PATH Claude Code runs with.
-- no `.claude/verify-harness` -> this repo is not adopted yet: run `/adopt`.
+- no `.claude/verify-harness` -> this repo is not adopted yet: run `/bendit:adopt`.
   The guards still work without it; the Stop gate has nothing to run.
 
 None of the scripts proves Claude Code actually runs the hooks in this session. Say

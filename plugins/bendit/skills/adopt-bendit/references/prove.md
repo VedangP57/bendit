@@ -72,7 +72,7 @@ look alike; the first hook to refuse is the one you see.
 | a refusal from a different kit or hook (its message names another plugin) | **inconclusive: another guard answered first**. Not a pass and not a fail: bendit's hook may be wired and simply never got the call. Report it as that, with the message you saw |
 | this session started before the install | **pending a new session**: say so, do not mark it either way |
 
-Project guards added with `/new-guard` get the same pair: their own suite
+Project guards added with `/bendit:new-guard` get the same pair: their own suite
 (`.claude/hooks/<name>.test.sh`), then a live probe of their own.
 
 ## Report

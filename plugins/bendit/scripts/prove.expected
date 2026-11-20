@@ -37,13 +37,13 @@ feature: ls-guard                                                      | UNUSED 
 
 unused features (not failures):
   feature: browser-driver
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ux-design-laws
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: session-brief
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ls-guard
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
 
 prove: all 27 checks passed (4 unused)
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
@@ -89,13 +89,13 @@ feature: ls-guard                                                      | UNUSED 
 
 unused features (not failures):
   feature: browser-driver
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ux-design-laws
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: session-brief
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ls-guard
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
 
 failures:
   harness: .claude/verify-harness exits 0
@@ -144,13 +144,13 @@ feature: ls-guard                                                      | UNUSED 
 
 unused features (not failures):
   feature: browser-driver
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ux-design-laws
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: session-brief
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ls-guard
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
 
 failures:
   harness: .claude/verify-harness exits 0
@@ -200,13 +200,13 @@ feature: ls-guard                                                      | UNUSED 
 
 unused features (not failures):
   feature: browser-driver
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ux-design-laws
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: session-brief
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ls-guard
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
 
 failures:
   harness: approved by you for the Stop gate
@@ -256,13 +256,13 @@ feature: ls-guard                                                      | UNUSED 
 
 unused features (not failures):
   feature: browser-driver
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ux-design-laws
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: session-brief
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ls-guard
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
 
 prove: all 27 checks passed (4 unused)
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
@@ -308,13 +308,13 @@ feature: ls-guard                                                      | UNUSED 
 
 unused features (not failures):
   feature: browser-driver
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ux-design-laws
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: session-brief
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ls-guard
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
 
 failures:
   harness: approved by you for the Stop gate
@@ -364,13 +364,13 @@ feature: ls-guard                                                      | UNUSED 
 
 unused features (not failures):
   feature: browser-driver
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ux-design-laws
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: session-brief
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ls-guard
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
 
 prove: all 27 checks passed (4 unused)
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
@@ -1250,13 +1250,13 @@ feature: ls-guard                                                      | UNUSED 
 
 unused features (not failures):
   feature: browser-driver
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ux-design-laws
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: session-brief
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ls-guard
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
 
 failures:
   block-dangerous-bash: refuses `git push --force`
@@ -1308,13 +1308,13 @@ feature: ls-guard                                                      | UNUSED 
 
 unused features (not failures):
   feature: browser-driver
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ux-design-laws
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: session-brief
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ls-guard
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
 
 failures:
   path-contracts: refuses a write to x.gen.ts
@@ -1366,13 +1366,13 @@ feature: ls-guard                                                      | UNUSED 
 
 unused features (not failures):
   feature: browser-driver
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ux-design-laws
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: session-brief
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ls-guard
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
 
 failures:
   Stop gate: --mark records a code edit
@@ -1429,13 +1429,13 @@ feature: ls-guard                                                      | UNUSED 
 
 unused features (not failures):
   feature: browser-driver
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ux-design-laws
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: session-brief
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
   feature: ls-guard
-    UNUSED  not set up by /adopt yet
+    UNUSED  not set up by /bendit:adopt yet
 
 failures:
   new-guard-nobody-probed.py: has a probe

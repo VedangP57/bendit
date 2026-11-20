@@ -119,5 +119,5 @@ ux-design-laws | off    | (not set)
 session-brief  | off    | (not set)
 ls-guard       | off    | declined by the person
 
-add-on scope: bendit-web is installed for every project, not only this one. Fix: claude plugin uninstall bendit-web@bendit --scope user, then run /adopt per project
+add-on scope: bendit-web is installed for every project, not only this one. Fix: claude plugin uninstall bendit-web@bendit --scope user, then run /bendit:adopt per project
 

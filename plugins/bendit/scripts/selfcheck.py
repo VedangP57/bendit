@@ -239,7 +239,7 @@ def addon_scope_line():
     except (ValueError, TypeError, AttributeError) as e:
         return cannot(f'claude plugin list --json was not the expected list: {e}')
     if user:
-        return f'add-on scope: {ADDON_WARNING}. Fix: claude plugin uninstall {user[0]["id"]} --scope user, then run /adopt per project'
+        return f'add-on scope: {ADDON_WARNING}. Fix: claude plugin uninstall {user[0]["id"]} --scope user, then run /bendit:adopt per project'
     return f'add-on scope: ok ({ADDON} is not enabled at user scope)'
 
 
@@ -271,7 +271,7 @@ def features_report(given):
     if p.returncode != 0:
         msg = first_line(p.stderr) or f'{path}: could not read it'
         print(msg if msg.startswith('features:') else f'features: {msg}')
-        print('fix: repair or delete .claude/bendit.json, then run /adopt')
+        print('fix: repair or delete .claude/bendit.json, then run /bendit:adopt')
         print()
         print(addon_scope_line())
         return 1

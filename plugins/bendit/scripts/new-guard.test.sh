@@ -41,7 +41,7 @@ for f in no-skip-hooks.py no-skip-hooks.test.sh shell_text.py expect.sh; do
 done
 chk "no placeholder left behind"      "$(grep -l '__GUARD_NAME__' "$H"/no-skip-hooks.* | wc -l | tr -d ' ')" 0
 # Running a guard (or its tests) leaves __pycache__/ beside it; a live
-# /new-guard run did exactly that. The hooks dir ignores it from the start.
+# /bendit:new-guard run did exactly that. The hooks dir ignores it from the start.
 chk "writes a .gitignore for __pycache__ in the hooks dir" \
     "$(grep -qx '__pycache__/' "$H/.gitignore" 2>/dev/null && echo yes || echo no)" yes
 printf 'keep-me\n' > "$H/.gitignore"

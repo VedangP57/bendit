@@ -447,7 +447,7 @@ else:
     for name in F.FEATURES:
         label = f'feature: {name}'
         if feats is None:
-            row(label, 'UNUSED', 'not set up by /adopt yet')
+            row(label, 'UNUSED', 'not set up by /bendit:adopt yet')
             continue
         entry = feats['features'].get(name)
         if entry is None:

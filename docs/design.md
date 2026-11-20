@@ -36,7 +36,7 @@ gate in this kit fails closed and refuses to report success on empty input.
 
 1. **Ready-made core**, installable in one command, safe defaults, works on macOS
    and Linux, bash or zsh, any language project.
-2. **Adopt skill** (`/adopt`, skill `adopt-bendit`): interviews the user
+2. **Adopt skill** (`/bendit:adopt`, skill `adopt-bendit`): interviews the user
    about their project and builds the project-specific layer, then proves it works.
 3. **Grow-your-own**: a template + script to turn a repeated mistake into a new
    guard with a snapshot test suite (`templates/guard/`).
@@ -81,7 +81,7 @@ gate in this kit fails closed and refuses to report success on empty input.
 ```
 bendit/
   README.md                         public intro, quickstart, evidence, ladder
-  install.sh                        one-command installer: check, ask, fetch to cache, hand over to /adopt
+  install.sh                        one-command installer: check, ask, fetch to cache, hand over to /bendit:adopt
   packages/npm, packages/pypi       `npx bendit`, `pipx run bendit` wrappers (packages/sync.sh copies install.sh)
   LICENSE                           MIT, "Bendit contributors"
   .claude-plugin/marketplace.json
@@ -105,14 +105,14 @@ bendit/
       eval-freeze.py                freeze/verify eval inputs
       new-guard.sh                  scaffolds a guard from templates/guard/
       scaffold-verification-skill.sh, verify.sh, verify-slots.sh, ports.py
-      prove.sh                      /adopt's proof: guards, Stop gate dry run, harness
-      privacy-scan.py               fails on personal data (used by CI and /adopt)
+      prove.sh                      /bendit:adopt's proof: guards, Stop gate dry run, harness
+      privacy-scan.py               fails on personal data (used by CI and /bendit:adopt)
       probes.py                     one known-bad payload per hook (prove.sh, selfcheck)
       selfcheck.py                  SessionStart: test-fires every guard, loud only if one is off
       session-brief.py              SessionStart startup|clear: where the repo stands, when bendit.json turns session-brief on
       features.py                   the one reader and writer of .claude/bendit.json
       check-plan.py, check-mod-imports.py  advisory notes run inside post-edit-review.py
-      controlled-vocabulary.py      /vocabulary; no hook runs it
+      controlled-vocabulary.py      /bendit:vocabulary; no hook runs it
       drive-setup.sh                installs Playwright for lib/drive into the cache
       *.test.sh, *.expected
     lib/drive/                      drive.mjs (real-browser scenarios) + selftest/
@@ -126,27 +126,27 @@ bendit/
       AGENTS.md                       project rules skeleton (ladder-ordered)
       verify-harness                  .claude/verify-harness example
     evals/ README.md (method), blocks-dangerous-bash/ example case
-  plugins/bendit-web/               add-on, installed per project by /adopt: skills/ux-design-laws
+  plugins/bendit-web/               add-on, installed per project by /bendit:adopt: skills/ux-design-laws
 ```
 
 ## Configuration (plugin.json userConfig)
 
 - `integrationBranch` (string, default empty = detect from git remote HEAD):
-  used by /ship and /review-diff.
+  used by /bendit:ship and /bendit:review-diff.
 - `zshGuard` (boolean, default true): enables block-zsh-wordsplit when $SHELL is zsh.
 Per-project state lives in the project, never in the plugin folder, and only
 where something reads it (a config file nothing reads is failure class F1).
 There is one config file, `.claude/bendit.json`, read by `prove.sh` (and so
-`/doctor`), by the ls-guard hook and by the session-brief hook (which reads the
+`/bendit:doctor`), by the ls-guard hook and by the session-brief hook (which reads the
 main checkout's copy, so worktrees share it, and its optional `brief` object). It
 records which optional features
 (`browser-driver`, `ux-design-laws`, `session-brief`, `ls-guard`) are on and
-why, and `/adopt` writes it through `scripts/features.py`. For a web app,
-`/adopt` also installs the `bendit-web` add-on with `--scope project`, verified
+why, and `/bendit:adopt` writes it through `scripts/features.py`. For a web app,
+`/bendit:adopt` also installs the `bendit-web` add-on with `--scope project`, verified
 on Claude Code 2.1.328: a plugin installed with --scope project loads only in
 that project. The rest: `.claude/verify-harness` (command the Stop gate runs; holds the project's
 commands), `AGENTS.md` (`Integration branch:` and production branch lines, read
-by /ship and /review-diff), `.env.verify.example` (committed list of optional
+by /bendit:ship and /bendit:review-diff), `.env.verify.example` (committed list of optional
 local overrides, `.env.verify.local`), and for a vendored install
 `.claude/vendor/bendit/VENDORED_FROM` (source and commit, plain text).
 Nothing the kit generates may require a local-only file: a fresh clone verifies
@@ -183,7 +183,7 @@ without a hand-run command; only a failed allocation refuses.
    refusal must name bendit; another kit refusing first is
    "inconclusive". Refuse to call adoption done if any check fails.
 6. **Hand over**: a short report: what is enforced, what is advice, what was not
-   possible here and why, and how to add a guard (`/new-guard`).
+   possible here and why, and how to add a guard (`/bendit:new-guard`).
 
 ## Evidence rungs (used in every report the kit's skills ask for)
 
@@ -193,5 +193,5 @@ without a hand-run command; only a failed allocation refuses.
 ## Left to the builder
 
 Exact wording of skills/docs; test case selection beyond the shipped suites;
-how /adopt detects each ecosystem (cover at least node/pnpm/npm/yarn/bun,
+how /bendit:adopt detects each ecosystem (cover at least node/pnpm/npm/yarn/bun,
 python/uv/pip/poetry, go, rust, plus "other: ask").

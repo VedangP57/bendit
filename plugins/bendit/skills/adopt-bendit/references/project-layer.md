@@ -13,7 +13,7 @@ ladder, enforced things first, and prose only for judgement.
 **Present:** do not rewrite it. Propose only what is missing, as a diff:
 an `Integration branch:` line, the commands block, an Invariants section,
 and the "Enforced" list. Rules already in it that a machine could check are
-listed in the report as `/new-guard` candidates, not moved.
+listed in the report as `/bendit:new-guard` candidates, not moved.
 
 **Make sure Claude Code reads it.** Claude Code loads `CLAUDE.md`. If the project
 has no `CLAUDE.md`, propose one containing the single line `@AGENTS.md` (an
@@ -64,7 +64,7 @@ Every fact detection and the interview settled is written where something
 **reads** it, and nowhere else. A config file nothing reads is dead
 configuration (failure class F1 in `docs/ladder.md`): it looks authoritative and
 drifts from the truth on the first change. So there is one config file,
-`.claude/bendit.json`, read by `prove.sh` (and so `/doctor`) and the
+`.claude/bendit.json`, read by `prove.sh` (and so `/bendit:doctor`) and the
 ls-guard hook and the session-brief hook. SKILL.md step 3b writes it through
 `KIT/scripts/features.py`, never by hand.
 
@@ -74,11 +74,11 @@ whose values are URLs (a value without `://` is reported as not probed).
 
 | fact | lives in | read by |
 |---|---|---|
-| integration branch | `AGENTS.md`: `- Integration branch: \`<name>\`` | `/ship`, `/review-diff` |
-| production branch(es) | `AGENTS.md`: `- Production branch(es): ...` | `/ship` |
-| test / lint / typecheck / dev commands, package manager | `.claude/verify-harness` and the app harness the scaffold generated | the Stop gate, `/verify` |
+| integration branch | `AGENTS.md`: `- Integration branch: \`<name>\`` | `/bendit:ship`, `/bendit:review-diff` |
+| production branch(es) | `AGENTS.md`: `- Production branch(es): ...` | `/bendit:ship` |
+| test / lint / typecheck / dev commands, package manager | `.claude/verify-harness` and the app harness the scaffold generated | the Stop gate, `/bendit:verify` |
 | port | the machine's port registry (`scripts/ports.py`), allocated by the scaffold, or by the first `verify` on a machine that has not seen the repo | `verify.sh` |
-| which features are on, and why | `.claude/bendit.json` | `prove.sh` (its `feature:` rows, and so `/doctor`); the ls-guard hook; the session-brief hook (from the main checkout, so worktrees share it) |
+| which features are on, and why | `.claude/bendit.json` | `prove.sh` (its `feature:` rows, and so `/bendit:doctor`); the ls-guard hook; the session-brief hook (from the main checkout, so worktrees share it) |
 | vendored kit's source + commit | `.claude/vendor/bendit/VENDORED_FROM` (route B only) | people, via the README's check |
 
 If a fact has no reader here, do not record it: say it in the report.

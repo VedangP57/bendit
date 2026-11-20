@@ -25,10 +25,10 @@ Order matters: later defaults depend on earlier answers.
 
 4. **Integration branch?** Only if `origin/HEAD` is unset. *[`main` if it
    exists remotely, else the current branch]*. Recorded in `AGENTS.md` as
-   `Integration branch: <name>`, where `/ship` and `/review-diff` read it.
+   `Integration branch: <name>`, where `/bendit:ship` and `/bendit:review-diff` read it.
 
 5. **Production branch(es)?** Only if CI/deploy config did not show one.
-   *[none]*. `/ship` refuses to open a PR from these.
+   *[none]*. `/bendit:ship` refuses to open a PR from these.
 
 6. **Guards.** Show the kit's guards in one line each (from `KIT/hooks/hooks.json`)
    and say plainly what the switches are: the zsh word-split guard
@@ -54,8 +54,8 @@ Order matters: later defaults depend on earlier answers.
 
 10. **Project invariants.** *"Name up to three things that must never happen in
     this project (e.g. an unauthenticated route, a secret in client code).
-    [skip]"*. They go into `AGENTS.md` under Invariants; `/ship` and
-    `/review-diff` check every change against them.
+    [skip]"*. They go into `AGENTS.md` under Invariants; `/bendit:ship` and
+    `/bendit:review-diff` check every change against them.
 
 ## Output
 

@@ -211,3 +211,13 @@ exit 2
 --- stderr
 features: <tmp>/ro/.claude/bendit.json: could not be written (the old file is untouched): Permission denied
 
+=== get on a file with a duplicate feature key
+exit 2
+--- stderr
+features: <tmp>/dup/.claude/bendit.json: duplicate key 'ls-guard'
+
+=== get on a file with a duplicate top-level key
+exit 2
+--- stderr
+features: <tmp>/dup/.claude/bendit.json: duplicate key 'version'
+

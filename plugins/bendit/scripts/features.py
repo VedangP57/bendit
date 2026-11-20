@@ -70,6 +70,17 @@ def _validate(data, where):
     return data
 
 
+def _no_duplicates(pairs):
+    """object_pairs_hook: json.loads keeps the LAST of a repeated key, so a
+    file that says ls-guard twice would silently mean whichever came second."""
+    seen = {}
+    for k, v in pairs:
+        if k in seen:
+            raise FeaturesError('duplicate key %r' % k)
+        seen[k] = v
+    return seen
+
+
 def load(root):
     """The parsed, validated file; None when absent; FeaturesError when malformed."""
     p = path(root)
@@ -81,7 +92,9 @@ def load(root):
     except (OSError, ValueError) as e:  # ValueError: bad UTF-8, NUL byte in the path
         raise FeaturesError('%s: cannot be read: %s' % (p.replace('\0', '\\0'), e))
     try:
-        data = json.loads(text)
+        data = json.loads(text, object_pairs_hook=_no_duplicates)
+    except FeaturesError as e:
+        raise FeaturesError('%s: %s' % (p, e))
     except RecursionError:
         raise FeaturesError('%s: nested too deeply to be a bendit.json' % p)
     except ValueError as e:
@@ -136,9 +149,20 @@ def write(root, features):
 
 
 def project_root(payload):
-    return (os.environ.get('CLAUDE_PROJECT_DIR')
-            or (payload.get('cwd') if isinstance(payload, dict) else None)
-            or os.getcwd())
+    """CLAUDE_PROJECT_DIR (where the session started), else the payload's cwd
+    when it is a non-empty string, else the process cwd. A deleted cwd makes
+    os.getcwd() raise: fall back to $PWD, then '.', which reads as "no file"."""
+    env = os.environ.get('CLAUDE_PROJECT_DIR')
+    if env:
+        return env
+    cwd = payload.get('cwd') if isinstance(payload, dict) else None
+    if isinstance(cwd, str) and cwd:
+        return cwd
+    try:
+        return os.getcwd()
+    except OSError:
+        pwd = os.environ.get('PWD')
+        return pwd if pwd else '.'
 
 
 def _main(argv):

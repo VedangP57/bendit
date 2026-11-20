@@ -214,6 +214,52 @@ PYE
 )
 chk "an unserialisable value -> FeaturesError, file untouched" "$out $(cat "$T/ro/.claude/bendit.json" | head -c 0)$([ "$(cat "$T/ro/.claude/bendit.json")" = "$before" ] && echo same)" "raised same"
 
+echo; echo "DUPLICATE KEYS, PROJECT ROOT, CATCH-ALL"
+# json.loads keeps the LAST of a repeated key; a file saying ls-guard twice must
+# be refused, not read as whichever came second.
+proj dup '{"version":1,"features":{"ls-guard":{"on":true,"why":"a"},"ls-guard":{"on":false,"why":"b"}}}'
+cap "get on a file with a duplicate feature key" get "$T/dup" ls-guard
+chk "duplicate feature key -> exit 2" "$EXPECT_CODE" "2"
+has "  ...features: prefix" "features: " "$EXPECT_STDERR"
+has "  ...names the file" "$T/dup/.claude/bendit.json" "$EXPECT_STDERR"
+has "  ...names the key" "duplicate key 'ls-guard'" "$EXPECT_STDERR"
+proj dup '{"version":1,"version":1,"features":{}}'
+cap "get on a file with a duplicate top-level key" get "$T/dup" ls-guard
+chk "duplicate top-level key -> exit 2" "$EXPECT_CODE" "2"; has "  ...names the key" "duplicate key 'version'" "$EXPECT_STDERR"
+roots=$(CLAUDE_PROJECT_DIR= "$PY" - "$SD" "$T" <<'PYE'
+import os, sys
+sys.path.insert(0, sys.argv[1])
+import features
+os.environ.pop('CLAUDE_PROJECT_DIR', None)
+here = os.getcwd()
+print(features.project_root({'cwd': 5}) == here, features.project_root({'cwd': ''}) == here,
+      features.project_root({'cwd': ['x']}) == here, features.project_root('junk') == here,
+      features.project_root(None) == here)
+gone = os.path.join(sys.argv[2], 'gone')
+os.mkdir(gone); os.chdir(gone); os.rmdir(gone)
+os.environ['PWD'] = '/from/pwd'
+print(features.project_root({}))
+del os.environ['PWD']
+print(features.project_root({'cwd': 7}))
+PYE
+)
+chk "a non-string or empty payload cwd is ignored; a deleted cwd falls back to \$PWD, then '.'" "$roots" "True True True True True
+/from/pwd
+."
+# The CLI's catch-all must exit 2 (exit 1 is non-blocking to a hook) with the prefix.
+out=$("$PY" - "$SD" 2>&1 <<'PYE'
+import sys
+sys.path.insert(0, sys.argv[1])
+import features
+def boom(root):
+    raise RuntimeError('simulated bug')
+features.load = boom
+print('exit', features._main(['features.py', 'show', '/x']))
+PYE
+)
+chk "a bug inside the CLI -> exit 2, features: prefix, names the error" "$out" "features: unexpected RuntimeError: simulated bug
+exit 2"
+
 echo; echo "MODULE API"
 api=$(CLAUDE_PROJECT_DIR= "$PY" - "$SD" "$T" <<'PYE'
 import os, sys

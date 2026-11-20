@@ -120,6 +120,28 @@ exit 0
 ✓ chrome   found     any     the browser bendit looks at your app with
 Nothing is missing.
 
+=== check, web, Chromium only
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+✓ node     20.0.0    20+     drives the browser for a web app
+✗ chrome   missing   any     the browser bendit looks at your app with
+Missing: chrome
+
+=== check, web, google-chrome on PATH
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+✓ node     20.0.0    20+     drives the browser for a web app
+✓ chrome   found     any     the browser bendit looks at your app with
+Nothing is missing.
+
 === check, next only in a script
 exit 0
 --- stdout

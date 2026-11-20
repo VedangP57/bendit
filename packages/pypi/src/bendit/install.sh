@@ -71,20 +71,22 @@ ver_ge() {
   return 0
 }
 
-# Chrome or Chromium, on PATH or as an app bundle. BENDIT_APP_DIRS (space
-# separated) overrides the app folders searched.
+# Google Chrome, on PATH or as an app bundle. BENDIT_APP_DIRS (space
+# separated) overrides the app folders searched. Chromium does NOT count: the
+# browser driver launches Playwright channels (chrome, msedge, ...), none of
+# which is a system Chromium, so a Chromium-only machine cannot be driven.
 find_chrome() {
   local c d
-  for c in google-chrome google-chrome-stable chromium chromium-browser; do
+  for c in google-chrome google-chrome-stable; do
     command -v "$c" >/dev/null 2>&1 && return 0
   done
   if [ -n "${BENDIT_APP_DIRS:-}" ]; then
     for d in $BENDIT_APP_DIRS; do
-      { [ -e "$d/Google Chrome.app" ] || [ -e "$d/Chromium.app" ]; } && return 0
+      [ -e "$d/Google Chrome.app" ] && return 0
     done
   else
     for d in /Applications "$HOME/Applications"; do
-      { [ -e "$d/Google Chrome.app" ] || [ -e "$d/Chromium.app" ]; } && return 0
+      [ -e "$d/Google Chrome.app" ] && return 0
     done
   fi
   return 1

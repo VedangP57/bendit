@@ -124,8 +124,8 @@ That URL is "latest". To pin a release, put its tag in the URL:
 `https://raw.githubusercontent.com/VedangP57/bendit/<tag>/install.sh`.
 
 The installer checks that your machine has what bendit needs (`claude`, `git`,
-`python3` 3.9 or newer; for a web app also `node` 20 or newer and Chrome or
-Chromium), fetches bendit at the matching release tag into
+`python3` 3.9 or newer; for a web app also `node` 20 or newer and Google Chrome;
+Chromium alone cannot be driven), fetches bendit at the matching release tag into
 `${XDG_CACHE_HOME:-~/.cache}/bendit/`, and starts Claude Code on `/adopt`.
 
 - **It asks before every install.** The default answer is no, there is no

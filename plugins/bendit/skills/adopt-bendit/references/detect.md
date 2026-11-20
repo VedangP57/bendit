@@ -105,7 +105,7 @@ is that signal's source, written as you would cite it in the report.
 
 | feature | on when | why (its source) | needs |
 |---|---|---|---|
-| `browser-driver` | web app: a `package.json` dependency key from the list below, or `index.html` at the root | `package.json:<line> <name>`, or `index.html` | Node 20+, Chrome, and Playwright installed by `scripts/drive-setup.sh`: `bash "$KIT/scripts/drive-setup.sh"` (SKILL.md step 3b asks first) |
+| `browser-driver` | web app: a `package.json` dependency key from the list below, or `index.html` at the root | `package.json:<line> <name>`, or `index.html` | Node 20+, Google Chrome (Chromium does not count), and Playwright installed by `scripts/drive-setup.sh`: `bash "$KIT/scripts/drive-setup.sh"` (SKILL.md step 3b asks first) |
 | `ux-design-laws` | web app (same signal) | same as `browser-driver` | the `bendit-web` add-on (SKILL.md step 3b installs it) |
 | `session-brief` | a git project | `git project (git rev-parse --show-toplevel)` | nothing |
 | `ls-guard` | `ls` is not the real `ls` in the user's shell | `type ls in <shell>: ls is a shell function` or `…: ls is an alias` (`<shell>` is the basename of `$SHELL`) | nothing |
@@ -145,16 +145,20 @@ means "no web framework in package.json", not an error to report.
 
 ```bash
 node --version    # v20 or newer (the installer's NODE_MIN)
-for c in google-chrome google-chrome-stable chromium chromium-browser; do command -v "$c"; done
+for c in google-chrome google-chrome-stable; do command -v "$c"; done
 for d in /Applications "$HOME/Applications"; do
-  for a in "Google Chrome.app" "Chromium.app"; do test -e "$d/$a" && echo "$d/$a"; done
+  test -e "$d/Google Chrome.app" && echo "$d/Google Chrome.app"
 done
 bash "$KIT/scripts/drive-setup.sh" --check   # exit 0: Playwright installed; 1: not (it installs nothing)
 ```
 
 Chrome is found if either loop prints a line (the installer's `find_chrome`).
-The driver launches Chrome by default; `BENDIT_BROWSER_CHANNEL` names another
-installed browser (`msedge`, `chrome-beta`).
+**Chromium does not count**, on `PATH` (`chromium`, `chromium-browser`) or as
+`Chromium.app`: the driver launches Playwright browser channels (`chrome` by
+default; `BENDIT_BROWSER_CHANNEL` names another, such as `msedge` or
+`chrome-beta`), and none of them is a system Chromium. A machine with only
+Chromium has no Chrome: if Google Chrome is not installed after step 3b,
+`browser-driver` is off with why `Chrome not found (Chromium cannot be driven)`.
 A missing dependency does not turn the feature off here: SKILL.md step 3b asks.
 
 **`ls`.** Ask the user's interactive shell what `ls` is. Its rc files run, and

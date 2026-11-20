@@ -114,6 +114,25 @@ o=$(BENDIT_CACHE="rel/cache" setup)
 has "a relative BENDIT_CACHE is refused (it would land in the project)" "rc=2" "$o"
 chk "  ...and nothing was written in the project" "$(git -C "$PROJ" status --porcelain --ignored)" ""
 has "an unknown option is refused" "rc=2" "$(setup --bogus)"
+# An empty pinned version would make <dir> the drive/ folder itself, which the
+# install removes before moving the new one in. A COPY of the kit carries it.
+KC="$W/kitcopy-nover"; mkdir -p "$KC/scripts" "$KC/lib/drive"; cp "$SETUP" "$KC/scripts/"
+printf '{"playwrightVersion": ""}\n' > "$KC/lib/drive/package.json"
+C3="$W/cache3"; mkdir -p "$C3/drive/other"; : > "$C3/drive/other/canary"
+n=$(grep -c '^args=' "$W/npm.log")
+o=$( ( cd "$PROJ" && BENDIT_CACHE="$C3" PATH="$STUB:$PATH" NPM_LOG="$W/npm.log" bash "$KC/scripts/drive-setup.sh" 2>&1 ); echo "rc=$?")
+has "an empty playwrightVersion is refused" "rc=2" "$o"; has "  ...saying it is not a version" "not a version" "$o"
+chk "  ...before npm runs" "$(grep -c '^args=' "$W/npm.log")" "$n"
+chk "  ...and the drive/ folder's other contents survive" "$([ -e "$C3/drive/other/canary" ] && echo y || echo n)" "y"
+
+# --- no Playwright: needs only node, so it runs on every machine -----------------
+echo
+echo "NO PLAYWRIGHT: EXIT 2, NAMING drive-setup.sh"
+mkdir -p "$W/emptycache"
+o=$(BENDIT_CACHE="$W/emptycache" drive "$W/np.log" "$W" "$ST/pass.json" --base "file://$ST" --out "$W/out-np")
+chk "no Playwright in the cache exits 2" "$o" "2"
+has "  ...naming drive-setup.sh" "drive-setup.sh" "$(cat "$W/np.log")"
+hasnt "  ...never VERIFIED" "VERDICT: VERIFIED" "$(cat "$W/np.log")"
 
 echo
 echo "THIS MACHINE CAN DRIVE A BROWSER (fail, never skip)"
@@ -148,12 +167,7 @@ chk "  ...with a screenshot of the failing step" "$(/usr/bin/find "$W/out-b" -na
 
 # --- what the driver needs, said plainly ----------------------------------------
 echo
-echo "NO PLAYWRIGHT, NO CHROME: EXIT 2, SAYING WHICH"
-mkdir -p "$W/emptycache"
-o=$(BENDIT_CACHE="$W/emptycache" drive "$W/np.log" "$W" "$ST/pass.json" --base "file://$ST" --out "$W/out-np")
-chk "no Playwright in the cache exits 2" "$o" "2"
-has "  ...naming drive-setup.sh" "drive-setup.sh" "$(cat "$W/np.log")"
-hasnt "  ...never VERIFIED" "VERDICT: VERIFIED" "$(cat "$W/np.log")"
+echo "NO CHROME: EXIT 2, SAYING WHICH"
 o=$(BENDIT_BROWSER_CHANNEL=nonexistent drive "$W/nc.log" "$W" "$ST/pass.json" --base "file://$ST" --out "$W/out-a")
 chk "a browser that is not there exits 2" "$o" "2"
 has "  ...saying which browser it looked for" '"nonexistent"' "$(cat "$W/nc.log")"
@@ -262,13 +276,43 @@ chk "  ...evidence still written inside --out" \
   "$(/usr/bin/find "$W/esc/out" -name '*escape-*' | wc -l | tr -d ' ')" "2"
 
 # --- --out is rm -rf'd: a dangerous one must be refused, not obeyed.
+# Each case asserts the REASON as well as exit 2: exit 2 alone is also what a
+# missing Playwright or a bad base URL gives, so a broken guard could hide behind
+# it. Every target that could be a real folder is a stand-in under $W.
+ROOTMSG='it is /, $HOME or the repository root'
+ANCMSG='it is the working directory or one of its ancestors'
+# $HOME is read through os.homedir(), i.e. $HOME: a fake one holds a canary.
+# Playwright is then found through the cache that was resolved for the real one.
+CACHE_NOW="${BENDIT_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/bendit}"
+fakehome() { # <log> <drive.mjs> -- --out is the fake $HOME itself
+  ( cd "$W" && env -u PORT HOME="$W/fakehome" BENDIT_CACHE="$CACHE_NOW" node "$2" "$ST/pass.json" \
+      --base "file://$ST" --out "$W/fakehome" >"$1" 2>&1 ); echo $?; }
 mkdir -p "$W/victim/inner"; : > "$W/victim/canary"
 chk "--out .. refused" "$(drive "$W/v1.log" "$W/victim/inner" "$ST/pass.json" --base "file://$ST" --out ..)" "2"
+has "  ...as an ancestor of the working directory" "REFUSING --out" "$(cat "$W/v1.log")"; has "  ...(reason)" "$ANCMSG" "$(cat "$W/v1.log")"
 chk "  ...left the parent alone" "$([ -e "$W/victim/canary" ] && echo 1 || echo 0)" "1"
 chk "--out . (the working directory) refused" "$(drive "$W/v1b.log" "$W/victim/inner" "$ST/pass.json" --base "file://$ST" --out .)" "2"
+has "  ...as the working directory" "$ANCMSG" "$(cat "$W/v1b.log")"
+# `/` cannot be given a stand-in: the reason is the most this can check. It is
+# also refused by the outside-cwd-and-temp and no-marker rules behind it.
 chk "--out / refused" "$(drive "$W/v1c.log" "$W" "$ST/pass.json" --base "file://$ST" --out /)" "2"
-chk "--out \$HOME refused" "$(drive "$W/v1d.log" "$W" "$ST/pass.json" --base "file://$ST" --out "$HOME")" "2"
-chk "--out <git toplevel> refused" "$(drive "$W/v1e.log" "$PROJ/" "$ST/pass.json" --base "file://$ST" --out "$PROJ")" "2"
+has "  ...as /" "REFUSING --out /: $ROOTMSG" "$(cat "$W/v1c.log")"
+mkdir -p "$W/fakehome"; : > "$W/fakehome/canary"
+chk "--out \$HOME refused (a fake \$HOME)" "$(fakehome "$W/v1d.log" "$DRIVE")" "2"
+has "  ...as \$HOME" "$ROOTMSG" "$(cat "$W/v1d.log")"
+chk "  ...and \$HOME's canary survives" "$([ -e "$W/fakehome/canary" ] && echo y || echo n)" "y"
+# CONTROL: the same case against a COPY of drive.mjs with the /-\$HOME-toplevel
+# rule removed. The run must then give a different reason (the no-marker rule
+# still saves the canary), proving the assertion above reads this rule.
+MC="$W/mutantkit/lib/drive"; mkdir -p "$MC"; cp "$KIT/lib/drive/package.json" "$MC/"
+grep -v "if (forbidden.includes(out)) refuse(" "$DRIVE" > "$MC/drive.mjs"
+chk "  (the mutant really lost the rule)" "$(grep -c 'forbidden.includes(out)' "$MC/drive.mjs")" "0"
+fakehome "$W/v1m.log" "$MC/drive.mjs" >/dev/null
+hasnt "  CONTROL: without the rule the \$HOME reason is gone" "$ROOTMSG" "$(cat "$W/v1m.log")"
+mkdir -p "$PROJ/sub"
+chk "--out <git toplevel> refused" "$(drive "$W/v1e.log" "$PROJ/sub" "$ST/pass.json" --base "file://$ST" --out "$PROJ")" "2"
+has "  ...as the repository root" "$ROOTMSG" "$(cat "$W/v1e.log")"
+rmdir "$PROJ/sub"
 chk "  ...and the repo is untouched" "$(git -C "$PROJ" status --porcelain --ignored)" ""
 mkdir -p "$W/victim2"; : > "$W/victim2/keep.txt"
 chk "--out <dir holding files, no marker> refused" "$(drive "$W/v2.log" "$W" "$ST/pass.json" --base "file://$ST" --out "$W/victim2")" "2"

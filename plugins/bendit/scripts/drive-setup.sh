@@ -47,6 +47,11 @@ if not os.path.isfile(p):
 print(json.load(open(p))[key])' "$1" "$2"
 }
 version="$(version_in "$PKG" playwrightVersion)" || { echo "drive-setup: cannot read playwrightVersion from $PKG" >&2; exit 2; }
+# An empty version would make <dir> the drive/ folder itself, and the install
+# below removes <dir> before moving the new one in: refuse, never guess.
+case "$version" in
+  ''|*/*|.|..) echo "drive-setup: playwrightVersion in $PKG is '$version', not a version; refusing" >&2; exit 2 ;;
+esac
 
 cache="${BENDIT_CACHE:-${XDG_CACHE_HOME:-${HOME:?HOME is not set}/.cache}/bendit}"
 # A relative cache would resolve against the cwd -- usually the project.

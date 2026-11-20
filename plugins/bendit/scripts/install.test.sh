@@ -198,6 +198,22 @@ printf '{"devDependencies":{"vite":"5"}}\n' > "$C/proj/package.json"
 mkdir -p "$C/apps/Google Chrome.app"
 TEST_APPS="$C/apps" expect_capture "check, web, all there" run_installer "$C" --check
 chk "node 20 and a Chrome app: exits 0" "$EXPECT_CODE" 0
+# CHROMIUM IS NOT CHROME. The driver launches Playwright browser channels
+# (chrome, msedge, ...), and none of them is a system Chromium, so a machine
+# with only Chromium cannot run a browser scenario. Counting it as Chrome passed
+# the check and then failed at the first launch.
+C="$T/w3c"; sandbox "$C"; ok_tools "$C"; real_python "$C"; stub "$C" node 0 "v20.0.0"
+stub "$C" chromium 0 "Chromium 120"; stub "$C" chromium-browser 0 "Chromium 120"
+printf '{"devDependencies":{"vite":"5"}}\n' > "$C/proj/package.json"
+mkdir -p "$C/apps/Chromium.app"
+TEST_APPS="$C/apps" expect_capture "check, web, Chromium only" run_installer "$C" --check
+chk "Chromium alone (on PATH and as an app) is not Chrome: exits 1" "$EXPECT_CODE" 1
+chk "  ...listing chrome as missing" "$(nodots "$EXPECT_STDOUT" '^Missing: chrome$')" 1
+C="$T/w3g"; sandbox "$C"; ok_tools "$C"; real_python "$C"; stub "$C" node 0 "v20.0.0"
+stub "$C" google-chrome 0 "Google Chrome 131"
+printf '{"devDependencies":{"vite":"5"}}\n' > "$C/proj/package.json"
+expect_capture "check, web, google-chrome on PATH" run_installer "$C" --check
+chk "CONTROL: google-chrome on PATH is Chrome: exits 0" "$EXPECT_CODE" 0
 C="$T/w4"; sandbox "$C"; ok_tools "$C"; real_python "$C"
 printf '{"scripts":{"dev":"next dev"}}\n' > "$C/proj/package.json"
 expect_capture "check, next only in a script" run_installer "$C" --check

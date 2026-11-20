@@ -47,6 +47,9 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
    google-chrome`; otherwise the download page, https://nodejs.org/ or
    https://www.google.com/chrome/) *[no]*. A "no" turns that feature off with why
    `you declined <dep>` (e.g. `you declined Chrome`); it never stops adoption.
+   Chromium is not Chrome (detect.md §8): on a machine that has only Chromium,
+   offer Chrome the same way, and if it is still not installed record
+   `browser-driver` off with why `Chrome not found (Chromium cannot be driven)`.
    For `browser-driver` that includes Playwright: when
    `bash "$KIT/scripts/drive-setup.sh" --check` exits 1, ask *"Install
    Playwright for the browser driver: `bash "$KIT/scripts/drive-setup.sh"`

@@ -29,6 +29,9 @@ PY="$(command -v "${PY:-python3}")"
 T=$(mktemp -d); T=$(cd "$T" && pwd -P); pass=0; fail=0
 trap 'chmod -R u+rwX "$T" 2>/dev/null; rm -rf "$T"' EXIT
 export GIT_CEILING_DIRECTORIES="$T"
+# Hermetic: inside a Claude Code session this names the session's project. Cases
+# that need it set it deliberately, inline.
+unset CLAUDE_PROJECT_DIR
 # A tmp dir of the suite's own, so "it cleaned up" is checkable.
 export TMPDIR="$T/tmpd"; mkdir -p "$TMPDIR"
 chk() { if [ "$2" = "$3" ]; then printf '  ok    %s\n' "$1"; pass=$((pass+1));
@@ -129,6 +132,30 @@ chk "  ...and on stderr" "$HOOK_ERR" ""
 ms=$("$PY" -c "print(int(($t1 - $t0) * 1000))")
 chk "  ...in well under 2s (took ${ms}ms; it runs on every session start)" "$([ "$ms" -lt 2000 ] && echo fast || echo slow)" fast
 capture "healthy kit" "$KIT"
+# Inside a real session CLAUDE_PROJECT_DIR names the USER's project. The ls-guard
+# probe must still read the bendit.json it wrote into its own probe dir, not that
+# project's: a project with ls-guard OFF (or a malformed file) must change nothing.
+mkdir -p "$T/userproj/.claude"; printf '{"version":1,"features":{"ls-guard":{"on":false,"why":"user"}}}' > "$T/userproj/.claude/bendit.json"
+o=$(CLAUDE_PROJECT_DIR="$T/userproj" "$PY" "$KIT/scripts/selfcheck.py" --hook </dev/null 2>&1); rc=$?
+chk "a user project with ls-guard OFF does not blind the ls probe (silent, exit 0)" "$rc|$o" "0|"
+printf '{"version":1,"features":' > "$T/userproj/.claude/bendit.json"
+o=$(CLAUDE_PROJECT_DIR="$T/userproj" "$PY" "$KIT/scripts/selfcheck.py" --hook </dev/null 2>&1); rc=$?
+chk "  ...nor does a malformed one (the probe reads its own file)" "$rc|$o" "0|"
+out=$("$PY" - "$KIT/scripts" <<'PYE2' 2>&1
+import sys
+sys.path.insert(0, sys.argv[1])
+import probes
+pr = probes.Probe('allows', 'x', lambda d: '', env={'CLAUDE_PROJECT_DIR': probes.HERE})
+print(probes.env_for(pr, {}, '/p')['CLAUDE_PROJECT_DIR'])
+try:
+    probes.env_for(pr, {})
+    print('NO ERROR')
+except ValueError as e:
+    print('ValueError: HERE' in str(e) or 'raised')
+PYE2
+)
+chk "env_for fills HERE with the probe dir, and refuses HERE without one" "$out" "/p
+raised"
 if [ -z "$PY_GIVEN" ]; then
   expect_capture "healthy kit, --verbose (what /bendit:doctor prints)" "$PY" "$KIT/scripts/selfcheck.py" --verbose
   chk "--verbose on a healthy kit: exit 0" "$EXPECT_CODE" 0
@@ -241,6 +268,84 @@ PY
 capture "a hook selfcheck has no probe for" "$K"
 loud "unprobed hook"
 has "  ...naming it" "new-guard-nobody-probed" "$(field systemMessage)"
+
+echo
+echo "FEATURES (--features <root>: the table /bendit:doctor merges in, and the add-on scope warning)"
+# `claude` is stubbed on PATH with the shape `claude plugin list --json` really
+# prints (a list of {id, scope, enabled, ...}); never the real CLI.
+mkdir -p "$T/stub-user" "$T/stub-project" "$T/stub-broken"
+stub() {  # stub <dir> <json-or-@fail>
+  if [ "$2" = '@fail' ]; then printf '#!/bin/sh\necho "boom: not logged in" >&2\nexit 3\n' > "$1/claude"
+  else printf '#!/bin/sh\ncat <<'"'"'JSON'"'"'\n%s\nJSON\n' "$2" > "$1/claude"; fi
+  chmod +x "$1/claude"
+}
+stub "$T/stub-user" '[{"id":"frontend-design@x","scope":"project","enabled":true},{"id":"bendit-web@bendit","scope":"user","enabled":true}]'
+stub "$T/stub-project" '[{"id":"bendit-web@bendit","scope":"project","enabled":true,"projectPath":"/p"},{"id":"bendit-web@bendit","scope":"user","enabled":false}]'
+stub "$T/stub-broken" @fail
+FP="$T/featproj"; mkdir -p "$FP"
+"$PY" "$SD/features.py" set "$FP" browser-driver on "package.json:14 next"
+"$PY" "$SD/features.py" set "$FP" ls-guard off "declined by the person"
+fe() {  # fe <stubdir> <root> -- leaves FE_RC, FE_OUT
+  FE_OUT="$(PATH="$1:$PATH" "$PY" "$KIT/scripts/selfcheck.py" --features "$2" 2>&1)"; FE_RC=$?
+}
+if [ -z "$PY_GIVEN" ]; then
+  expect_capture "features table + add-on at user scope" env PATH="$T/stub-user:$PATH" "$PY" "$KIT/scripts/selfcheck.py" --features "$FP"
+fi
+fe "$T/stub-user" "$FP"
+chk "features: exit 0" "$FE_RC" 0
+has "  ...a row for a feature that is on" "browser-driver | on" "$FE_OUT"
+has "  ...with its reason" "package.json:14 next" "$FE_OUT"
+has "  ...a row for one that is off" "ls-guard" "$FE_OUT"
+has "  ...add-on enabled at user scope: the warning" "bendit-web is installed for every project, not only this one" "$FE_OUT"
+fe "$T/stub-project" "$FP"
+case "$FE_OUT" in *"not only this one"*) o=warned ;; *) o=quiet ;; esac
+chk "add-on at project scope (user scope disabled): no warning" "$o" quiet
+fe "$T/stub-broken" "$FP"
+has "claude CLI errors: says it could not check" "could not check" "$FE_OUT"
+case "$FE_OUT" in *"not only this one"*) o=warned ;; *) o=quiet ;; esac
+chk "  ...and does not claim the add-on is at user scope" "$o" quiet
+has "  ...and the table still prints" "browser-driver | on" "$FE_OUT"
+# No claude on PATH at all: a hermetic PATH holding only the interpreter.
+mkdir -p "$T/hermetic"; ln -sf "$PY" "$T/hermetic/python3"
+FE_OUT="$(env PATH="$T/hermetic" "$PY" "$KIT/scripts/selfcheck.py" --features "$FP" 2>&1)"
+has "no claude on PATH: says it could not check" "could not check" "$FE_OUT"
+# A malformed bendit.json is reported, never read as everything off.
+BP="$T/badproj"; mkdir -p "$BP/.claude"; printf '{"version": 1, "features": [' > "$BP/.claude/bendit.json"
+fe "$T/stub-user" "$BP"
+chk "malformed bendit.json: exit 1" "$FE_RC" 1
+has "  ...naming the file" "bendit.json" "$FE_OUT"
+has "  ...and still says the add-on scope" "add-on scope:" "$FE_OUT"
+case "$FE_OUT" in *"features: features:"*) o=doubled ;; *) o=once ;; esac
+chk "  ...and does not print the 'features:' prefix twice" "$o" once
+# From a SUBDIRECTORY of a git repo whose ROOT file is malformed: the root is
+# resolved like prove.sh does, so this fails (not four "off | (not set)" rows).
+SR="$T/subrepo"; mkdir -p "$SR/.claude" "$SR/pkg/deep"; git -C "$SR" init -q
+printf '{"version": 1, "features": [' > "$SR/.claude/bendit.json"
+FE_OUT="$(cd "$SR/pkg/deep" && PATH="$T/stub-user:$PATH" "$PY" "$KIT/scripts/selfcheck.py" --features . 2>&1)"; FE_RC=$?
+chk "subdirectory of a repo with a malformed root bendit.json: exit 1" "$FE_RC" 1
+has "  ...names the root file it read" "$SR/.claude/bendit.json" "$FE_OUT"
+case "$FE_OUT" in *"(not set)"*) o=off ;; *) o=failed ;; esac
+chk "  ...and does not read it as everything off" "$o" failed
+# A good root file is found from the subdirectory too.
+rm "$SR/.claude/bendit.json"
+"$PY" "$SD/features.py" set "$SR" ls-guard off "declined by the person"
+FE_OUT="$(cd "$SR/pkg/deep" && PATH="$T/stub-user:$PATH" "$PY" "$KIT/scripts/selfcheck.py" --features . 2>&1)"; FE_RC=$?
+chk "subdirectory, good root file: exit 0" "$FE_RC" 0
+has "  ...shows the root file's row" "declined by the person" "$FE_OUT"
+
+# An explicit path never yields to the session's project: CLAUDE_PROJECT_DIR
+# names ANOTHER project with a different bendit.json, and a non-git fixture path
+# must still report the fixture's own file.
+OP="$T/otherproj"; mkdir -p "$OP"
+"$PY" "$SD/features.py" set "$OP" browser-driver off "OTHER-PROJECT-REASON"
+NG="$T/nongit-fixture"; mkdir -p "$NG"
+"$PY" "$SD/features.py" set "$NG" ls-guard off "FIXTURE-REASON"
+FE_OUT="$(CLAUDE_PROJECT_DIR="$OP" PATH="$T/stub-user:$PATH" "$PY" "$KIT/scripts/selfcheck.py" --features "$NG" 2>&1)"; FE_RC=$?
+FE_OUT2="$(CLAUDE_PROJECT_DIR="$OP" PATH="$T/stub-user:$PATH" "$PY" "$KIT/scripts/selfcheck.py" --features 2>&1)"
+has "no path given: CLAUDE_PROJECT_DIR is the default" "OTHER-PROJECT-REASON" "$FE_OUT2"
+has "explicit non-git --features path reports the fixture's file" "FIXTURE-REASON" "$FE_OUT"
+case "$FE_OUT" in *OTHER-PROJECT-REASON*) o=leaked ;; *) o=clean ;; esac
+chk "  ...and never the CLAUDE_PROJECT_DIR project's" "$o" clean
 
 echo
 echo "IT CLEANS UP"

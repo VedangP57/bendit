@@ -58,12 +58,19 @@ The scaffold prints the command. Show it to the person and ask them to run it
 design. Until they have, `prove.sh`'s "approved by you" row fails and adoption
 is NOT COMPLETE.
 
-## 3. Where the facts go (and why there is no config file)
+## 3. Where the facts go (and the one config file)
 
 Every fact detection and the interview settled is written where something
 **reads** it, and nowhere else. A config file nothing reads is dead
 configuration (failure class F1 in `docs/ladder.md`): it looks authoritative and
-drifts from the truth on the first change.
+drifts from the truth on the first change. So there is one config file,
+`.claude/bendit.json`, read by `prove.sh` (and so `/doctor`) and the
+ls-guard hook and the session-brief hook. SKILL.md step 3b writes it through
+`KIT/scripts/features.py`, never by hand.
+
+In the session-brief's `brief` config, `env_files` is read highest priority
+first (`.env.local` beats `.env`), and `probe_env_vars` must name variables
+whose values are URLs (a value without `://` is reported as not probed).
 
 | fact | lives in | read by |
 |---|---|---|
@@ -71,6 +78,7 @@ drifts from the truth on the first change.
 | production branch(es) | `AGENTS.md`: `- Production branch(es): ...` | `/ship` |
 | test / lint / typecheck / dev commands, package manager | `.claude/verify-harness` and the app harness the scaffold generated | the Stop gate, `/verify` |
 | port | the machine's port registry (`scripts/ports.py`), allocated by the scaffold, or by the first `verify` on a machine that has not seen the repo | `verify.sh` |
+| which features are on, and why | `.claude/bendit.json` | `prove.sh` (its `feature:` rows, and so `/doctor`); the ls-guard hook; the session-brief hook (from the main checkout, so worktrees share it) |
 | vendored kit's source + commit | `.claude/vendor/bendit/VENDORED_FROM` (route B only) | people, via the README's check |
 
 If a fact has no reader here, do not record it: say it in the report.

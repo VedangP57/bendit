@@ -626,7 +626,8 @@ ENVEOF
 #   kit                           say which bendit copy verify would use
 #   doctor                        read-only preflight; non-zero with a reason
 #   up                            serve the app on $PORT (+ .env.verify.local if present)
-#   drive <scenario> [--base URL] run scenarios/<scenario>.sh, leave evidence
+#   drive <scenario> [--base URL] run scenarios/<scenario>.sh (probes) or .json
+#                                 (a real browser), leave evidence
 # scripts/verify.sh drives doctor/up/drive in order; run them by hand to debug.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -873,10 +874,42 @@ case "${1:-help}" in
               *) echo "refusing: unknown drive option '$1'" >&2; exit 2 ;;
             esac
           done
-          sc="$want"; [ -f "$sc" ] || sc="$HERE/scenarios/$want.sh"
-          [ -f "$sc" ] || { echo "refusing: no scenario '$want' in $HERE/scenarios/" >&2; exit 2; }
+          # <name>.sh runs the curl probes below; <name>.json runs in a real
+          # browser through bendit's driver. One name, one scenario: with both
+          # files present, which one "drive <name>" ran would be a guess.
+          sc="$want"
+          if [ ! -f "$sc" ]; then
+            if [ -f "$HERE/scenarios/$want.sh" ] && [ -f "$HERE/scenarios/$want.json" ]; then
+              echo "refusing: both scenarios/$want.sh and scenarios/$want.json exist -- rename one, so '$want' names a single scenario" >&2; exit 2
+            fi
+            sc="$HERE/scenarios/$want.sh"; [ -f "$sc" ] || sc="$HERE/scenarios/$want.json"
+          fi
+          [ -f "$sc" ] || { echo "refusing: no scenario '$want' in $HERE/scenarios/ (looked for $want.sh and $want.json)" >&2; exit 2; }
           case "$KEEP" in ''|*[!0-9]*|0) echo "refusing: VERIFY_KEEP_RUNS must be a positive integer (got '$KEEP')" >&2; exit 2;; esac
           preflight
+          case "$sc" in
+            *.json)
+              # The driver is bendit's lib/drive/drive.mjs, found like `verify`
+              # finds verify.sh. It needs Playwright (drive-setup.sh) and Chrome,
+              # and says which is missing with exit 2.
+              k=$(find_kit) || exit 2; k="${k%%$'\t'*}"
+              [ -f "$k/lib/drive/drive.mjs" ] || { echo "refusing: the bendit copy at $k has no browser driver (lib/drive/drive.mjs) -- update bendit to run $sc" >&2; exit 2; }
+              command -v node >/dev/null 2>&1 || { echo "refusing: $sc is a browser scenario and node is not installed (bendit's driver runs on it: https://nodejs.org/)" >&2; exit 2; }
+              name="$(basename "${sc%.json}")"
+              out="$HERE/artifacts/$name-$(date +%Y%m%dT%H%M%S)"
+              log="$(mktemp)"
+              node "$k/lib/drive/drive.mjs" "$sc" --base "$base" --out "$out" 2>&1 | tee "$log"; rc=${PIPESTATUS[0]}
+              verdict="$(grep '^VERDICT: ' "$log" | tail -1)"; rm -f "$log"
+              # VERIFIED needs both: the driver exited 0 AND said so.
+              case "$rc:$verdict" in 0:"VERDICT: VERIFIED"*) rc=0 ;; 0:*) rc=1 ;; esac
+              if [ -d "$out" ]; then
+                printf '%s\nscenario: %s\nbase: %s\ncode: %s\n' "${verdict:-VERDICT: NOT VERIFIED -- the driver exited $rc}" "$sc" "$base" "$(codestate)" > "$out/verdict.txt"
+              fi
+              if ! prune_runs "$name" "$KEEP" "$out" >&2; then
+                if [ "$rc" -eq 0 ]; then rc=2; fi
+              fi
+              exit "$rc" ;;
+          esac
           name="$(basename "${sc%.sh}")"
           out="$HERE/artifacts/$name-$(date +%Y%m%dT%H%M%S)"
           mkdir -p "$out"; : > "$out/checks.log"
@@ -902,7 +935,7 @@ case "${1:-help}" in
             if [ "$rc" -eq 0 ]; then rc=2; fi
           fi
           exit "$rc" ;;
-  *)      sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  *)      sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
 BINEOF
   # Placeholders are filled by literal replacement, so nothing in a --dev
@@ -988,6 +1021,15 @@ PROBEEOF
       printf 'expect_ok %s\n' "$SMOKE_PATH"
     } > "$SK/scenarios/smoke.sh"
   fi
+  # After the smoke (which is written only into an empty scenarios/).
+  # A browser scenario's saveState is a login (cookies, tokens): a credential.
+  # drive.mjs refuses one git would commit; this folder is where it can go.
+  # Committed, ignoring all but itself; kept on --force, the user may add to it.
+  if [ ! -f "$SK/scenarios/fixtures/auth-state/.gitignore" ]; then
+    mkdir -p "$SK/scenarios/fixtures/auth-state"
+    printf '%s\n' '# saveState writes logins here: credentials, never committed.' '*' '!.gitignore' \
+      > "$SK/scenarios/fixtures/auth-state/.gitignore"
+  fi
 
   FW="${FRAMEWORKS:-unknown framework}"
   cat > "$SK/SKILL.md" <<MDEOF
@@ -1038,10 +1080,41 @@ exits 0, made at least one check, and no check failed.
 Prove a denial as well as a success: a harness that only ever passes cannot be
 told apart from a broken one.
 
+### Browser scenarios
+
+\`scenarios/<name>.json\` runs in a real browser through bendit's driver, against
+the same app on the same port. One name is one scenario: a \`<name>.sh\` and a
+\`<name>.json\` together are refused.
+
+\`\`\`json
+{"name": "pricing", "steps": [
+  {"goto": "/"},
+  {"click": {"role": "link", "name": "Pricing"}},
+  {"expectVisible": {"role": "heading", "name": "Pricing"}},
+  {"goto": "/admin", "expectStatus": 403},
+  {"screenshot": "pricing"}
+]}
+\`\`\`
+
+Steps: \`goto\` (HTTP >= 400 fails unless \`expectStatus\` names it), \`click\`,
+\`fill\`, \`press\`, \`expectVisible\`, \`expectNotVisible\`, \`expectText\`,
+\`screenshot\`, \`snapshot\` (compared with a committed baseline in
+\`<name>.json.baselines/\`), \`saveState\`, \`evalJs\`, \`waitMs\`. A saved login
+(\`saveState\`, read back with a top-level \`storageState\`) is a credential: give a
+path under \`fixtures/auth-state/\`, which is git-ignored; both resolve against
+\`scenarios/\` and a path outside it, or one git would commit, is refused. Address elements
+by role, label and text, never by CSS class. It needs Node, Chrome (or the
+browser \`BENDIT_BROWSER_CHANNEL\` names) and Playwright, which is installed once
+per machine, outside this repo: \`bash <bendit>/scripts/drive-setup.sh\`
+(\`bin/verify-$NAME kit\` prints \`<bendit>\`). Anything missing is exit 2,
+naming it, and never \`VERDICT: VERIFIED\`.
+
 ## Evidence
 
 \`artifacts/<scenario>-<timestamp>/\`: \`verdict.txt\`, \`checks.log\`, \`output.log\`,
-response bodies. A fresh directory per run; the newest 10 per scenario are kept
+response bodies; for a browser scenario, its screenshots, snapshots,
+\`console.log\`, \`requests.log\`, \`manifest.json\` and \`verdict.md\`. A fresh
+directory per run; the newest 10 per scenario are kept
 (\`VERIFY_KEEP_RUNS=n\`). Gitignored.
 
 ## Coverage

@@ -48,6 +48,24 @@ When you report what you verified, use the evidence rungs:
 1 said so · 2 pointed at the line · 3 showed the bad case cannot happen ·
 4 ran it and read the output · 5 reproduced it in the running app.
 
+## Releasing
+
+1. Bump the version in all five places, to the same value: `BENDIT_VERSION` in
+   `install.sh`, `version` in `plugins/bendit/.claude-plugin/plugin.json` and
+   `plugins/bendit-web/.claude-plugin/plugin.json`, `packages/npm/package.json`
+   and `packages/pypi/pyproject.toml` (`scripts/packages.test.sh` fails if they
+   differ).
+2. Run `packages/sync.sh` (copies `install.sh` into both wrappers) and commit.
+3. `bash .github/workflows/ci.sh` must end `CI passed: ...`.
+4. Tag `vX.Y.Z`, then push main and the tag together:
+   `git push --atomic origin main vX.Y.Z`. The installer on main fetches that
+   tag, so neither may land without the other.
+5. Publish, **only after the repo is public**, by the owner, from their own
+   accounts: `npm publish` in `packages/npm`. For PyPI, in `packages/pypi`:
+   `python3 -m pip install build twine`, then `rm -rf dist`,
+   `python3 -m build`, check the wheel holds the installer
+   (`unzip -l dist/*.whl | grep bendit/install.sh`), and `twine upload dist/*`.
+
 ## Reporting bugs and ideas
 
 Use the issue templates. For anything security-related, see

@@ -27,11 +27,13 @@ expect_init "$SD/prove.expected"
 expect_scrub_dir "$T" '<tmp>'
 expect_scrub "$KIT" '<kit>'
 
-# repo <dir> <harness-body or ""> -- a committed scratch project
+# repo <dir> <harness-body or ""> [unapproved] -- a committed scratch project.
+# BENDIT_JSON, if set, is the body of its .claude/bendit.json.
 repo() {
   mkdir -p "$1"; git -C "$1" init -q
   printf 'x = 1\n' > "$1/app.py"; printf '# rules\n' > "$1/AGENTS.md"
   if [ -n "$2" ]; then mkdir -p "$1/.claude"; printf '# what verifies this repo\n%s\n' "$2" > "$1/.claude/verify-harness"; fi
+  if [ -n "${BENDIT_JSON:-}" ]; then mkdir -p "$1/.claude"; printf '%s\n' "$BENDIT_JSON" > "$1/.claude/bendit.json"; fi
   git -C "$1" add -A && git -C "$1" -c user.email=t@example.com -c user.name=t commit -qm init
   # A test repo's harness is approved, in a THROWAWAY approval list (below), so
   # each case tests what it names. "unapproved" opts out to test that row.
@@ -111,6 +113,153 @@ printf 'exit 0 # edited\n' >> "$U/.claude/verify-harness"
 expect_capture "harness changed after approval" bash "$SD/prove.sh" "$U"
 chk "a harness changed after approval fails again (exit 1)" "$EXPECT_CODE" "1"
 has "  ...saying it changed" "changed since you approved it" "$EXPECT_STDOUT"
+
+echo
+echo "PER-PROJECT FEATURES"
+expect_capture "no bendit.json" bash "$SD/prove.sh" "$G"
+chk "no bendit.json: exit 0 (UNUSED is not a failure)" "$EXPECT_CODE" "0"
+chk "  ...four features read UNUSED" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -c '^feature: .*| UNUSED ')" "4"
+has "  ...saying why" "UNUSED  not set up by /adopt yet" "$EXPECT_STDOUT"
+has "  ...and the summary counts them" "checks passed (4 unused)" "$EXPECT_STDOUT"
+has "  ...readable row passes" "features: .claude/bendit.json readable" "$EXPECT_STDOUT"
+
+BENDIT_JSON='{"version":1,"features":{"browser-driver":{"on":false,"why":"you declined Chrome"}}}'
+F1="$T/feat-off"; repo "$F1" 'exit 0'
+expect_capture "feature declined" bash "$SD/prove.sh" "$F1"
+chk "a declined feature is UNUSED with its reason, exit 0" "$EXPECT_CODE" "0"
+has "  ...the reason is shown" "UNUSED  you declined Chrome" "$EXPECT_STDOUT"
+
+BENDIT_JSON='{"version":1,"features":{"browser-driver":{"on":true,"why":"Chrome"}}}'
+F2="$T/feat-browser"; repo "$F2" 'exit 0'
+K0="$T/kit-nocheck"; kitcopy "$K0"
+sed -i.bak "/^    'browser-driver': _check_browser_driver,\$/d" "$K0/scripts/prove.sh"
+chk "  (the copy really lost its browser-driver check)" "$(grep -c "'browser-driver': _check_browser_driver" "$K0/scripts/prove.sh")" "0"
+expect_capture "browser-driver on, no registered check" bash "$K0/scripts/prove.sh" "$F2"
+chk "an ON feature with no registered check fails prove" "$EXPECT_CODE" "1"
+has "  ...naming it" "no check for browser-driver" "$EXPECT_STDOUT"
+# browser-driver: ON means Playwright is installed (drive-setup.sh --check) AND
+# the driver passes its own selftest page. Both are stand-ins in a kit copy
+# here, so this pins what the check runs and reads; drive.test.sh drives the
+# real browser.
+K6="$T/kit-noplaywright"; kitcopy "$K6"
+printf '#!/usr/bin/env bash\necho "drive-setup: Playwright is not installed"\nexit 1\n' > "$K6/scripts/drive-setup.sh"
+expect_capture "browser-driver on, Playwright not installed" bash "$K6/scripts/prove.sh" "$F2"
+chk "browser-driver on with no Playwright fails prove (exit 1)" "$EXPECT_CODE" "1"
+has "  ...giving the command that installs it" "drive-setup.sh" "$(printf '%s\n' "$EXPECT_STDOUT" | sed -n '/^failures:/,$p')"
+# fakedrive <kit> <exit code>: a drive.mjs that checks it was handed the selftest,
+# writes into its --out like the real one, and exits as told.
+fakedrive() {
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$1/scripts/drive-setup.sh"
+  cat > "$1/lib/drive/drive.mjs" <<EOF
+import { mkdirSync, writeFileSync } from 'node:fs';
+const a = process.argv.slice(2), v = (n) => a[a.indexOf(n) + 1];
+const ok = a[0].endsWith('/lib/drive/selftest/pass.json') && String(v('--base')).startsWith('file://') && a.includes('--out');
+mkdirSync(v('--out'), { recursive: true }); writeFileSync(v('--out') + '/verdict.md', 'x');
+console.log(!ok ? 'VERDICT: NOT VERIFIED -- unexpected args ' + a.join(' ')
+  : $2 === 0 ? 'VERDICT: VERIFIED' : 'FAIL  5  expectText  — "Saved"\nVERDICT: NOT VERIFIED');
+process.exit(ok ? $2 : 3);
+EOF
+}
+K7="$T/kit-drivefails"; kitcopy "$K7"; fakedrive "$K7" 1
+expect_capture "browser-driver on, selftest fails" bash "$K7/scripts/prove.sh" "$F2"
+chk "a driver that fails its selftest fails prove (exit 1)" "$EXPECT_CODE" "1"
+has "  ...saying the selftest failed" "selftest" "$(printf '%s\n' "$EXPECT_STDOUT" | sed -n '/^failures:/,$p')"
+K8="$T/kit-drivepasses"; kitcopy "$K8"; fakedrive "$K8" 0
+gst "$F2" >/dev/null; before=$(gst "$F2"; snap "$F2")
+expect_capture "browser-driver on, selftest passes" bash "$K8/scripts/prove.sh" "$F2"
+chk "browser-driver: installed and the selftest passes -> prove passes" "$EXPECT_CODE" "0"
+chk "  ...its row says PASS" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^feature: browser-driver +\| PASS ')" "1"
+chk "  ...and the selftest's evidence went nowhere near the repo" "$([ "$before" = "$(gst "$F2"; snap "$F2")" ] && echo same || echo changed)" same
+chk "  ...nor stayed in the temp dir" "$(/bin/ls -A "$TMPDIR")" ""
+
+BENDIT_JSON='{"version":1,"features":{"ls-guard":{"on":true,"why":"ls is a formatter"}}}'
+F2b="$T/feat-ls"; repo "$F2b" 'exit 0'
+expect_capture "ls-guard on" bash "$SD/prove.sh" "$F2b"
+chk "ls-guard on: the check runs the hook and prove passes" "$EXPECT_CODE" "0"
+chk "  ...its row says PASS" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^feature: ls-guard +\| PASS ')" "1"
+
+BENDIT_JSON='{"version":1,"features":{"session-brief":{"on":true,"why":"git project","brief":{"local_ports":[]}}}}'
+F2c="$T/feat-brief"; repo "$F2c" 'exit 0'
+git -C "$F2c" checkout -q -b brief-branch   # not the init default: that differs per machine
+expect_capture "session-brief on" bash "$SD/prove.sh" "$F2c"
+chk "session-brief on: the brief runs on the repo and prove passes" "$EXPECT_CODE" "0"
+chk "  ...its row says PASS" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^feature: session-brief +\| PASS ')" "1"
+# A brief that prints valid JSON but does not name the branch must FAIL the
+# row: the check reads the context, not just the exit code. (It stays silent
+# for --hook, so only the feature row can catch it.)
+K5="$T/kit-blindbrief"; kitcopy "$K5"
+printf 'import sys, json\nif "--cwd" in sys.argv: print(json.dumps({"context": "nothing", "toast": ""}))\n' > "$K5/scripts/session-brief.py"
+expect_capture "session-brief that names no branch" bash "$K5/scripts/prove.sh" "$F2c"
+chk "a brief that does not name the branch fails prove (exit 1)" "$EXPECT_CODE" "1"
+has "  ...saying what is missing" "the brief does not name the checked-out branch" "$EXPECT_STDOUT"
+
+# bendit.json is committed free text (each why, the brief config), so the
+# privacy row scans it. The home path is assembled at run time so this file
+# itself carries none, and the feature is ON so prove.sh never echoes the why
+# (an UNUSED row prints it) into the committed snapshot.
+U="/Us""ers"
+BENDIT_JSON="{\"version\":1,\"features\":{\"ls-guard\":{\"on\":true,\"why\":\"seen in $U/alice/proj\"}}}"
+FP="$T/feat-private"; repo "$FP" 'exit 0'
+expect_capture "home path in a bendit.json why" bash "$SD/prove.sh" "$FP"
+chk "a home path in .claude/bendit.json fails prove (exit 1)" "$EXPECT_CODE" "1"
+chk "  ...on the privacy row" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^privacy: .*\| FAIL ')" "1"
+has "  ...naming the file" ".claude/bendit.json" "$(printf '%s\n' "$EXPECT_STDOUT" | sed -n '/^failures:/,$p')"
+
+BENDIT_JSON='{"version":1,'
+F3="$T/feat-bad"; repo "$F3" 'exit 0'
+expect_capture "malformed bendit.json" bash "$SD/prove.sh" "$F3"
+chk "a malformed bendit.json fails prove" "$EXPECT_CODE" "1"
+has "  ...on the readable row" "features: .claude/bendit.json readable" "$EXPECT_STDOUT"
+
+# ux-design-laws: ON means the add-on is installed for THIS project. The check
+# asks `claude plugin list --json`; here `claude` is a stub on PATH that prints
+# fixture JSON (the real fields: id, scope, enabled, projectPath).
+BENDIT_JSON='{"version":1,"features":{"ux-design-laws":{"on":true,"why":"a web app"}}}'
+UX="$T/feat-ux"; repo "$UX" 'exit 0'; UXREAL=$(cd "$UX" && pwd -P)
+unset BENDIT_JSON
+STUB="$T/stub"; mkdir -p "$STUB"
+# stub <json-file | ERROR> -- a `claude` that prints the file, or fails.
+stub() {
+  if [ "$1" = ERROR ]; then printf '#!/bin/sh\necho "boom: not logged in" >&2\nexit 1\n' > "$STUB/claude"
+  else # Like the real CLI, the answer depends on the cwd: from anywhere but the
+  # project root it lists nothing, so a check run from elsewhere cannot pass.
+  printf '#!/bin/sh\n[ "$(pwd -P)" = "%s" ] || { echo "[]"; exit 0; }\ncat "%s"\n' "$UXREAL" "$1" > "$STUB/claude"; fi
+  chmod +x "$STUB/claude"
+}
+with_stub() { PATH="$STUB:$PATH" expect_capture "$@"; }
+# Every fixture carries both fields, as the real CLI emits them: `enabled` is
+# true for any installed entry; `projectEnabled` is the per-project signal.
+ux_json() { printf '[{"id":"bendit-web@bendit","scope":"%s","enabled":%s,"projectEnabled":%s,"projectPath":"%s"}]\n' "$1" "$2" "$3" "$4"; }
+ux_json project true true "$UXREAL/" > "$T/ux-match.json"
+ux_json project true true "$T/elsewhere" > "$T/ux-other.json"
+printf '[{"id":"bendit-web@bendit","scope":"user","enabled":true,"projectEnabled":false}]\n' > "$T/ux-user.json"
+ux_json project true false "$UXREAL" > "$T/ux-disabled.json"
+stub "$T/ux-match.json"
+with_stub "ux-design-laws installed here" bash "$SD/prove.sh" "$UX"
+chk "ux-design-laws: add-on enabled at project scope for this repo passes (exit 0)" "$EXPECT_CODE" "0"
+has "  ...on its own feature row, as PASS" "feature: ux-design-laws" "$EXPECT_STDOUT"
+chk "  ...with no failure listed" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -c '^failures:')" "0"
+stub "$T/ux-other.json"
+with_stub "ux-design-laws installed for another project" bash "$SD/prove.sh" "$UX"
+chk "a project-scope entry for a DIFFERENT project fails (exit 1)" "$EXPECT_CODE" "1"
+has "  ...saying it is not installed here" "bendit-web is not installed here" "$EXPECT_STDOUT"
+stub "$T/ux-user.json"
+with_stub "ux-design-laws user scope only" bash "$SD/prove.sh" "$UX"
+chk "user scope alone fails: it does not prove THIS project has it (exit 1)" "$EXPECT_CODE" "1"
+has "  ...saying user scope only" "installed at user scope only" "$EXPECT_STDOUT"
+stub "$T/ux-disabled.json"
+with_stub "ux-design-laws installed but disabled" bash "$SD/prove.sh" "$UX"
+chk "installed (enabled) but projectEnabled false fails (exit 1)" "$EXPECT_CODE" "1"
+has "  ...saying disabled" "installed for this project but disabled" "$EXPECT_STDOUT"
+stub ERROR
+with_stub "claude plugin list errors" bash "$SD/prove.sh" "$UX"
+chk "a claude CLI error fails (exit 1), never passes by silence" "$EXPECT_CODE" "1"
+has "  ...saying it could not check" "could not check (claude plugin list failed:" "$EXPECT_STDOUT"
+printf 'not json\n' > "$T/ux-junk.json"; stub "$T/ux-junk.json"
+with_stub "claude plugin list prints junk" bash "$SD/prove.sh" "$UX"
+chk "unparseable output fails (exit 1)" "$EXPECT_CODE" "1"
+has "  ...saying it could not check" "could not check" "$EXPECT_STDOUT"
+unset BENDIT_JSON
 
 echo
 echo "A BROKEN GUARD"

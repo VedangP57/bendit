@@ -250,6 +250,89 @@ case "$(crash)" in
   *) printf '  FAIL  %s: %s\n' "a crash inside the review exits 2 with a reason" "$(crash | tail -1)"; fail=$((fail+1));;
 esac
 
+# --- advisory notes: the plan linter and the missing-import check ---
+# Both ride on additionalContext (stdout, exit 0). They are ADVICE: a clean file
+# prints nothing, and nothing they do may change the hook's exit status.
+echo
+echo "ADVISORY NOTES (plan linter, missing imports)"
+# Every helper is defined before its first call.
+note_of() { # <path> -> the additionalContext text, empty when the hook said nothing
+  pay "$1" | python3 "$H" 2>/dev/null | python3 -c '
+import json, sys
+raw = sys.stdin.read()
+print(json.loads(raw)["hookSpecificOutput"]["additionalContext"] if raw.strip() else "", end="")'
+}
+code_of() { pay "$1" | python3 "$H" >/dev/null 2>&1; echo $?; }
+has() { case "$1" in *"$2"*) echo yes;; *) echo no;; esac; }
+
+PR="$T/proj"; mkdir -p "$PR/docs/superpowers/plans" "$PR/docs/superpowers/specs" "$PR/docs/plans"
+echo "# Word Count Spec" > "$PR/docs/superpowers/specs/real-spec.md"
+sed -n "/<<'PLAN'/,/^PLAN\$/p" "$D/check-plan.test.sh" | sed '1d;$d' > "$PR/docs/superpowers/plans/2026-01-01-good.md"
+grep -v '^## Review Focus' "$PR/docs/superpowers/plans/2026-01-01-good.md" > "$PR/docs/superpowers/plans/2026-01-01-noreview.md"
+cp "$PR/docs/superpowers/plans/2026-01-01-noreview.md" "$PR/docs/plans/2026-01-01-noreview.md"
+
+pchk "a complete plan is silent"           "$(note_of "$PR/docs/superpowers/plans/2026-01-01-good.md")" ""
+expect_capture "plan note wording" python3 "$H" <<<"$(pay "$PR/docs/superpowers/plans/2026-01-01-noreview.md")"
+n="$(note_of "$PR/docs/superpowers/plans/2026-01-01-noreview.md")"
+pchk "a plan missing ## Review Focus gets a note naming it" "$(has "$n" '## Review Focus')" yes
+pchk "the plan note is advisory: exit 0"   "$(code_of "$PR/docs/superpowers/plans/2026-01-01-noreview.md")" 0
+pchk "the same content under docs/plans/ is not a superpowers plan: silent" \
+  "$(note_of "$PR/docs/plans/2026-01-01-noreview.md")" ""
+
+MOD="$T/plug/hooks"; mkdir -p "$MOD" "$T/plain/src"
+printf '{"hooks":{}}\n' > "$MOD/hooks.json"
+printf 'export const SHOWN_LIMIT_MS = 1\n' > "$MOD/roster.ts"
+printf 'const f = (n) => n > SHOWN_LIMIT_MS\n' > "$MOD/index.ts"
+printf 'export const SHOWN_LIMIT_MS = 1\n' > "$T/plain/src/roster.ts"
+printf 'const f = (n) => n > SHOWN_LIMIT_MS\n' > "$T/plain/src/index.ts"
+expect_capture "missing-import note wording" python3 "$H" <<<"$(pay "$MOD/index.ts")"
+n="$(note_of "$MOD/index.ts")"
+pchk "a mod file using an un-imported sibling export gets a note" "$(has "$n" 'SHOWN_LIMIT_MS is used here')" yes
+pchk "the import note is advisory: exit 0" "$(code_of "$MOD/index.ts")" 0
+pchk "the same code in a directory with no hooks.json is silent" "$(note_of "$T/plain/src/index.ts")" ""
+printf 'import { SHOWN_LIMIT_MS } from "./roster"\nconst f = (n) => n > SHOWN_LIMIT_MS\n' > "$MOD/index.ts"
+pchk "CONTROL: once imported, the mod file is silent" "$(note_of "$MOD/index.ts")" ""
+
+# Advice must never break the hook. Copy the plugin's scripts, break each
+# checker so it raises (or, for the import check, crashes with a traceback and
+# exit 1), and require: exit 0, no output.
+BR="$T/broken"; mkdir -p "$BR"
+cp "$D/post-edit-review.py" "$D/check-plan.py" "$D/check-mod-imports.py" "$BR/"
+printf 'def advise(path):\n    raise RuntimeError("synthetic")\n' > "$BR/check-plan.py"
+printf 'raise RuntimeError("synthetic")\n' > "$BR/check-mod-imports.py"
+printf 'const f = (n) => n > SHOWN_LIMIT_MS\n' > "$MOD/index.ts"
+bout="$(pay "$PR/docs/superpowers/plans/2026-01-01-noreview.md" | python3 "$BR/post-edit-review.py" 2>&1)"; bcode=$?
+pchk "a crash inside advise() yields exit 0" "$bcode" 0
+pchk "and no note" "$bout" ""
+bout="$(pay "$MOD/index.ts" | python3 "$BR/post-edit-review.py" 2>&1)"; bcode=$?
+pchk "a crash inside the import checker yields exit 0" "$bcode" 0
+pchk "and its traceback is not passed off as a note" "$bout" ""
+
+# A hung import checker must time out BEFORE the hook's own 10 s limit, so the
+# band-aid note for the same edit survives. The limit is shortened by a test-only
+# env var; the product value is 5 s.
+printf 'import time\ntime.sleep(30)\n' > "$BR/check-mod-imports.py"
+printf '// @ts-ignore\nconst f = (n) => n > SHOWN_LIMIT_MS\n' > "$MOD/index.ts"   # the edit has landed
+hp="$(python3 -c "import json,sys;print(json.dumps({'tool_name':'Edit','tool_input':{'file_path':sys.argv[1],'old_string':'const f','new_string':'// @ts-ignore\nconst f'}}))" "$MOD/index.ts")"
+t0=$(python3 -c 'import time;print(time.time())')
+hout="$(printf '%s' "$hp" | BENDIT_TEST_IMPORT_CHECK_TIMEOUT=0.5 python3 "$BR/post-edit-review.py" 2>&1)"; hcode=$?
+el=$(python3 -c "import time,sys;print(int(time.time()-float(sys.argv[1]) < 5))" "$t0")
+pchk "a hung import checker: the hook still exits 2 for the band-aid" "$hcode" 2
+pchk "the band-aid note is still delivered" "$(has "$hout" '@ts-ignore')" yes
+pchk "no import note from the hung checker" "$(has "$hout" 'mod import check')" no
+pchk "it returned well before the hook's 10 s limit" "$el" 1
+pchk "the product timeout is 5 s, below the hook's 10 s" \
+  "$(env -u BENDIT_TEST_IMPORT_CHECK_TIMEOUT python3 -c 'import importlib.util,sys;s=importlib.util.spec_from_file_location("p",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);print(m._import_check_timeout())' "$H")" 5.0
+
+# A junk timeout value must not break every Edit/Write: it falls back to 5 s,
+# and the hook still judges the edit (exit 2 for the band-aid, no traceback).
+jout="$(printf '%s' "$hp" | BENDIT_TEST_IMPORT_CHECK_TIMEOUT=junk python3 "$H" 2>&1)"; jcode=$?
+pchk "a junk timeout: the hook still exits 2 for the band-aid" "$jcode" 2
+pchk "a junk timeout: the band-aid note is delivered" "$(has "$jout" '@ts-ignore')" yes
+pchk "a junk timeout: no traceback" "$(has "$jout" 'Traceback')" no
+pchk "a junk timeout falls back to 5 s" \
+  "$(BENDIT_TEST_IMPORT_CHECK_TIMEOUT=junk python3 -c 'import importlib.util,sys;s=importlib.util.spec_from_file_location("p",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);print(m._import_check_timeout())' "$H")" 5.0
+
 echo
 echo "WHAT IT SAYS (snapshot)"
 expect_verify || fail=$((fail+1))

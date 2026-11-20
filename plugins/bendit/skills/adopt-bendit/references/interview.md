@@ -31,11 +31,12 @@ Order matters: later defaults depend on earlier answers.
    *[none]*. `/ship` refuses to open a PR from these.
 
 6. **Guards.** Show the kit's guards in one line each (from `KIT/hooks/hooks.json`)
-   and say plainly: they ship together; the zsh word-split guard is the one
-   toggle (`zshGuard`, on by default, active only when `$SHELL` is zsh).
-   *"Keep them all? [yes]"*. If the user wants one off, say that v1 cannot turn
-   off a single kit guard other than via `zshGuard`, and record it under
-   "not possible here".
+   and say plainly what the switches are: the zsh word-split guard
+   (`zshGuard`, on by default, active only when `$SHELL` is zsh) and the
+   features table (SKILL.md step 3b, `.claude/bendit.json`); every other guard
+   ships together. *"Keep them all? [yes]"*. If the user wants another one off,
+   say that it cannot be turned off on its own, and record it under "not
+   possible here".
 
 7. **Generated files and hot paths?** The path-contracts guard refuses edits to
    files named `*.gen.*` and allocations in `*.hot.*`, and fires on nothing

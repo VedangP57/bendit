@@ -81,10 +81,12 @@ BIN
 
 run_verify() { # repo-dir name [scenario]
   # BENDIT_APP_WAIT keeps this quick: what is under test is which
-  # DECISION verify makes, not how patient it is.
+  # DECISION verify makes, not how patient it is. 10s by default: an app that
+  # must come up (the 200 and the 500) gets room on a runner 3x slower than a
+  # laptop; WAIT=5 where nothing ever listens and only the wording is checked.
   local dir="$1" name="$2"; shift 2
   ( cd "$dir" && BENDIT_CONFIG_DIR="$TMP/cfg-$name" \
-      BENDIT_VERIFY_LOCKDIR="$TMP/slots" BENDIT_APP_WAIT=5 TMPDIR="$TMP/tmpd" \
+      BENDIT_VERIFY_LOCKDIR="$TMP/slots" BENDIT_APP_WAIT="${WAIT:-10}" TMPDIR="$TMP/tmpd" \
       bash "$VERIFY" "$@" ) 2>&1
 }
 mkdir -p "$TMP/tmpd"
@@ -154,7 +156,7 @@ R0=$(make_repo zero 200)
 printf '#!/usr/bin/env bash\ncase "${1:-}" in up) sleep 30 ;; doctor) exit 0 ;; esac\n' \
   > "$R0/.claude/skills/verify-zero/bin/verify-zero"
 chmod +x "$R0/.claude/skills/verify-zero/bin/verify-zero"
-out4=$(run_verify "$R0" zero)
+out4=$(WAIT=5 run_verify "$R0" zero)
 case "$out4" in
   *"never answered"*) ok "a silent app is 'never answered', a distinct message";;
   *) bad "a silent app is 'never answered'" "$(printf '%s' "$out4" | tail -2)";;
@@ -208,6 +210,23 @@ outn=$(run_verify "$RN" none); rcn=$?
 if [ "$rcn" -ne 0 ]; then ok "verify with zero scenarios exits non-zero ($rcn)"; else bad "verify with zero scenarios exits non-zero" "exited 0"; fi
 case "$outn" in *"nothing was verified"*) ok "  ...saying nothing was verified";; *) bad "  ...saying nothing was verified" "$(printf '%s' "$outn" | tail -2)";; esac
 if [ -f "$RN/.claude/.bendit-state/verified" ]; then bad "  ...and writes no stamp" "stamp written"; else ok "  ...and writes no stamp"; fi
+
+echo
+echo "BROWSER (.json) SCENARIOS ARE SCENARIOS"
+# A repo whose only scenario is a browser scenario. Globbing *.sh alone found
+# none and refused the repo as "nothing was verified".
+RJ=$(make_repo json 200)
+rm -f "$RJ/.claude/skills/verify-json/scenarios/"*.sh
+printf '{"name":"home","steps":[{"goto":"/"}]}\n' > "$RJ/.claude/skills/verify-json/scenarios/home.json"
+mkdir -p "$RJ/.claude/skills/verify-json/scenarios/home.json.baselines" "$RJ/.claude/skills/verify-json/scenarios/fixtures"
+printf '{}\n' > "$RJ/.claude/skills/verify-json/scenarios/fixtures/state.json"
+outj=$(run_verify "$RJ" json); rcj=$?
+case "$outj" in *"1/1 verified"*) ok "a lone .json scenario is run (exit $rcj)";; *) bad "a lone .json scenario is run" "$(printf '%s' "$outj" | tail -3)";; esac
+case "$outj" in *"home"*) ok "  ...by its name";; *) bad "  ...by its name" "$(printf '%s' "$outj" | tail -3)";; esac
+case "$outj" in *"state"*) bad "  ...and a .json in a subfolder (saved login state) is not a scenario" "it ran 'state'";; *) ok "  ...and a .json in a subfolder (saved login state) is not a scenario";; esac
+printf ': scenario\n' > "$RJ/.claude/skills/verify-json/scenarios/b.sh"
+outj2=$(run_verify "$RJ" json)
+case "$outj2" in *"2/2 verified"*) ok "  ...and alongside a .sh scenario both run";; *) bad "  ...and alongside a .sh scenario both run" "$(printf '%s' "$outj2" | tail -3)";; esac
 
 echo
 echo "NO APP HARNESS: THE DECLARED HARNESS IS THE VERIFICATION"

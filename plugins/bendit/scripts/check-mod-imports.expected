@@ -1,0 +1,175 @@
+=== used in an expression, never imported
+exit 1
+--- stderr
+mod import check:
+  index.ts:1  SHOWN_LIMIT_MS is used here and exported by roster.ts, but this file never imports it. At runtime that is a ReferenceError.
+
+=== used inside a template literal
+exit 1
+--- stderr
+mod import check:
+  index.ts:1  SHOWN_LIMIT_MS is used here and exported by roster.ts, but this file never imports it. At runtime that is a ReferenceError.
+
+=== imported SOME names but not this one
+exit 1
+--- stderr
+mod import check:
+  index.ts:2  SHOWN_LIMIT_MS is used here and exported by roster.ts, but this file never imports it. At runtime that is a ReferenceError.
+
+=== a camelCase sibling export
+exit 1
+--- stderr
+mod import check:
+  index.ts:1  mergeEntry is used here and exported by roster.ts, but this file never imports it. At runtime that is a ReferenceError.
+
+=== an async function export
+exit 1
+--- stderr
+mod import check:
+  index.ts:1  fetchAll is used here and exported by roster.ts, but this file never imports it. At runtime that is a ReferenceError.
+
+=== an export default function
+exit 1
+--- stderr
+mod import check:
+  index.ts:1  bigThing is used here and exported by roster.ts, but this file never imports it. At runtime that is a ReferenceError.
+
+=== a reference between two apostrophe regexes
+exit 1
+--- stderr
+mod import check:
+  index.ts:1  SHOWN_LIMIT_MS is used here and exported by roster.ts, but this file never imports it. At runtime that is a ReferenceError.
+
+=== imported in braces
+exit 0
+(silent)
+
+=== imported under an alias
+exit 0
+(silent)
+
+=== imported alongside a type
+exit 0
+(silent)
+
+=== declared locally, shadowing the sibling
+exit 0
+(silent)
+
+=== only named in a line comment
+exit 0
+(silent)
+
+=== only named in a block comment
+exit 0
+(silent)
+
+=== only named in a string
+exit 0
+(silent)
+
+=== a property of the same name
+exit 0
+(silent)
+
+=== a name no sibling exports
+exit 0
+(silent)
+
+=== a re-export needs no import
+exit 0
+(silent)
+
+=== an object-literal key
+exit 0
+(silent)
+
+=== destructured from something else
+exit 0
+(silent)
+
+=== a function parameter
+exit 0
+(silent)
+
+=== an arrow parameter
+exit 0
+(silent)
+
+=== prose inside a template literal
+exit 0
+(silent)
+
+=== a name inside a regex literal
+exit 0
+(silent)
+
+=== division is not a regex literal
+exit 0
+(silent)
+
+=== a sibling export inside a block comment
+exit 0
+(silent)
+
+=== CONTROL: a real reference inside ${}
+exit 1
+--- stderr
+mod import check:
+  index.ts:1  SHOWN_LIMIT_MS is used here and exported by roster.ts, but this file never imports it. At runtime that is a ReferenceError.
+
+=== re-exported by this file itself
+exit 0
+(silent)
+
+=== a parameter in one function does not bind another
+exit 1
+--- stderr
+mod import check:
+  index.ts:2  SHOWN_LIMIT_MS is used here and exported by roster.ts, but this file never imports it. At runtime that is a ReferenceError.
+
+=== an if (...) condition is not a parameter list
+exit 1
+--- stderr
+mod import check:
+  index.ts:1  SHOWN_LIMIT_MS is used here and exported by roster.ts, but this file never imports it. At runtime that is a ReferenceError.
+
+=== CONTROL: the parameter is still bound inside its own body
+exit 0
+(silent)
+
+=== importing a name the sibling does not export
+exit 1
+--- stderr
+mod import check:
+  index.ts:1  imports NOT_THERE from ./roster, but roster.ts does not export it. Under ESM that fails at load time.
+
+=== CONTROL: a name it does export, spelled ./roster.js
+exit 0
+(silent)
+
+=== type exports count for an import
+exit 0
+(silent)
+
+=== a sibling with export * cannot be judged, so it is not
+exit 0
+(silent)
+
+=== a name exported by an export { } list, used unimported
+exit 1
+--- stderr
+mod import check:
+  index.ts:1  LIST_LIMIT_MS is used here and exported by roster.ts, but this file never imports it. At runtime that is a ReferenceError.
+  index.ts:1  renamedHelper is used here and exported by roster.ts, but this file never imports it. At runtime that is a ReferenceError.
+
+=== CONTROL: the export { } name imported
+exit 0
+(silent)
+
+=== a defect one directory down
+exit 1
+--- stderr
+mod import check:
+  sub/index.ts:1  SHOWN_LIMIT_MS is used here and exported by roster.ts, but this file never imports it. At runtime that is a ReferenceError.
+

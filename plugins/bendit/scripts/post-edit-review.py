@@ -210,6 +210,79 @@ def _band_aid_edit(ti):
             'and what the real fix is.')
 
 
+def _plan_notes(raw: str) -> list:
+    """Lint a superpowers plan as it is written. Returns the note lines.
+
+    Folded in here rather than given a hook of its own: this one already runs
+    on the same matcher with the same payload, and a second python process on
+    every edit is cost bought for files written a few times a month. The linter
+    is loaded only when the path names a plan, so every other edit pays one
+    substring test.
+
+    Advisory: it never touches this hook's exit code, and any failure yields no
+    note. Blocking the write would mean a half-written plan cannot be saved, and
+    a plan is written in passes.
+    """
+    try:
+        if 'docs/superpowers/plans/' not in raw.replace(os.sep, '/'):
+            return []
+        import importlib.util
+        src = Path(__file__).with_name('check-plan.py')
+        spec = importlib.util.spec_from_file_location('check_plan', src)
+        if spec is None or spec.loader is None:
+            return []
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return [str(x) for x in (mod.advise(Path(raw)) or [])]
+    except Exception:
+        return []    # a reporter must never break the thing it reports on
+
+
+# Half the hook's own 10 s limit (hooks.json): a hung checker must give up while
+# this hook can still print the band-aid notes, not be killed with it. The env
+# var exists only so the suite can exercise the timeout quickly. Read when the
+# check runs, inside its try: a junk value at import time once made every
+# Edit/Write hook exit 1 with a traceback.
+def _import_check_timeout() -> float:
+    try:
+        t = float(os.environ.get('BENDIT_TEST_IMPORT_CHECK_TIMEOUT') or 5)
+    except ValueError:
+        return 5.0
+    return t if 0 < t < 10 else 5.0
+
+
+def _mod_import_notes(raw: str) -> list:
+    """Check a mod's directory for a sibling export a module forgot to import.
+
+    Folded in here for the same reason as `_plan_notes`. Scoped to a directory
+    that holds a `hooks.json`, because that is what makes a directory a plugin
+    mod -- a directory merely called `hooks` (a React convention) is none of
+    this check's business. Nothing type-checks a mod on a clean checkout: its
+    type declarations are generated once the plugin has loaded, so there is no
+    `tsc` to run. Advisory: it reports, it never changes this hook's exit code,
+    and any failure yields no note.
+    """
+    try:
+        p = Path(raw)
+        if p.suffix not in {'.ts', '.tsx', '.mts', '.cts'}:
+            return []
+        if not any((d / 'hooks.json').is_file()
+                   for d in (p.parent, p.parent.parent)):
+            return []
+        import subprocess
+        out = subprocess.run(
+            [sys.executable, str(Path(__file__).with_name('check-mod-imports.py')),
+             '--no-recurse', str(p.parent)],
+            capture_output=True, text=True, timeout=_import_check_timeout())
+        # Only the checker's own report counts: an uncaught crash also exits 1,
+        # and its traceback is not advice.
+        if out.returncode == 1 and out.stderr.startswith('mod import check:'):
+            return out.stderr.rstrip().splitlines()
+    except Exception:
+        pass    # a reporter must never break the thing it reports on
+    return []
+
+
 def _ranges(a: list, b: list, offset: int = 0) -> set:
     """1-based line numbers in `b` (shifted by `offset`) that are new against `a`."""
     out = set()
@@ -365,6 +438,7 @@ def main() -> int:
     if got is None:
         return 0
     payload, ti, path = got
+    notes = _plan_notes(path) + _mod_import_notes(path)
 
     # The PreToolUse snapshot of this file, if --pre ran, is CONSUMED here
     # whatever the tool. Only the Write/MultiEdit branch used to delete it, so
@@ -406,11 +480,17 @@ def main() -> int:
             pass
 
     code, msg = _review(path, ti, before, edit_note)
-    # Exit 2 puts stderr in front of the model: the documented PostToolUse
-    # channel. On exit 0 stderr reaches nobody, so there is nothing to print.
+    # CHANNELS. Exit 2 puts stderr in front of the model: the documented
+    # PostToolUse block. On exit 0 stderr reaches nobody, so the advisory notes
+    # travel as `additionalContext`, the field PostToolUse reads for text handed
+    # to the model. When the hook already exits 2 they ride along on stderr.
     if code == 2:
-        print(msg, file=sys.stderr)
+        print(msg + ('\n\n' + '\n'.join(notes) if notes else ''), file=sys.stderr)
         return 2
+    if notes:
+        print(json.dumps({'hookSpecificOutput': {
+            'hookEventName': 'PostToolUse',
+            'additionalContext': '\n'.join(notes)}}, ensure_ascii=False))
     return 0
 
 

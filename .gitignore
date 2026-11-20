@@ -24,3 +24,6 @@ __pycache__/
 # inputs (evals/freezes/) are provenance and stay in git.
 plugins/bendit/evals/results/*
 !plugins/bendit/evals/results/INDEX.md
+
+# Planning docs name private projects and paths; they stay local.
+docs/superpowers/

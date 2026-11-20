@@ -22,8 +22,9 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
 - **Expect permission prompts for `.claude/`.** Claude Code treats writes under
   a project's `.claude/` as sensitive and asks before each one. That is
   expected, not a failure: tell the user before the step that causes them. The
-  kit's scripts (`scaffold-verification-skill.sh`, `prove.sh`) do those writes
-  themselves, in one command each, so you rarely write there by hand. If a
+  verification scaffold (`scaffold-verification-skill.sh`) does those writes
+  itself, in one command, so you rarely write there by hand; `prove.sh` writes
+  nothing in the project. If a
   prompt is refused, report the file as not written; never route around it.
 - Every claim you report cites a `file:line` or names its evidence rung
   (1 said · 2 pointed at the line · 3 showed it can't happen · 4 ran it · 5 saw
@@ -40,6 +41,59 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
    get one "yes, go" before anything is written.
 3. **Install.** Follow `references/install.md` (marketplace, else vendor).
    *Stop* if neither route works; report what failed with its output.
+3b. **Features.** Print the table from `references/detect.md` §8:
+   `feature | on/off | why`. For each **on** feature with a missing dependency,
+   ask, one at a time, whether to install it, showing the exact command
+   (macOS with Homebrew: `brew install node`, `brew install --cask
+   google-chrome`; otherwise the download page, https://nodejs.org/ or
+   https://www.google.com/chrome/) *[no]*. A "no" turns that feature off with why
+   `you declined <dep>` (e.g. `you declined Chrome`); it never stops adoption.
+   Chromium is not Chrome (detect.md §8): on a machine that has only Chromium,
+   offer Chrome the same way, and if it is still not installed record
+   `browser-driver` off with why `Chrome not found (Chromium cannot be driven)`.
+   For `browser-driver` that includes Playwright: when
+   `bash "$KIT/scripts/drive-setup.sh" --check` exits 1, ask *"Install
+   Playwright for the browser driver: `bash "$KIT/scripts/drive-setup.sh"`
+   (downloads the pinned version from npm into
+   `${BENDIT_CACHE:-${XDG_CACHE_HOME:-~/.cache}/bendit}/drive/`; no browser is
+   downloaded and nothing is written in this project)? [no]"*. Run it only
+   after a yes, and read its output; a "no" is why `you declined Playwright`.
+   The script itself never asks, so this question is the only consent.
+   If `ux-design-laws` is on, it needs the `bendit-web` add-on. Run
+   `claude plugin list --json` **from the project root** (read-only; the human
+   `claude plugin list` shows the project-scope installs of every project
+   without saying which, and the JSON's per-project fields depend on the
+   directory it runs in). It is a list of objects with `id`, `scope`, `enabled`
+   (installed, whatever the project), `projectEnabled` (on for the current
+   project) and, for project scope, `projectPath`. `ROOT` is
+   `git rev-parse --show-toplevel`; resolve it and each `projectPath` the same
+   way (`cd "$p" && pwd -P`), no trailing slash. A `projectPath` that is
+   missing or does not resolve is not a match. Skip the question and the
+   install only if one entry has `id == "bendit-web@bendit"`,
+   `scope == "project"`, resolved `projectPath == ROOT` and
+   `projectEnabled == true`. An entry for another project's
+   `projectPath`, or at `user` scope, does not count. If `--json` fails or
+   prints something that is not that list, treat the add-on as not installed
+   and ask. Otherwise ask
+   *"Run `claude plugin install bendit-web@bendit --scope project` (changes
+   this project's `.claude/settings.json`; Claude Code also records the
+   install in its own plugin registry)? [no]"*. On a yes, run it now,
+   read its output, and show the `.claude/settings.json` diff. If it is declined,
+   `ux-design-laws` is off with why `you declined bendit-web`. If it fails, show
+   its output and record off with why `bendit-web install failed`.
+   Then show, get a yes, and run **one** Bash call that writes every feature to
+   `.claude/bendit.json` (one permission prompt; `ROOT` is the project root):
+   ```bash
+   python3 "$KIT/scripts/features.py" set "$ROOT" browser-driver on "package.json:5 next" &&
+   python3 "$KIT/scripts/features.py" set "$ROOT" ux-design-laws on "package.json:5 next" &&
+   python3 "$KIT/scripts/features.py" set "$ROOT" session-brief on "git project (git rev-parse --show-toplevel)" &&
+   python3 "$KIT/scripts/features.py" set "$ROOT" ls-guard off "type ls in zsh: ls is the real ls" &&
+   python3 "$KIT/scripts/features.py" show "$ROOT"
+   ```
+   The lines above are an example: substitute the state you detected and the
+   real why for each feature. Copied as-is they write false evidence into a
+   committed file.
+   Re-running it on an unchanged project rewrites the same bytes.
 4. **Build the project layer.** Follow `references/project-layer.md`:
    `AGENTS.md` (which records the integration and production branches),
    `.claude/verify-harness`, a verification skill if there is an app, CI if
@@ -65,15 +119,26 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
 bendit adoption: <project>  — COMPLETE | NOT COMPLETE (<what failed>)
 
 PROVE.SH (as printed)
-<check>                           | PASS/FAIL                    | 4
+<check>                           | PASS/FAIL/UNUSED             | 4
 LIVE WIRING                       | PASS / FAIL / inconclusive / pending | 5
+
+FEATURES (.claude/bendit.json)    | on/off | why             | measured?
+<every feature>                   | on/off | <its source>    | not yet measured
+(an off feature: install its missing dependency or add-on, then re-run /adopt)
 
 ENFORCED (refuses, exit 2)        | proved by
 <guard>                           | prove.sh rows + live check
+ls guard (if ls-guard is on)      | prove.sh feature: ls-guard row; not yet measured
 Stop gate + .claude/verify-harness| prove.sh Stop gate + harness rows
+browser scenarios (if the harness runs verify and browser-driver is on) | prove.sh feature: browser-driver row; not yet measured
 
-ADVICE (skills/commands; the agent may ignore them)
+ADVICE (skills/commands/notes; the agent may ignore them)
 <skill or command>                | when it applies
+session brief (if on)             | session start; never blocks; not yet measured
+plan and import notes             | after an edit to a plan or a mod's .ts; not yet measured
+blast-radius                      | auth, payments, policies, migrations, secrets, webhooks; not yet measured
+ux-design-laws (bendit-web)       | UI work, only where the add-on is installed; not yet measured
+/vocabulary                       | on request; no hook runs it; not yet measured
 
 NOT POSSIBLE HERE, AND WHY
 <item>                            | <reason, with source>

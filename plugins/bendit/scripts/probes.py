@@ -24,6 +24,10 @@ Standard library only; importable on Python 3.9.
 import json
 import os
 import re
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import features  # noqa: E402
 
 PREFIXES = ('[bendit]', 'BLOCKED by bendit')
 
@@ -67,14 +71,22 @@ def prepare(w):
     return probe, env
 
 
-def env_for(probe, base):
-    """base with this probe's overrides applied (base itself when it has none)."""
+HERE = object()  # in a probe's env: "the probe directory" (env_for fills it in)
+
+
+def env_for(probe, base, probe_dir=None):
+    """base with this probe's overrides applied (base itself when it has none).
+    An override of HERE becomes probe_dir."""
     if not probe.env:
         return base
     env = dict(base)
     for k, v in probe.env.items():
         if v is None:
             env.pop(k, None)
+        elif v is HERE:
+            if probe_dir is None:
+                raise ValueError('env_for: probe env uses HERE (the probe directory) but no probe_dir was given')
+            env[k] = probe_dir
         else:
             env[k] = v
     return env
@@ -123,6 +135,23 @@ def edited(name, content):
 # probe proves the guard; whether it is live for THIS user is their shell.
 ZSH = {'SHELL': '/bin/zsh', 'CLAUDE_PLUGIN_OPTION_ZSHGUARD': None}
 
+# A feature-gated guard reads .claude/bendit.json from the project root, which
+# features.project_root takes from CLAUDE_PROJECT_DIR before the payload's cwd.
+# Inside a real Claude session that variable names the user's project, so the
+# probe project must say where it lives or the probe would read the wrong file.
+# Not a bypass: the probe's bendit.json is still written, and read, for real.
+IN_PROBE_DIR = {'CLAUDE_PROJECT_DIR': HERE}
+
+
+def feature_on(name, build):
+    """Wrap a payload builder: write .claude/bendit.json with `name` on into
+    the probe dir (features.write) before building the payload."""
+    def go(d):
+        features.write(d, {name: {'on': True, 'why': 'bendit probe'}})
+        return build(d)
+    return go
+
+
 # --- the table, one entry per hooks.json entry -----------------------------------
 PROBES = {
     ('block-dangerous-bash.py', ()): [
@@ -135,6 +164,12 @@ PROBES = {
               bash('for f in $files; do echo "$f"; done'), env=ZSH),
         Probe('allows', 'block-zsh-wordsplit: allows `for f in "${arr[@]}"`',
               bash('for f in "${arr[@]}"; do :; done'), env=ZSH),
+    ],
+    ('block-ls-parsing.py', ()): [
+        Probe('refuses', 'block-ls-parsing: refuses `ls | wc -l` (ls-guard on)',
+              feature_on('ls-guard', bash('ls | wc -l')), env=IN_PROBE_DIR),
+        Probe('allows', 'block-ls-parsing: allows `ls -la` (ls-guard on)',
+              feature_on('ls-guard', bash('ls -la')), env=IN_PROBE_DIR),
     ],
     ('path-contracts.py', ()): [
         Probe('refuses', 'path-contracts: refuses a write to x.gen.ts', writing('x.gen.ts', 'export const a = 1')),
@@ -175,6 +210,14 @@ PROBES = {
         Probe('allows', 'require-verification (Stop gate): allows a stop with nothing pending',
               lambda d: json.dumps({'session_id': 'bendit-prove', 'cwd': d, 'hook_event_name': 'Stop',
                                     'stop_hook_active': False}), prove=False),
+    ],
+    # The brief is advice and never refuses. With no bendit.json in the probe
+    # dir (and CLAUDE_PROJECT_DIR pointed there, so a real session's project is
+    # not read) it is off, and off must mean NO output at all.
+    ('session-brief.py', ('--hook',)): [
+        Probe('silent', 'session-brief --hook: silent with the feature off',
+              lambda d: json.dumps({'session_id': 'bendit-prove', 'cwd': d, 'hook_event_name': 'SessionStart',
+                                    'source': 'startup'}), env=IN_PROBE_DIR),
     ],
     # The self-check itself: on a working kit it must say NOTHING (exit 0 is not
     # enough -- it exits 0 even when it is shouting).

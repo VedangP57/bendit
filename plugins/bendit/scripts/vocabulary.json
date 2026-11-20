@@ -1,0 +1,169 @@
+{
+  "_about": [
+    "The starter dictionary for bendit's controlled vocabulary: one word, one meaning.",
+    "Modelled on ASD-STE100, Section 1. This file is DATA. To grow it, run `--init` to copy",
+    "it to <repo>/.claude/vocabulary.json and edit the copy; do not edit the script to change",
+    "policy. A repo-local file REPLACES this one, so keep the terms you still want.",
+    "Rules: `substitute` (exact one-for-one swaps, safe for --fix), `obligation` (a modal",
+    "aimed at the agent, instruction files only), `evidence` (a completion claim naming no",
+    "observation, report files only). Each term is {\"use\": replacement, \"why\": reason}.",
+    "Add a term only when you can name what it should say instead, and delete one that",
+    "fires more than it catches: a rule that cries wolf gets switched off."
+  ],
+  "substitute": {
+    "_why": "ASD-STE100 panel D. Exact one-for-one swaps with no judgment required. Safe to auto-fix.",
+    "utilize": {
+      "use": "use",
+      "why": "register inflation; no meaning is added"
+    },
+    "utilise": {
+      "use": "use",
+      "why": "register inflation; no meaning is added"
+    },
+    "in order to": {
+      "use": "to",
+      "why": "three words for one"
+    },
+    "prior to": {
+      "use": "before",
+      "why": "STE Section 1: BEFORE is the approved form"
+    },
+    "subsequent to": {
+      "use": "after",
+      "why": "STE Section 1: AFTER is the approved form"
+    },
+    "commence": {
+      "use": "start",
+      "why": "STE Section 1: START is the approved form"
+    },
+    "ascertain": {
+      "use": "find out",
+      "why": "register inflation"
+    },
+    "endeavour": {
+      "use": "try",
+      "why": "register inflation"
+    },
+    "endeavor": {
+      "use": "try",
+      "why": "register inflation"
+    },
+    "approximately": {
+      "use": "about",
+      "why": "STE Section 1: ABOUT is the approved form"
+    },
+    "a number of": {
+      "use": "some",
+      "why": "hides whether the count is known"
+    },
+    "at this time": {
+      "use": "now",
+      "why": "register inflation"
+    },
+    "due to the fact that": {
+      "use": "because",
+      "why": "five words for one"
+    },
+    "in the event that": {
+      "use": "if",
+      "why": "four words for one"
+    },
+    "it is imperative that": {
+      "use": "you must",
+      "why": "names no actor; STE requires an actor"
+    }
+  },
+  "obligation": {
+    "_why": "STE Section 7 requires an unambiguous instruction. A modal addressed to the agent turns a requirement into a suggestion, and the agent takes the suggestion. Only agent-directed modals are flagged; 'a principal that should be denied' describes an expectation and is correct.",
+    "should": {
+      "use": "must, or never",
+      "why": "a requirement stated as advice is followed about half the time"
+    },
+    "ought to": {
+      "use": "must",
+      "why": "same"
+    },
+    "may want": {
+      "use": "must, or delete it",
+      "why": "neither a requirement nor information"
+    },
+    "try to": {
+      "use": "name the condition",
+      "why": "unfalsifiable: there is no observation that shows it was not tried"
+    },
+    "where possible": {
+      "use": "name when it is not possible",
+      "why": "the agent decides it was not possible"
+    },
+    "if possible": {
+      "use": "name when it is not possible",
+      "why": "the agent decides it was not possible"
+    },
+    "as appropriate": {
+      "use": "name what is appropriate",
+      "why": "the agent decides what is appropriate"
+    }
+  },
+  "evidence": {
+    "_why": [
+      "A claim that work is done asserts rung 4 or 5 of the evidence ladder (1 said so, 2 pointed",
+      "at the line, 3 showed the bad case cannot happen, 4 ran it and read the output, 5",
+      "reproduced it in the running app). This fires when such a claim names no observation: no",
+      "rung, no command, no exit code, no file:line, no artifact path, within three lines.",
+      "It is aimed at REPORT prose (progress notes, PR bodies, verification writeups), not at",
+      "instruction prose, which legitimately discusses these words."
+    ],
+    "verified": {
+      "use": "verified — <command> exited 0 [rung 4]",
+      "why": "names no observation"
+    },
+    "confirmed": {
+      "use": "confirmed by <observation> [rung N]",
+      "why": "names no observation"
+    },
+    "validated": {
+      "use": "name the run and its output",
+      "why": "names no observation"
+    },
+    "tested": {
+      "use": "name the scenario and the verdict",
+      "why": "names no observation"
+    },
+    "it works": {
+      "use": "name the run and its output",
+      "why": "rung 1 dressed as rung 4"
+    },
+    "works as expected": {
+      "use": "name the expectation and the observation",
+      "why": "rung 1 dressed as rung 4"
+    },
+    "working correctly": {
+      "use": "name the observation",
+      "why": "rung 1 dressed as rung 4"
+    },
+    "all tests pass": {
+      "use": "paste the summary line",
+      "why": "unverifiable without the output"
+    },
+    "fully tested": {
+      "use": "name the scenarios covered",
+      "why": "'fully' is not observable"
+    },
+    "production ready": {
+      "use": "name the gates that passed",
+      "why": "not an observation"
+    },
+    "should be fine": {
+      "use": "name what you checked, or say you did not",
+      "why": "a guess stated as a result"
+    },
+    "looks good": {
+      "use": "name what you read [rung 2]",
+      "why": "a guess stated as a result"
+    },
+    "successfully": {
+      "use": "delete it, or name the success signal",
+      "why": "adds no observation"
+    }
+  }
+}

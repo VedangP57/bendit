@@ -242,3 +242,13 @@ exit 0
 exit 0
 (silent)
 
+=== plan note wording
+exit 0
+--- stdout
+{"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": "plan check:\n  2026-01-01-noreview.md:1: the header block has no ## Review Focus line — add a \"## Review Focus\" section naming the input classes the spec implies but no task tests (an empty section means you checked and found none)\n  (advisory — a plan is written in passes; fix these before it is executed)"}}
+
+=== missing-import note wording
+exit 0
+--- stdout
+{"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": "mod import check:\n  index.ts:1  SHOWN_LIMIT_MS is used here and exported by roster.ts, but this file never imports it. At runtime that is a ReferenceError."}}
+

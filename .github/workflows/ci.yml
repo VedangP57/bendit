@@ -41,6 +41,22 @@ jobs:
         run: npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
       - name: Prove the CLI runs
         run: claude --version
+      # drive.test.sh drives a real browser. Chrome is on both runner images;
+      # this ASSERTS it rather than installing it, so an image without it fails
+      # here, by name, instead of the suite failing later on a launch error.
+      - name: Chrome is present (asserted, not installed)
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --version
+          else
+            google-chrome --version
+          fi
+      # The pinned Playwright, from npm, into the cache drive.mjs loads it from
+      # (no browser download). --check proves the install is the pinned one.
+      - name: Install Playwright for the browser driver
+        run: |
+          bash plugins/bendit/scripts/drive-setup.sh
+          bash plugins/bendit/scripts/drive-setup.sh --check
       - name: Run every check
         # No `continue-on-error`, no `|| true`. ci.sh runs every stage, exits
         # non-zero if any failed, and fails a stage that ran nothing.

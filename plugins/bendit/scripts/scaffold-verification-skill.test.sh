@@ -70,6 +70,12 @@ has "  ...documenting the loopback rule" "loopback" "$(cat "$R/.env.verify.examp
 has "  ...and that PORT comes from the registry, not the file" "PORT" "$(cat "$R/.env.verify.example" 2>/dev/null)"
 SC="$R/.claude/skills/verify-repo/scenarios"
 chk "a smoke scenario is generated" "$([ -f "$SC/smoke.sh" ] && echo y)" "y"
+# saveState writes a login (a credential) under scenarios/fixtures/auth-state/:
+# git must ignore what lands there, and commit the rule that ignores it.
+chk "a saved login under scenarios/fixtures/auth-state/ is git-ignored" "$(git -C "$R" check-ignore -q "$SC/fixtures/auth-state/user.json" && echo ignored || echo tracked)" "ignored"
+chk "  ...by a .gitignore git would commit" "$([ -f "$SC/fixtures/auth-state/.gitignore" ] && ! git -C "$R" check-ignore -q "$SC/fixtures/auth-state/.gitignore" && echo committed || echo no)" "committed"
+chk "  CONTROL: a scenario beside it is not ignored" "$(git -C "$R" check-ignore -q "$SC/smoke.sh" && echo ignored || echo tracked)" "tracked"
+has "  ...and SKILL.md says where saved logins go" "fixtures/auth-state/" "$(cat "$R/.claude/skills/verify-repo/SKILL.md")"
 doc()  ( cd "$R" && PORT="$PORT" "$V" doctor 2>&1 )
 drv()  ( cd "$R" && PORT="$PORT" "$V" drive "$@" 2>&1; echo "rc=$?" )
 ENVF="$R/.env.verify.local"
@@ -173,6 +179,35 @@ printf '. "$PROBE"\nexpect_status /missing 200\n' > "$SC/denial2.sh"
 o=$(drv denial2); has "  ...and the status check can fail (a 404 is not a 200)" "GET /missing -> 404, wanted 200" "$o"
 rm -f "$SC/nothing.sh" "$SC/wrong.sh" "$SC/denial.sh" "$SC/denial2.sh"
 o=$(drv smoke --bogus x); has "an unknown drive option is refused" "unknown drive option" "$o"
+
+# --- a .json scenario goes to the browser driver ---------------------------------
+# `node` is a stub that logs its argv and answers as the driver would, so this
+# pins the ROUTING; drive.test.sh drives the real browser.
+echo
+echo "DRIVE: A .json SCENARIO RUNS IN THE BROWSER DRIVER"
+NB="$T/nodestub"; mkdir -p "$NB"
+cat > "$NB/node" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$@" > "$NODE_LOG"
+if [ "${NODE_RC:-0}" = 0 ]; then echo "VERDICT: VERIFIED"; else echo "VERDICT: NOT VERIFIED"; fi
+exit "${NODE_RC:-0}"
+EOF
+chmod +x "$NB/node"
+jdrv() ( cd "$R" && PATH="$NB:$PATH" NODE_LOG="$T/node.log" BENDIT_KIT_ROOT="$SD/.." PORT="$PORT" "$V" drive "$@" 2>&1; echo "rc=$?" )
+printf '{"name":"home","steps":[{"goto":"/"},{"expectText":"hello fixture"}]}\n' > "$SC/home.json"
+o=$(jdrv home)
+has "a .json scenario is VERIFIED when the driver says so" "VERDICT: VERIFIED" "$o"; has "  ...exit 0" "rc=0" "$o"
+NL="$(cat "$T/node.log")"
+has "  ...run by the kit's drive.mjs" "$SD/../lib/drive/drive.mjs" "$NL"
+has "  ...on that scenario file" "$SC/home.json" "$NL"
+has "  ...against this checkout's port" "--base
+http://localhost:$PORT" "$NL"
+has "  ...leaving evidence in artifacts/home-<timestamp>" "--out
+$R/.claude/skills/verify-repo/artifacts/home-" "$NL"
+o=$(NODE_RC=1 jdrv home); has "a failing driver fails the scenario" "rc=1" "$o"; hasnt "  ...and it is not VERIFIED" "VERDICT: VERIFIED" "$o"
+printf '. "$PROBE"\nexpect_ok /\n' > "$SC/home.sh"
+o=$(jdrv home); has "a name with both a .sh and a .json is refused as ambiguous" "both" "$o"; has "  ...exit 2" "rc=2" "$o"
+rm -f "$SC/home.sh" "$SC/home.json" "$T/node.log"
 
 # --- Guard 3: evidence pruning -----------------------------------------------
 echo
@@ -356,8 +391,10 @@ echo
 echo "REFUSALS"
 o=$(bash "$SCAF" "$L" 2>&1; echo "rc=$?"); has "an existing harness is not overwritten without --force" "already exists" "$o"; has "  ...exit 2" "rc=2" "$o"
 printf '. "$PROBE"\nexpect_ok /\n' > "$R/.claude/skills/verify-repo/scenarios/mine.sh"
+printf 'admin.json\n' >> "$R/.claude/skills/verify-repo/scenarios/fixtures/auth-state/.gitignore"
 bash "$SCAF" "$R" --force >/dev/null 2>&1
 chk "--force regenerates but KEEPS the user's scenarios" "$([ -f "$R/.claude/skills/verify-repo/scenarios/mine.sh" ] && echo kept)" "kept"
+chk "  ...and the user's auth-state .gitignore" "$(grep -c '^admin.json$' "$R/.claude/skills/verify-repo/scenarios/fixtures/auth-state/.gitignore")" "1"
 o=$(bash "$SCAF" "$NG" 2>&1; echo "rc=$?"); has "a folder outside git is refused" "not inside a git repository" "$o"; has "  ...exit 2" "rc=2" "$o"
 o=$(bash "$SCAF" "$R" --kind banana 2>&1; echo "rc=$?"); has "a bad --kind is refused" "rc=2" "$o"
 o=$(bash "$SCAF" 2>&1; echo "rc=$?"); has "no repo path prints usage" "usage: scaffold-verification-skill.sh" "$o"

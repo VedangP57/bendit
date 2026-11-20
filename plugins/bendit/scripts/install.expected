@@ -1,0 +1,851 @@
+=== --version
+exit 0
+--- stdout
+bendit installer 0.2.0
+
+=== --help
+exit 0
+--- stdout
+bendit installer 0.2.0
+
+Usage: install.sh [--check | --version | --help]
+
+  --check     report what is missing; install nothing
+  --version   print the installer version
+  --help      print this help
+
+=== unknown flag --yes
+exit 2
+--- stderr
+Unknown option: --yes (try --help)
+
+=== windows
+exit 2
+--- stderr
+Windows is not supported yet.
+
+=== run from HOME
+exit 2
+--- stderr
+Run this from inside a project folder, not from <tmp>/s1/home.
+
+=== run from /
+exit 2
+--- stderr
+Run this from inside a project folder, not from /.
+
+=== run from a symlink to HOME
+exit 2
+--- stderr
+Run this from inside a project folder, not from <tmp>/s1/home.
+
+=== HOME unset
+exit 2
+--- stderr
+HOME is not set, so bendit cannot tell where your home folder is. Set HOME and run again.
+
+=== check, all present
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+Nothing is missing.
+
+=== check, python too old
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  3.8.10    3.9+    runs bendit's guards
+Missing: python3
+
+=== check, no git
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      missing   any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+Missing: git
+
+=== check, python exactly 3.9
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.9.0     3.9+    runs bendit's guards
+Nothing is missing.
+
+=== check, python 3.10
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.10.1    3.9+    runs bendit's guards
+Nothing is missing.
+
+=== check, web, old node, no chrome
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+✗ node     18.19.0   20+     drives the browser for a web app
+✗ chrome   missing   any     the browser bendit looks at your app with
+Missing: node chrome
+
+=== check, same tools, not web
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+Nothing is missing.
+
+=== check, web, all there
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+✓ node     20.0.0    20+     drives the browser for a web app
+✓ chrome   found     any     the browser bendit looks at your app with
+Nothing is missing.
+
+=== check, web, Chromium only
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+✓ node     20.0.0    20+     drives the browser for a web app
+✗ chrome   missing   any     the browser bendit looks at your app with
+Missing: chrome
+
+=== check, web, google-chrome on PATH
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+✓ node     20.0.0    20+     drives the browser for a web app
+✓ chrome   found     any     the browser bendit looks at your app with
+Nothing is missing.
+
+=== check, next only in a script
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+Nothing is missing.
+
+=== check, grep fallback
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  3.8.10    3.9+    runs bendit's guards
+✗ node     missing   20+     drives the browser for a web app
+✗ chrome   missing   any     the browser bendit looks at your app with
+Missing: python3 node chrome
+
+=== check, grep fallback, next as a script value
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  3.8.10    3.9+    runs bendit's guards
+Missing: python3
+
+=== check, index.html
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+✗ node     missing   20+     drives the browser for a web app
+✗ chrome   missing   any     the browser bendit looks at your app with
+Missing: node chrome
+
+=== check, python3 found but broken
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  found but did not run 3.9+    runs bendit's guards
+Missing: python3
+
+=== install, answer no
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  missing   3.9+    runs bendit's guards
+
+python3 is missing or older than 3.9 (it runs bendit's guards).
+  To install it, bendit would run:
+    brew install python@3.13
+  Run that now? [y/N] 
+
+python3 is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== install, no answer at all
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  missing   3.9+    runs bendit's guards
+
+python3 is missing or older than 3.9 (it runs bendit's guards).
+  To install it, bendit would run:
+    brew install python@3.13
+  Run that now? [y/N] 
+
+python3 is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== install, answer yep
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  missing   3.9+    runs bendit's guards
+
+python3 is missing or older than 3.9 (it runs bendit's guards).
+  To install it, bendit would run:
+    brew install python@3.13
+  Run that now? [y/N] 
+
+python3 is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== install, answer yes, brew fixes it
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  missing   3.9+    runs bendit's guards
+
+python3 is missing or older than 3.9 (it runs bendit's guards).
+  To install it, bendit would run:
+    brew install python@3.13
+  Run that now? [y/N] 
+  python3 is ready.
+
+This folder is not a git repository; /adopt will offer git init.
+This machine is ready. Fetching bendit...
+2.1.328
+
+=== install that did not take
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  missing   3.9+    runs bendit's guards
+
+python3 is missing or older than 3.9 (it runs bendit's guards).
+  To install it, bendit would run:
+    brew install python@3.13
+  Run that now? [y/N] 
+  brew said it worked, but python3 is still not found.
+
+python3 is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== install that failed
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  missing   3.9+    runs bendit's guards
+
+python3 is missing or older than 3.9 (it runs bendit's guards).
+  To install it, bendit would run:
+    brew install python@3.13
+  Run that now? [y/N] 
+  The install command failed (exit 7), and python3 is still not ready.
+
+python3 is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== web, node declined
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+✗ node     missing   20+     drives the browser for a web app
+✓ chrome   found     any     the browser bendit looks at your app with
+
+node is missing or older than 20 (it drives the browser for a web app).
+  To install it, bendit would run:
+    brew install node
+  Run that now? [y/N] 
+
+Skipping node: the browser driver will be off, so bendit cannot look at
+your web app until that is installed. Everything else will work.
+
+This folder is not a git repository; /adopt will offer git init.
+This machine is ready. Fetching bendit...
+2.1.328
+
+=== web project, python3 declined
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  missing   3.9+    runs bendit's guards
+✗ node     missing   20+     drives the browser for a web app
+✗ chrome   missing   any     the browser bendit looks at your app with
+
+python3 is missing or older than 3.9 (it runs bendit's guards).
+  To install it, bendit would run:
+    brew install python@3.13
+  Run that now? [y/N] 
+
+python3 is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== answers are read one per question
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  missing   3.9+    runs bendit's guards
+✗ node     missing   20+     drives the browser for a web app
+✗ chrome   missing   any     the browser bendit looks at your app with
+
+python3 is missing or older than 3.9 (it runs bendit's guards).
+  To install it, bendit would run:
+    brew install python@3.13
+  Run that now? [y/N] 
+  python3 is ready.
+
+node is missing or older than 20 (it drives the browser for a web app).
+  To install it, bendit would run:
+    brew install node
+  Run that now? [y/N] 
+
+Chrome is missing (the browser bendit looks at your app with).
+  To install it, bendit would run:
+    brew install --cask google-chrome
+  Run that now? [y/N] 
+
+Skipping node chrome: the browser driver will be off, so bendit cannot look at
+your web app until that is installed. Everything else will work.
+
+This folder is not a git repository; /adopt will offer git init.
+This machine is ready. Fetching bendit...
+2.1.328
+
+=== stdin answers are ignored
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  missing   3.9+    runs bendit's guards
+
+Missing: python3
+  python3: brew install python@3.13
+There is no terminal to ask on, so nothing was installed. Run the commands
+above yourself, or run this installer from a terminal.
+
+=== terminal n, stdin y
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  missing   3.9+    runs bendit's guards
+
+python3 is missing or older than 3.9 (it runs bendit's guards).
+  To install it, bendit would run:
+    brew install python@3.13
+  Run that now? [y/N] 
+
+python3 is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== empty terminal, stdin y
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  missing   3.9+    runs bendit's guards
+
+python3 is missing or older than 3.9 (it runs bendit's guards).
+  To install it, bendit would run:
+    brew install python@3.13
+  Run that now? [y/N] 
+
+python3 is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== inherited ASK_OPEN and fd 3
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✗ python3  missing   3.9+    runs bendit's guards
+
+python3 is missing or older than 3.9 (it runs bendit's guards).
+  To install it, bendit would run:
+    brew install python@3.13
+  Run that now? [y/N] 
+
+python3 is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== ready, with a terminal
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+This machine is ready. Fetching bendit...
+
+=== second run
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+This machine is ready. Fetching bendit...
+
+=== cache without .git
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+This folder is not a git repository; /adopt will offer git init.
+This machine is ready. Fetching bendit...
+
+=== cache inside a git repo, empty v folder
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+This folder is not a git repository; /adopt will offer git init.
+This machine is ready. Fetching bendit...
+
+=== clone missing plugin.json
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+This folder is not a git repository; /adopt will offer git init.
+This machine is ready. Fetching bendit...
+
+=== unreachable source
+exit 1
+--- stderr
+fatal: repository '<tmp>/gone' does not exist
+could not fetch bendit from <tmp>/gone (v0.2.0).
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+This folder is not a git repository; /adopt will offer git init.
+This machine is ready. Fetching bendit...
+
+=== ready, no terminal
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+This folder is not a git repository; /adopt will offer git init.
+This machine is ready. Fetching bendit...
+
+There is no terminal to open Claude on. To finish, run this in your project:
+  claude --plugin-dir <tmp>/f4/home/.cache/bendit/v0.2.0/plugins/bendit "/adopt"
+
+=== space in HOME, with a terminal
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+This machine is ready. Fetching bendit...
+
+=== space in HOME, no terminal
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+This machine is ready. Fetching bendit...
+
+There is no terminal to open Claude on. To finish, run this in your project:
+  claude --plugin-dir <tmp>/f5/h\ ome/.cache/bendit/v0.2.0/plugins/bendit "/adopt"
+
+=== linux, git missing, apt-get
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      missing   any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+git is missing or does not run (it reads and records your changes).
+  To install it, bendit would run:
+    sudo apt-get update && sudo apt-get install -y git
+  Run that now? [y/N] 
+
+git is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== linux, git missing, apt-get, yes
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      missing   any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+git is missing or does not run (it reads and records your changes).
+  To install it, bendit would run:
+    sudo apt-get update && sudo apt-get install -y git
+  Run that now? [y/N] 
+  apt-get said it worked, but git is still not found.
+
+git is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== linux as root, no sudo
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      missing   any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+git is missing or does not run (it reads and records your changes).
+  To install it, bendit would run:
+    apt-get update && apt-get install -y git
+  Run that now? [y/N] 
+
+git is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== linux, no sudo, not root
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      missing   any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+git is missing or does not run (it reads and records your changes).
+  bendit cannot install it automatically here. Get git from https://git-scm.com/downloads
+
+git is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== linux, pacman
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      missing   any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+git is missing or does not run (it reads and records your changes).
+  To install it, bendit would run:
+    sudo pacman -S --needed --noconfirm git
+  Run that now? [y/N] 
+
+git is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== linux, pacman, install fails
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      missing   any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+git is missing or does not run (it reads and records your changes).
+  To install it, bendit would run:
+    sudo pacman -S --needed --noconfirm git
+  Run that now? [y/N] 
+  The install command failed (exit 1), and git is still not ready.
+  Run `sudo pacman -Syu` yourself first (a stale package database), then run this again.
+
+git is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== linux, pacman, no terminal
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      missing   any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+Missing: git
+  git: sudo pacman -S --needed --noconfirm git
+    (if this fails, run `sudo pacman -Syu` yourself first)
+There is no terminal to ask on, so nothing was installed. Run the commands
+above yourself, or run this installer from a terminal.
+
+=== linux, pacman, root, no terminal
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      missing   any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+Missing: git
+  git: pacman -S --needed --noconfirm git
+    (if this fails, run `pacman -Syu` yourself first)
+There is no terminal to ask on, so nothing was installed. Run the commands
+above yourself, or run this installer from a terminal.
+
+=== linux, pacman, root, install fails
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      missing   any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+git is missing or does not run (it reads and records your changes).
+  To install it, bendit would run:
+    pacman -S --needed --noconfirm git
+  Run that now? [y/N] 
+  The install command failed (exit 1), and git is still not ready.
+  Run `pacman -Syu` yourself first (a stale package database), then run this again.
+
+git is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== linux dnf, node 18
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+✗ node     18.19.0   20+     drives the browser for a web app
+✓ chrome   found     any     the browser bendit looks at your app with
+
+node is missing or older than 20 (it drives the browser for a web app).
+  bendit cannot install it automatically here. Get Node.js 20 or newer from https://nodejs.org/ (or with nvm).
+  dnf's own nodejs can be older than 20; NodeSource's packages are new enough.
+
+Skipping node: the browser driver will be off, so bendit cannot look at
+your web app until that is installed. Everything else will work.
+
+This folder is not a git repository; /adopt will offer git init.
+This machine is ready. Fetching bendit...
+
+=== linux apt, node 18
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+✗ node     18.19.0   20+     drives the browser for a web app
+✓ chrome   found     any     the browser bendit looks at your app with
+
+node is missing or older than 20 (it drives the browser for a web app).
+  bendit cannot install it automatically here. Get Node.js 20 or newer from https://nodejs.org/ (or with nvm).
+  apt's own nodejs is older than 20; NodeSource's packages are new enough.
+
+Skipping node: the browser driver will be off, so bendit cannot look at
+your web app until that is installed. Everything else will work.
+
+This folder is not a git repository; /adopt will offer git init.
+This machine is ready. Fetching bendit...
+
+=== linux, git missing, no package manager
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      missing   any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+git is missing or does not run (it reads and records your changes).
+  bendit cannot install it automatically here. Get git from https://git-scm.com/downloads
+
+git is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== claude missing
+exit 1
+--- stdout
+  item     found     needed  why
+✗ claude   missing   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+claude is missing (the agent bendit plugs into).
+  To install it, bendit would run:
+    curl -fsSL https://claude.ai/install.sh | bash
+  Run that now? [y/N] 
+
+claude is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== claude download fails
+exit 1
+--- stdout
+  item     found     needed  why
+✗ claude   missing   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+claude is missing (the agent bendit plugs into).
+  To install it, bendit would run:
+    curl -fsSL https://claude.ai/install.sh | bash
+  Run that now? [y/N] 
+  The install command failed (exit 22), and claude is still not ready.
+
+claude is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== claude installed to ~/.local/bin
+exit 0
+--- stdout
+  item     found     needed  why
+✗ claude   missing   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+claude is missing (the agent bendit plugs into).
+  To install it, bendit would run:
+    curl -fsSL https://claude.ai/install.sh | bash
+  Run that now? [y/N] 
+  claude is ready.
+  claude is in ~/.local/bin, which this shell's PATH lacks: open a new terminal
+  (or add ~/.local/bin to PATH) before you run claude yourself.
+
+This folder is not a git repository; /adopt will offer git init.
+This machine is ready. Fetching bendit...
+
+=== check, git found but broken
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      found but did not run any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+Missing: git
+
+=== check, mac without Command Line Tools
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      stub only any     reads and records your changes
+✗ python3  stub only 3.9+    runs bendit's guards
+Missing: git python3
+
+=== mac without Command Line Tools, yes
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      stub only any     reads and records your changes
+✗ python3  stub only 3.9+    runs bendit's guards
+
+git is only Apple's stub until the Command Line Tools are installed.
+  To install it, bendit would run:
+    xcode-select --install
+  Run that now? [y/N] 
+  Apple's installer has opened in its own window.
+  When Apple's installer finishes, run this again.
+
+python3 is only Apple's stub until the Command Line Tools are installed.
+  That is the same install as above.
+
+git is required, so bendit cannot go on without it.
+python3 is required, so bendit cannot go on without it.
+Install it, then run this again.
+
+=== check, mac with Command Line Tools
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+Nothing is missing.
+
+=== node still too old after brew
+exit 0
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✓ git      found     any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+✗ node     18.19.0   20+     drives the browser for a web app
+✓ chrome   found     any     the browser bendit looks at your app with
+
+node is missing or older than 20 (it drives the browser for a web app).
+  To install it, bendit would run:
+    brew install node
+  Run that now? [y/N] 
+  brew said it worked, but node is still 18.19.0; bendit needs 20+.
+
+Skipping node: the browser driver will be off, so bendit cannot look at
+your web app until that is installed. Everything else will work.
+
+This folder is not a git repository; /adopt will offer git init.
+This machine is ready. Fetching bendit...
+

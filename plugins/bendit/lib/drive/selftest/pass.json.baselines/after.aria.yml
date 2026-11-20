@@ -1,0 +1,5 @@
+- heading "Entities" [level=1]
+- text: Legal name
+- textbox "Legal name": Acme Holdings LLC
+- button "Save"
+- paragraph: Saved

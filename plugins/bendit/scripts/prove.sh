@@ -17,7 +17,9 @@
 #              (non-comment lines, one sh script, from the repo root), with
 #              BENDIT_KIT_ROOT pointing at this plugin. Missing is a FAIL.
 #   privacy    the agent-layer files (AGENTS.md, CLAUDE.md, .claude/verify-harness,
-#              .env.verify.example, .claude/skills/) carry no home path or email.
+#              .env.verify.example, .claude/bendit.json, .claude/skills/) carry
+#              no home path or email. bendit.json is committed free text: each
+#              feature's `why` and the session brief's config.
 #
 # It writes NOTHING inside <repo>: probes, the scratch repo and every temp file
 # live under one mktemp -d, removed by a trap. Its own git reads take no
@@ -43,15 +45,18 @@ trap 'exit 130' INT TERM
 export PYTHONDONTWRITEBYTECODE=1
 
 python3 - "$KIT" "$REPO" "$W" <<'PY'
-import json, os, signal, subprocess, sys
+import json, os, signal, subprocess, sys, tempfile
 
 kit, repo, w = sys.argv[1:4]
-rows = []          # (check, ok, rung, detail)
+rows = []          # (check, state, rung, detail); state is PASS, FAIL or UNUSED
 RUNG = '4'         # every row here was RUN and its output read
 
 
-def row(check, ok, detail=''):
-    rows.append((check, ok, RUNG, detail))
+def row(check, state, detail=''):
+    # state: 'PASS' / 'FAIL' for a check that ran; 'UNUSED' for a feature the
+    # project does not use (not a failure, not a pass).
+    assert state in ('PASS', 'FAIL', 'UNUSED'), state
+    rows.append((check, state, RUNG, detail))
 
 
 def short(text, n=300):
@@ -62,6 +67,7 @@ def short(text, n=300):
 # The probes and the env they run in are shared with selfcheck.py: one table.
 sys.path.insert(0, os.path.join(kit, 'scripts'))
 import probes as P  # noqa: E402
+import features as F  # noqa: E402
 
 probe, ENV = P.prepare(w)
 
@@ -81,30 +87,30 @@ def run_hook(script, args, data, timeout, env=None, cwd=probe):
 def refuses(label, script, args, data, timeout, env=None):
     rc, _out, err = run_hook(script, args, data, timeout, env)
     if rc != 2:
-        row(label, False, f'exit {rc}, wanted 2 (a refusal){"; stderr: " + short(err) if err.strip() else ""}')
+        row(label, 'FAIL', f'exit {rc}, wanted 2 (a refusal){"; stderr: " + short(err) if err.strip() else ""}')
     elif not err.strip():
-        row(label, False, 'exit 2 but nothing on stderr: the agent is refused with no reason')
+        row(label, 'FAIL', 'exit 2 but nothing on stderr: the agent is refused with no reason')
     elif not err.lstrip().startswith(P.PREFIXES):
-        row(label, False, 'refused, but stderr does not name bendit (it must begin '
+        row(label, 'FAIL', 'refused, but stderr does not name bendit (it must begin '
                           '"[bendit]" or "BLOCKED by bendit"): ' + short(err, 160))
     else:
-        row(label, True)
+        row(label, 'PASS')
 
 
 def allows(label, script, args, data, timeout, env=None):
     rc, _out, err = run_hook(script, args, data, timeout, env)
     if rc == 0:
-        row(label, True)
+        row(label, 'PASS')
     else:
-        row(label, False, f'exit {rc}, wanted 0{"; stderr: " + short(err) if err.strip() else ""}')
+        row(label, 'FAIL', f'exit {rc}, wanted 0{"; stderr: " + short(err) if err.strip() else ""}')
 
 
 def silent(label, script, args, data, timeout, env=None):
     rc, out, err = run_hook(script, args, data, timeout, env)
     if rc == 0 and not out.strip():
-        row(label, True)
+        row(label, 'PASS')
     else:
-        row(label, False, f'exit {rc}, wanted 0 and no output'
+        row(label, 'FAIL', f'exit {rc}, wanted 0 and no output'
             + (f'; stdout: {short(out)}' if out.strip() else '')
             + (f'; stderr: {short(err)}' if err.strip() else ''))
 
@@ -117,12 +123,12 @@ try:
     entries = P.hook_entries(kit)
 except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
     entries = []
-    row('hooks.json is readable', False, f'{type(e).__name__}: {e}')
+    row('hooks.json is readable', 'FAIL', f'{type(e).__name__}: {e}')
 timeouts, seen = {}, []
 for event, _matcher, cmd, timeout in entries:
     key = P.hook_key(cmd)
     if key is None:
-        row(f'{event} hook `{cmd[:50]}`', False, 'prove.sh cannot read which script this runs')
+        row(f'{event} hook `{cmd[:50]}`', 'FAIL', 'prove.sh cannot read which script this runs')
         continue
     timeouts[key] = timeout
     if key not in seen:
@@ -130,12 +136,17 @@ for event, _matcher, cmd, timeout in entries:
 for key in seen:
     table = P.PROBES.get(key)
     if table is None:
-        row(f'{" ".join((key[0],) + key[1])}: has a probe', False,
+        row(f'{" ".join((key[0],) + key[1])}: has a probe', 'FAIL',
             'hooks.json runs it, but scripts/probes.py has no known-bad/known-good payload for it -- add one')
         continue
     for pr in table:
         if pr.prove:
-            CHECK[pr.expect](pr.label, key[0], list(key[1]), pr.build(probe), timeouts[key], P.env_for(pr, ENV))
+            CHECK[pr.expect](pr.label, key[0], list(key[1]), pr.build(probe), timeouts[key], P.env_for(pr, ENV, probe))
+            # A probe that turned a feature on must not leave it on for the next probe.
+            try:
+                os.remove(F.path(probe))
+            except FileNotFoundError:
+                pass
 
 # --- the Stop gate, dry run -----------------------------------------------------
 if ('require-verification.py', ()) in seen:
@@ -182,27 +193,27 @@ if ('require-verification.py', ()) in seen:
     rc, _o, err = mark()
     pending = os.path.join(s, '.claude', '.bendit-state', f'pending-{sid}')
     if rc == 0 and os.path.isfile(pending):
-        row('Stop gate: --mark records a code edit', True)
+        row('Stop gate: --mark records a code edit', 'PASS')
     else:
-        row('Stop gate: --mark records a code edit', False,
+        row('Stop gate: --mark records a code edit', 'FAIL',
             f'exit {rc}, pending record {"present" if os.path.isfile(pending) else "NOT written"}'
             + (f'; stderr: {short(err)}' if err.strip() else ''))
     rc, _o, err = stop()
     label = 'Stop gate: refuses when the harness exits 1'
     if rc != 2:
-        row(label, False, f'exit {rc}, wanted 2' + (f'; stderr: {short(err)}' if err.strip() else ''))
+        row(label, 'FAIL', f'exit {rc}, wanted 2' + (f'; stderr: {short(err)}' if err.strip() else ''))
     elif not err.lstrip().startswith(P.PREFIXES):
-        row(label, False, 'refused, but stderr does not name bendit: ' + short(err, 160))
+        row(label, 'FAIL', 'refused, but stderr does not name bendit: ' + short(err, 160))
     else:
-        row(label, True)
+        row(label, 'PASS')
     harness('exit 0')
     mark()
     rc, out, err = stop()
     label = 'Stop gate: allows when the harness exits 0'
     if rc == 0 and 'verified by' in out:
-        row(label, True)
+        row(label, 'PASS')
     else:
-        row(label, False, f'exit {rc}, wanted 0 and "verified by ..." on stdout'
+        row(label, 'FAIL', f'exit {rc}, wanted 0 and "verified by ..." on stdout'
             + (f'; stdout: {short(out)}' if out.strip() else '')
             + (f'; stderr: {short(err)}' if err.strip() else ''))
 
@@ -216,12 +227,12 @@ def status():
 declared = os.path.join(repo, '.claude', 'verify-harness')
 label = 'harness: .claude/verify-harness exits 0'
 if not os.path.isfile(declared):
-    row(label, False, 'no .claude/verify-harness: the Stop gate has nothing to run for this repo')
+    row(label, 'FAIL', 'no .claude/verify-harness: the Stop gate has nothing to run for this repo')
 else:
     cmd = '\n'.join(l for l in open(declared, errors='replace').read().splitlines()
                     if l.strip() and not l.lstrip().startswith('#')).strip()
     if not cmd:
-        row(label, False, '.claude/verify-harness holds only comments: it would verify nothing')
+        row(label, 'FAIL', '.claude/verify-harness holds only comments: it would verify nothing')
     else:
         try:
             budget = float(os.environ.get('BENDIT_HARNESS_TIMEOUT') or 300)
@@ -244,14 +255,14 @@ else:
         after = status()
         tail = ' | '.join(l for l in (out or '').strip().splitlines()[-4:])
         if rc is None:
-            row(label, False, f'did not finish in {budget:.0f}s (the Stop gate would refuse every turn)')
+            row(label, 'FAIL', f'did not finish in {budget:.0f}s (the Stop gate would refuse every turn)')
         elif rc != 0:
-            row(label, False, f'exit {rc}: {tail[-400:]}' if tail else f'exit {rc}, no output')
+            row(label, 'FAIL', f'exit {rc}: {tail[-400:]}' if tail else f'exit {rc}, no output')
         elif before != after:
-            row(label, False, 'exit 0, but it changed the working tree: '
+            row(label, 'FAIL', 'exit 0, but it changed the working tree: '
                 + short('\n'.join(sorted(set(after.splitlines()) ^ set(before.splitlines())))))
         else:
-            row(label, True)
+            row(label, 'PASS')
 
     # The Stop gate runs this harness only once the PERSON has approved its exact
     # content. Read-only here: prove.sh never approves anything for the person.
@@ -269,28 +280,188 @@ else:
     state, _, how = (chk.stdout.strip() + '\n\n').partition('\n')
     how = how.strip()
     if chk.returncode != 0:
-        row(label, False, 'could not read the approval list: ' + short(chk.stderr))
+        row(label, 'FAIL', 'could not read the approval list: ' + short(chk.stderr))
     elif state == 'trusted':
-        row(label, True)
+        row(label, 'PASS')
     else:
         why = {'never': 'never approved', 'changed': 'changed since you approved it'}.get(state, state)
-        row(label, False, f'{why}: the gate will refuse instead of running it. '
+        row(label, 'FAIL', f'{why}: the gate will refuse instead of running it. '
             f'In YOUR OWN terminal (not through the agent), run: {how}')
 
 # --- the files adoption writes carry no personal data -------------------------------
-cands = [f for f in ('AGENTS.md', 'CLAUDE.md', '.claude/verify-harness', '.env.verify.example')
+cands = [f for f in ('AGENTS.md', 'CLAUDE.md', '.claude/verify-harness', '.env.verify.example',
+                     '.claude/bendit.json')
          if os.path.isfile(os.path.join(repo, f))]
 ls = subprocess.run(['git', '-C', repo, 'ls-files', '--cached', '--others', '--exclude-standard',
                      '--', '.claude/skills'], capture_output=True, text=True)
 cands += [f for f in ls.stdout.splitlines() if f and os.path.isfile(os.path.join(repo, f))]
 label = 'privacy: agent-layer files carry no home path or email'
 if not cands:
-    row(label, False, 'no agent-layer files to scan (no AGENTS.md, CLAUDE.md, .claude/verify-harness)')
+    row(label, 'FAIL', 'no agent-layer files to scan (no AGENTS.md, CLAUDE.md, .claude/verify-harness)')
 else:
     p = subprocess.run(['python3', os.path.join(kit, 'scripts', 'privacy-scan.py'), *cands],
                        cwd=repo, capture_output=True, text=True, env=ENV)
-    row(label, p.returncode == 0,
+    row(label, 'PASS' if p.returncode == 0 else 'FAIL',
         '' if p.returncode == 0 else f'exit {p.returncode}: {short(p.stdout + p.stderr, 400)}')
+
+# --- the project's features (.claude/bendit.json) ---------------------------------
+# FEATURE_CHECKS maps a feature name to callable(repo, kit) -> (ok, detail): the
+# check that proves the feature works when it is ON. Plan 3 fills it. A feature
+# that is on with no check here is a FAIL: prove.sh will not vouch for what it
+# cannot run.
+def _check_ux_design_laws(repo, kit):
+    """ON means the bendit-web add-on is installed for THIS project: an entry of
+    `claude plugin list --json` with id bendit-web@bendit, project scope,
+    enabled and projectEnabled (the per-project signal; `enabled` only means
+    installed, and the list depends on the cwd, so it runs in the repo), and a
+    projectPath that is this repo (realpaths compared). A
+    project-scope entry for another project, or user scope alone, proves
+    nothing about this one."""
+    def norm(path):
+        return os.path.realpath(path).rstrip('/')
+    try:
+        p = subprocess.run(['claude', 'plugin', 'list', '--json'], capture_output=True,
+                           text=True, timeout=60, stdin=subprocess.DEVNULL, cwd=repo)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f'could not check (claude plugin list failed: {type(e).__name__}: {e})'
+    if p.returncode != 0:
+        return False, f'could not check (claude plugin list failed: exit {p.returncode}: {short(p.stderr or p.stdout, 200)})'
+    try:
+        listed = json.loads(p.stdout)
+        if not isinstance(listed, list):
+            raise ValueError('not a list')
+        mine = [e for e in listed if isinstance(e, dict) and e.get('id') == 'bendit-web@bendit']
+    except ValueError as e:
+        return False, f'could not check (claude plugin list failed: unreadable output: {e})'
+    here = norm(repo)
+    for e in mine:
+        pp = e.get('projectPath')
+        if e.get('scope') == 'project' and e.get('enabled') is True and e.get('projectEnabled') is True and isinstance(pp, str) and norm(pp) == here:
+            return True, 'installed for this project'
+    if any(e.get('scope') == 'project' and isinstance(e.get('projectPath'), str)
+           and norm(e['projectPath']) == here for e in mine):
+        return False, 'bendit-web is installed for this project but disabled'
+    if any(e.get('scope') == 'user' for e in mine):
+        return False, 'bendit-web is installed at user scope only, not for this project'
+    return False, 'bendit-web is not installed here'
+
+
+def _check_ls_guard(repo, kit):
+    """ON means block-ls-parsing.py refuses a parsed `ls` for THIS project: run
+    the hook as hooks.json does, with the refusal payload and this repo as the
+    project, and read exit 2 plus a message naming bendit."""
+    payload = json.dumps({'session_id': 'bendit-prove', 'cwd': repo, 'hook_event_name': 'PreToolUse',
+                          'tool_name': 'Bash', 'tool_input': {'command': 'ls | wc -l'}})
+    env = dict(os.environ, CLAUDE_PROJECT_DIR=repo, PYTHONDONTWRITEBYTECODE='1')
+    try:
+        p = subprocess.run(['python3', os.path.join(kit, 'scripts', 'block-ls-parsing.py')], input=payload,
+                           capture_output=True, text=True, timeout=10, env=env, cwd=repo)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f'could not run the hook: {type(e).__name__}: {e}'
+    if p.returncode == 2 and p.stderr.lstrip().startswith(P.PREFIXES):
+        return True, 'refuses `ls | wc -l` in this project'
+    return False, f'exit {p.returncode} on `ls | wc -l`, wanted 2 with a message naming bendit' + (f'; stderr: {short(p.stderr, 200)}' if p.stderr.strip() else '')
+
+
+def _check_session_brief(repo, kit):
+    """ON means the brief, run on THIS repo in its manual mode (--cwd, the
+    same code path the SessionStart hook builds with), prints exactly one valid
+    JSON line whose context names the branch git says is checked out."""
+    try:
+        b = subprocess.run(['git', '-C', repo, 'branch', '--show-current'], capture_output=True,
+                           text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f'could not read the branch: {type(e).__name__}: {e}'
+    branch = b.stdout.strip()
+    if b.returncode != 0:
+        return False, f'could not read the branch: git exited {b.returncode}: {short(b.stderr, 200)}'
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1')
+    env.pop('CLAUDE_PROJECT_DIR', None)
+    try:
+        p = subprocess.run(['python3', os.path.join(kit, 'scripts', 'session-brief.py'), '--cwd', repo],
+                           capture_output=True, text=True, timeout=10, env=env, cwd=repo)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f'could not run the brief: {type(e).__name__}: {e}'
+    lines = p.stdout.splitlines()
+    if p.returncode != 0 or len(lines) != 1:
+        return False, f'exit {p.returncode}, {len(lines)} stdout lines, wanted exit 0 and one JSON line'
+    try:
+        ctx = json.loads(lines[0])['context']
+    except (ValueError, KeyError, TypeError) as e:
+        return False, f'its line is not the brief JSON: {type(e).__name__}: {e}'
+    want = f'[git] Branch: {branch} ' if branch else '[git] Branch: detached at '
+    if want not in ctx:
+        return False, f'the brief does not name the checked-out branch ({want.strip()!r} missing): {short(ctx, 200)}'
+    return True, f'briefs this repo on {branch or "a detached HEAD"}'
+
+
+def _check_browser_driver(repo, kit):
+    """ON means the browser driver runs on THIS machine: Playwright is installed
+    where drive.mjs loads it from (drive-setup.sh --check), and the driver passes
+    its own selftest -- a real browser filling and reading lib/drive/selftest's
+    local page, compared with its committed baseline. No app is needed, and
+    nothing is written in the repo: the run's cwd, evidence and temp files are
+    all in a temp dir of its own, removed after."""
+    setup = os.path.join(kit, 'scripts', 'drive-setup.sh')
+    selftest = os.path.join(kit, 'lib', 'drive', 'selftest')
+    try:
+        c = subprocess.run(['bash', setup, '--check'], capture_output=True, text=True, timeout=30,
+                           stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f'could not run drive-setup.sh --check: {type(e).__name__}: {e}'
+    if c.returncode != 0:
+        return False, (f'Playwright is not installed for the browser driver (drive-setup.sh --check exit {c.returncode}). '
+                       f'Install it with: bash {setup}')
+    with tempfile.TemporaryDirectory() as tmp:
+        env = dict(os.environ, TMPDIR=tmp)
+        env.pop('PORT', None)
+        try:
+            p = subprocess.run(['node', os.path.join(kit, 'lib', 'drive', 'drive.mjs'),
+                                os.path.join(selftest, 'pass.json'), '--base', 'file://' + selftest,
+                                '--out', os.path.join(tmp, 'evidence')],
+                               capture_output=True, text=True, timeout=120, env=env, cwd=tmp,
+                               stdin=subprocess.DEVNULL)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            return False, f'could not run the driver selftest: {type(e).__name__}: {e}'
+    if p.returncode == 0 and 'VERDICT: VERIFIED' in p.stdout:
+        return True, 'Playwright installed; the driver passes its selftest in a real browser'
+    out = (p.stdout + p.stderr).strip().splitlines()
+    why = next((l for l in out if l.startswith(('FAIL', 'drive:'))), out[-1] if out else 'no output')
+    return False, f'the driver selftest failed (exit {p.returncode}): {short(why, 300)}'
+
+
+FEATURE_CHECKS = {
+    'browser-driver': _check_browser_driver,
+    'ux-design-laws': _check_ux_design_laws,
+    'ls-guard': _check_ls_guard,
+    'session-brief': _check_session_brief,
+}
+label = 'features: .claude/bendit.json readable'
+try:
+    feats = F.load(repo)
+    row(label, 'PASS')
+except F.FeaturesError as e:
+    feats = None
+    row(label, 'FAIL', str(e))
+else:
+    for name in F.FEATURES:
+        label = f'feature: {name}'
+        if feats is None:
+            row(label, 'UNUSED', 'not set up by /adopt yet')
+            continue
+        entry = feats['features'].get(name)
+        if entry is None:
+            row(label, 'UNUSED', 'not listed in .claude/bendit.json')
+        elif not entry['on']:
+            row(label, 'UNUSED', entry['why'])
+        elif name not in FEATURE_CHECKS:
+            row(label, 'FAIL', f'no check for {name}')
+        else:
+            try:
+                ok, detail = FEATURE_CHECKS[name](repo, kit)
+            except Exception as e:  # a crashing check is a failed check
+                ok, detail = False, f'check crashed: {type(e).__name__}: {e}'
+            row(label, 'PASS' if ok else 'FAIL', detail)
 
 # --- the table ------------------------------------------------------------------------
 width = max([len('check')] + [len(r[0]) for r in rows])
@@ -300,19 +471,26 @@ print(f'repo: {repo}')
 print()
 print(f'{"check".ljust(width)} | result | evidence rung')
 print(f'{"-" * width}-+--------+--------------')
-for i, (check, ok, rung, _d) in enumerate(rows, 1):
-    print(f'{check.ljust(width)} | {"PASS" if ok else "FAIL"}   | {rung}')
-failed = [(i, r) for i, r in enumerate(rows, 1) if not r[1]]
+for i, (check, state, rung, _d) in enumerate(rows, 1):
+    print(f'{check.ljust(width)} | {state.ljust(6)} | {rung}')
+failed = [(i, r) for i, r in enumerate(rows, 1) if r[1] == 'FAIL']
+unused = [r for r in rows if r[1] == 'UNUSED']
 print()
+if unused:
+    print('unused features (not failures):')
+    for check, _s, _r, detail in unused:
+        print(f'  {check}')
+        print(f'    UNUSED  {detail}')
+    print()
 if failed:
     print('failures:')
-    for i, (check, _ok, _r, detail) in failed:
+    for i, (check, _s, _r, detail) in failed:
         print(f'  {check}')
         print(f'    {detail}')
     print()
     print(f'prove: {len(failed)} of {len(rows)} checks FAILED -- adoption is NOT complete')
 else:
-    print(f'prove: all {len(rows)} checks passed')
+    print(f'prove: all {len(rows)} checks passed' + (f' ({len(unused)} unused)' if unused else ''))
 print('not proved by this script: live wiring -- that Claude Code runs these hooks in a real')
 print('session. Do the in-session check in references/prove.md (a refused force push whose')
 print('message names bendit).')

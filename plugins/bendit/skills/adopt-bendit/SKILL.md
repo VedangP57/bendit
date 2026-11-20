@@ -22,8 +22,9 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
 - **Expect permission prompts for `.claude/`.** Claude Code treats writes under
   a project's `.claude/` as sensitive and asks before each one. That is
   expected, not a failure: tell the user before the step that causes them. The
-  kit's scripts (`scaffold-verification-skill.sh`, `prove.sh`) do those writes
-  themselves, in one command each, so you rarely write there by hand. If a
+  verification scaffold (`scaffold-verification-skill.sh`) does those writes
+  itself, in one command, so you rarely write there by hand; `prove.sh` writes
+  nothing in the project. If a
   prompt is refused, report the file as not written; never route around it.
 - Every claim you report cites a `file:line` or names its evidence rung
   (1 said · 2 pointed at the line · 3 showed it can't happen · 4 ran it · 5 saw

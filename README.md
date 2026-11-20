@@ -176,12 +176,12 @@ Chromium alone cannot be driven), fetches bendit at the matching release tag int
 - **Read it first** if you prefer not to pipe into a shell:
 
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh -o "${TMPDIR:-/tmp}/bendit-install.sh"
-  less "${TMPDIR:-/tmp}/bendit-install.sh"
-  bash "${TMPDIR:-/tmp}/bendit-install.sh"
+  f=$(mktemp) && curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh -o "$f" && less "$f" && bash "$f"
   ```
 
-  (It is saved outside your project, so it leaves nothing there.)
+  (`mktemp` makes a new file only you can write, outside your project, so
+  nobody else on the machine can swap the script between `less` and `bash`,
+  and it leaves nothing in your project.)
 - **Check without installing:**
   `curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh | bash -s -- --check`
   prints what is missing and installs nothing. Exit codes: 0 nothing is missing, 1 something is
@@ -224,10 +224,9 @@ bash <plugin folder>/scripts/prove.sh .
 
 **Expect permission prompts.** Claude Code asks before any write under a
 project's `.claude/` folder, because it treats that folder as sensitive. That
-is expected, not an error. The kit's scripts (the verification scaffold,
-`prove.sh`) do those writes themselves, one command each, so the agent rarely
-has to write there file by file; `prove.sh` writes nothing in your project at
-all.
+is expected, not an error. The verification scaffold does those writes itself,
+in one command, so the agent rarely has to write there file by file.
+`prove.sh` only reads: it writes nothing in your project at all.
 
 To pin the kit inside your repository instead (no network at session time),
 `/adopt` can vendor it under `.claude/vendor/bendit/` and write where

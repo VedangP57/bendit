@@ -1,6 +1,6 @@
 {
   "name": "bendit",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Enforced rules for coding agents: fail-closed guard hooks, a verification gate, engineering-practice skills, and /bendit:adopt to fit them to any project and prove they work.",
   "userConfig": {
     "integrationBranch": {

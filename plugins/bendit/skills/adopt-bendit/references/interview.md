@@ -1,5 +1,10 @@
 # Interview
 
+**`--detailed` only.** The default quick path (`quick.md`) asks none of these:
+it answers each from detection plus the safe default in quick.md §1, and asks
+only its §3 questions (no command to check with; another copy of bendit on
+this computer). Every question below is detailed-only.
+
 Ask **only** what detection left as `?` or got from a weak source. **One
 question per message**, each with a default in brackets and one line on why it
 matters. "yes", "default" or an empty reply takes the default. Never batch

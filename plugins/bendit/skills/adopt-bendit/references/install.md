@@ -16,13 +16,55 @@ claude plugin list                 # is bendit already installed, and at what sc
 If a subcommand or flag is missing, the CLI is older or newer than this guide:
 stop and show the user the help output rather than guessing a spelling.
 
-`<source>` below is the kit's git URL from its README (the user may also have a
-fork or a local clone; ask if unsure).
+`<source>` below is the kit's public address,
+`https://github.com/VedangP57/bendit` (a fork or a local clone also works; ask
+only if unsure).
+
+## Deciding the route (no question needed)
+
+Ask the helper, which only reads and never installs:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/install-route.sh route <source>   # prints: github|vendor <reason>
+```
+
+`github` means anyone can download the kit with no sign-in. The probe is an
+anonymous `curl` of `<source>.git/info/refs?service=git-upload-pack` (`-q`
+first so `~/.curlrc` is ignored, `--netrc-file /dev/null`, no credentials of any
+kind; git is deliberately not used, since its config, askpass and URL rewrites
+can authenticate). Only HTTP 200 counts; any other answer, a timeout, or no
+`curl` means `vendor`. Only a `https://github.com/<owner>/<repo>` source can be
+`github`. Use Route A for
+`github`, Route B for `vendor`, and give the person the reason in plain words.
+`--detailed` still shows both routes and lets the person pick.
+
+**Route B says this, in these words:** "This copy of bendit works on this
+computer only; teammates and fresh clones won't get it until they install
+bendit themselves." Claude Code records a vendored marketplace as this
+machine's absolute path, so a portable vendored copy is not possible today.
+
+## Before any `claude plugin marketplace add`
+
+Marketplace names are global to the computer (`~/.claude/plugins/known_marketplaces.json`),
+so adding `bendit` here silently re-points every other project that uses it.
+Run, with the exact source about to be added (the URL, or the vendored
+directory's absolute path):
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/install-route.sh conflict <source-or-directory>
+```
+
+Silent and exit 0: go on (no entry, or the same source). Exit 0 with a line
+`switch: <sentence>`: go on too (another project's vendored copy of bendit is
+being replaced by the public GitHub repo, which loses it nothing); say the
+sentence to the person and put it in the report. **Any non-zero exit
+means stop and ask**: it printed a plain sentence (naming the other project, or
+saying the registry could not be checked); show it and add nothing unless the
+person says yes. Same-source re-adds never stop.
 
 ## Route A: marketplace, project scope (default)
 
-Reachable when `git ls-remote <source> HEAD` succeeds (ask before this network
-call). Show the two commands, get a yes, run them, read the output:
+Chosen when the route probe above says `github`. Show the two commands, get a yes, run them, read the output:
 
 ```bash
 claude plugin marketplace add <source> --scope project
@@ -43,7 +85,7 @@ marketplace and the plugin, and Claude Code reads it. Write nothing else.
 Already installed at user scope only? Ask whether to add project scope too
 *[yes: otherwise the guards exist only on this machine]*.
 
-## Route B: vendor (no network, or the user wants it pinned in the repo)
+## Route B: vendor (the probe says `vendor`, or the user wants it pinned in the repo)
 
 Copy the kit into the project so it is versioned with the code:
 
@@ -72,9 +114,8 @@ Copy the kit into the project so it is versioned with the code:
    3b's add-on comes from it too, after its own yes:
    `claude plugin install bendit-web@bendit --scope project`.
 
-   Then read `.claude/settings.json`: if the marketplace path was stored as an
-   absolute path, it will not work in another checkout. Report that under "not
-   possible here" rather than hand-editing it.
+   Claude Code stores that path as an absolute one, which only works on this
+   computer: say the sentence above and do not hand-edit it.
 5. Record where the copy came from, beside the copy, as plain text:
 
    ```bash

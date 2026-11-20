@@ -4,8 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bendit"
-version = "0.3.0"
+version = "0.4.0"
 description = "Enforced rules for coding agents: fail-closed guard hooks, a verification gate, practice skills, and /adopt for any project."
+readme = { file = "README.md", content-type = "text/markdown" }
 license = { text = "MIT" }
 requires-python = ">=3.9"
 

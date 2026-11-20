@@ -87,13 +87,17 @@ if [ "$have_node" = 1 ]; then
   chk "npm wrapper says it needs bash" "$(cat "$T/e")" "$nobash_msg"
 fi
 
+echo; echo "PACKAGE PAGES"
+chk "npm and PyPI READMEs are identical" "$(cmp -s "$ROOT/packages/npm/README.md" "$ROOT/packages/pypi/README.md" && echo same || echo differ)" same
+chk "package.json ships README.md" "$(grep -c '"README.md"' "$ROOT/packages/npm/package.json")" 1
+
 echo; echo "NPM TARBALL"
 if [ "$have_node" = 1 ]; then
   before="$(cd "$ROOT" && git status --porcelain)"
   (cd "$ROOT/packages/npm" && npm pack --dry-run --json --ignore-scripts >"$T/pack.json" 2>"$T/pack.err"); rc=$?
   chk "npm pack --dry-run exits 0" "$rc" 0
   [ "$rc" = 0 ] || sed 's/^/    /' "$T/pack.err"
-  for f in install.sh bin/bendit.js package.json; do
+  for f in install.sh bin/bendit.js package.json README.md; do
     node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
       process.exit(j[0].files.some(x=>x.path===process.argv[2])?0:1)' "$T/pack.json" "$f" 2>"$T/e"; rc=$?
     chk "tarball lists $f" "$rc" 0

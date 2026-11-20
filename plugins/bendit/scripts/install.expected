@@ -1,12 +1,12 @@
 === --version
 exit 0
 --- stdout
-bendit installer 0.3.0
+bendit installer 0.4.0
 
 === --help
 exit 0
 --- stdout
-bendit installer 0.3.0
+bendit installer 0.4.0
 
 Usage: install.sh [--check | --version | --help]
 
@@ -482,7 +482,7 @@ This machine is ready. Fetching bendit...
 exit 1
 --- stderr
 fatal: repository '<tmp>/gone' does not exist
-could not fetch bendit from <tmp>/gone (v0.3.0).
+could not fetch bendit from <tmp>/gone (v0.4.0).
 --- stdout
   item     found     needed  why
 ✓ claude   2.1.328   any     runs the agent bendit plugs into
@@ -504,7 +504,7 @@ This folder is not a git repository; /bendit:adopt will offer git init.
 This machine is ready. Fetching bendit...
 
 There is no terminal to open Claude on. To finish, run this in your project:
-  claude --plugin-dir <tmp>/f4/home/.cache/bendit/v0.3.0/plugins/bendit "/bendit:adopt"
+  claude --plugin-dir <tmp>/f4/home/.cache/bendit/v0.4.0/plugins/bendit "/bendit:adopt"
 
 === space in HOME, with a terminal
 exit 0
@@ -527,7 +527,7 @@ exit 0
 This machine is ready. Fetching bendit...
 
 There is no terminal to open Claude on. To finish, run this in your project:
-  claude --plugin-dir <tmp>/f5/h\ ome/.cache/bendit/v0.3.0/plugins/bendit "/bendit:adopt"
+  claude --plugin-dir <tmp>/f5/h\ ome/.cache/bendit/v0.4.0/plugins/bendit "/bendit:adopt"
 
 === linux, git missing, apt-get
 exit 1

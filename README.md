@@ -153,8 +153,23 @@ npx bendit
 pipx run bendit        # or: uvx bendit
 ```
 
+One command, then one question, then one approval line:
+
+1. **One command** (above). It checks your machine and opens Claude Code on `/bendit:adopt`.
+2. **One question.** `/bendit:adopt` detects your stack and shows one summary in
+   plain words (what you get, every file it will add or change, everything it
+   will install), ending "Go ahead? Reply yes, or just press Enter." Nothing is
+   written or installed that the summary did not list.
+3. **One approval line.** Last, it prints one command. Open a new Terminal window
+   (not the chat), paste it and type `y`: that is you, not the AI, approving the
+   test check that runs before the AI may say it is done.
+
+Engineers who want every choice (invariants, production branches, CI, which
+guards, the install route) use `/bendit:adopt --detailed`, which is the full
+interview and also how to change a set-up project later.
+
 That URL is "latest". To pin a release, put its tag in the URL, for example
-`https://raw.githubusercontent.com/VedangP57/bendit/v0.3.0/install.sh`
+`https://raw.githubusercontent.com/VedangP57/bendit/v0.4.0/install.sh`
 (`/<tag>/` for any other release).
 
 The installer checks that your machine has what bendit needs (`claude`, `git`,
@@ -203,20 +218,28 @@ claude plugin install bendit@bendit
 Then, in your project:
 
 ```
-/bendit:adopt
+/bendit:adopt              # one question, then one approval line
+/bendit:adopt --detailed   # the full interview, every choice yours
 ```
 
-`/bendit:adopt` detects your stack (Node with pnpm/npm/yarn/bun, Python with
-uv/poetry/pip, Go, Rust; anything else it asks about), asks only what it could
-not detect, one question at a time, shows every file before writing it,
-records the project's features in `.claude/bendit.json` (see Features), and
-builds the project layer: `AGENTS.md`, `.claude/verify-harness` (the command
-that means "verified" here), and optionally a verification skill and CI. Then it
-**proves** the setup with `scripts/prove.sh`: every guard is fed a known-bad
+The default asks one plain question, then installs and writes only what its
+summary listed. It decides everything else itself (the check is your test
+command, typecheck or build; all guards on; no CI), writes `AGENTS.md`,
+`CLAUDE.md`, `.claude/verify-harness` and `.claude/bendit.json` (see Features),
+and for a web app also its verification skill, `.claude/skills/verify-<name>/`
+(the AI starts your app and clicks through it when you ask), with the committed
+`.env.verify.example`. It ends by running `scripts/prove.sh`, then prints the
+one approval command.
+`--detailed` is the full interview: it detects your stack (Node with
+pnpm/npm/yarn/bun, Python with uv/poetry/pip, Go, Rust; anything else it asks
+about), asks only what it could not detect, one question at a time, shows every
+file before writing it, and builds the same project layer, with the
+verification skill and CI as your choice. Both then
+**prove** the setup with `scripts/prove.sh`: every guard is fed a known-bad
 payload and must refuse (and a known-good one it must allow), the Stop gate is
 dry-run in a throwaway repo, the harness is run, every feature that is on is
 run, and the result is printed as a
-table with the evidence rung of each row. It will not call adoption complete if
+table with the evidence rung of each row. Neither will call adoption complete if
 any check fails. You can run the same check yourself at any time:
 
 ```bash

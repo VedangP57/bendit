@@ -322,7 +322,16 @@ pchk "the band-aid note is still delivered" "$(has "$hout" '@ts-ignore')" yes
 pchk "no import note from the hung checker" "$(has "$hout" 'mod import check')" no
 pchk "it returned well before the hook's 10 s limit" "$el" 1
 pchk "the product timeout is 5 s, below the hook's 10 s" \
-  "$(python3 -c 'import importlib.util,sys;s=importlib.util.spec_from_file_location("p",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);print(m._IMPORT_CHECK_TIMEOUT)' "$H")" 5.0
+  "$(env -u BENDIT_TEST_IMPORT_CHECK_TIMEOUT python3 -c 'import importlib.util,sys;s=importlib.util.spec_from_file_location("p",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);print(m._import_check_timeout())' "$H")" 5.0
+
+# A junk timeout value must not break every Edit/Write: it falls back to 5 s,
+# and the hook still judges the edit (exit 2 for the band-aid, no traceback).
+jout="$(printf '%s' "$hp" | BENDIT_TEST_IMPORT_CHECK_TIMEOUT=junk python3 "$H" 2>&1)"; jcode=$?
+pchk "a junk timeout: the hook still exits 2 for the band-aid" "$jcode" 2
+pchk "a junk timeout: the band-aid note is delivered" "$(has "$jout" '@ts-ignore')" yes
+pchk "a junk timeout: no traceback" "$(has "$jout" 'Traceback')" no
+pchk "a junk timeout falls back to 5 s" \
+  "$(BENDIT_TEST_IMPORT_CHECK_TIMEOUT=junk python3 -c 'import importlib.util,sys;s=importlib.util.spec_from_file_location("p",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);print(m._import_check_timeout())' "$H")" 5.0
 
 echo
 echo "WHAT IT SAYS (snapshot)"

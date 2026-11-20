@@ -129,11 +129,17 @@ expect_capture "feature declined" bash "$SD/prove.sh" "$F1"
 chk "a declined feature is UNUSED with its reason, exit 0" "$EXPECT_CODE" "0"
 has "  ...the reason is shown" "UNUSED  you declined Chrome" "$EXPECT_STDOUT"
 
-BENDIT_JSON='{"version":1,"features":{"ls-guard":{"on":true,"why":"zsh"}}}'
+BENDIT_JSON='{"version":1,"features":{"browser-driver":{"on":true,"why":"Chrome"}}}'
 F2="$T/feat-nocheck"; repo "$F2" 'exit 0'
-expect_capture "ls-guard on, no registered check" bash "$SD/prove.sh" "$F2"
+expect_capture "browser-driver on, no registered check" bash "$SD/prove.sh" "$F2"
 chk "an ON feature with no registered check fails prove" "$EXPECT_CODE" "1"
-has "  ...naming it" "no check for ls-guard" "$EXPECT_STDOUT"
+has "  ...naming it" "no check for browser-driver" "$EXPECT_STDOUT"
+
+BENDIT_JSON='{"version":1,"features":{"ls-guard":{"on":true,"why":"ls is a formatter"}}}'
+F2b="$T/feat-ls"; repo "$F2b" 'exit 0'
+expect_capture "ls-guard on" bash "$SD/prove.sh" "$F2b"
+chk "ls-guard on: the check runs the hook and prove passes" "$EXPECT_CODE" "0"
+chk "  ...its row says PASS" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^feature: ls-guard +\| PASS ')" "1"
 
 BENDIT_JSON='{"version":1,'
 F3="$T/feat-bad"; repo "$F3" 'exit 0'

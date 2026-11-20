@@ -92,7 +92,7 @@ def run_one(key, event, matcher, cmd, timeout, probe, work):
            'error': '', 'fix': ''}
     try:
         d, base = _probes.prepare(work)
-        env = _probes.env_for(probe, base)
+        env = _probes.env_for(probe, base, d)
         env['CLAUDE_PLUGIN_ROOT'] = KIT
         data = probe.build(d)
         t = min(float(timeout or 10), PER_HOOK)

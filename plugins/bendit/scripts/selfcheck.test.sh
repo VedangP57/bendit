@@ -129,6 +129,15 @@ chk "  ...and on stderr" "$HOOK_ERR" ""
 ms=$("$PY" -c "print(int(($t1 - $t0) * 1000))")
 chk "  ...in well under 2s (took ${ms}ms; it runs on every session start)" "$([ "$ms" -lt 2000 ] && echo fast || echo slow)" fast
 capture "healthy kit" "$KIT"
+# Inside a real session CLAUDE_PROJECT_DIR names the USER's project. The ls-guard
+# probe must still read the bendit.json it wrote into its own probe dir, not that
+# project's: a project with ls-guard OFF (or a malformed file) must change nothing.
+mkdir -p "$T/userproj/.claude"; printf '{"version":1,"features":{"ls-guard":{"on":false,"why":"user"}}}' > "$T/userproj/.claude/bendit.json"
+o=$(CLAUDE_PROJECT_DIR="$T/userproj" "$PY" "$KIT/scripts/selfcheck.py" --hook </dev/null 2>&1); rc=$?
+chk "a user project with ls-guard OFF does not blind the ls probe (silent, exit 0)" "$rc|$o" "0|"
+printf '{"version":1,"features":' > "$T/userproj/.claude/bendit.json"
+o=$(CLAUDE_PROJECT_DIR="$T/userproj" "$PY" "$KIT/scripts/selfcheck.py" --hook </dev/null 2>&1); rc=$?
+chk "  ...nor does a malformed one (the probe reads its own file)" "$rc|$o" "0|"
 if [ -z "$PY_GIVEN" ]; then
   expect_capture "healthy kit, --verbose (what /bendit:doctor prints)" "$PY" "$KIT/scripts/selfcheck.py" --verbose
   chk "--verbose on a healthy kit: exit 0" "$EXPECT_CODE" 0

@@ -11,6 +11,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -42,7 +44,7 @@ unused features (not failures):
   feature: ls-guard
     UNUSED  not set up by /adopt yet
 
-prove: all 24 checks passed (4 unused)
+prove: all 26 checks passed (4 unused)
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -60,6 +62,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -95,7 +99,7 @@ failures:
   harness: .claude/verify-harness exits 0
     exit 1: 2 tests failed
 
-prove: 1 of 24 checks FAILED -- adoption is NOT complete
+prove: 1 of 26 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -113,6 +117,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -147,7 +153,7 @@ failures:
   harness: .claude/verify-harness exits 0
     no .claude/verify-harness: the Stop gate has nothing to run for this repo
 
-prove: 1 of 23 checks FAILED -- adoption is NOT complete
+prove: 1 of 25 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -165,6 +171,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -200,7 +208,7 @@ failures:
   harness: approved by you for the Stop gate
     never approved: the gate will refuse instead of running it. In YOUR OWN terminal (not through the agent), run: python3 <kit>/scripts/require-verification.py --trust <tmp>/unapproved
 
-prove: 1 of 24 checks FAILED -- adoption is NOT complete
+prove: 1 of 26 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -218,6 +226,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -249,7 +259,7 @@ unused features (not failures):
   feature: ls-guard
     UNUSED  not set up by /adopt yet
 
-prove: all 24 checks passed (4 unused)
+prove: all 26 checks passed (4 unused)
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -267,6 +277,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -302,7 +314,7 @@ failures:
   harness: approved by you for the Stop gate
     changed since you approved it: the gate will refuse instead of running it. In YOUR OWN terminal (not through the agent), run: python3 <kit>/scripts/require-verification.py --trust <tmp>/unapproved
 
-prove: 1 of 24 checks FAILED -- adoption is NOT complete
+prove: 1 of 26 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -320,6 +332,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -351,7 +365,7 @@ unused features (not failures):
   feature: ls-guard
     UNUSED  not set up by /adopt yet
 
-prove: all 24 checks passed (4 unused)
+prove: all 26 checks passed (4 unused)
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -369,6 +383,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -400,12 +416,12 @@ unused features (not failures):
   feature: ls-guard
     UNUSED  not listed in .claude/bendit.json
 
-prove: all 24 checks passed (4 unused)
+prove: all 26 checks passed (4 unused)
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
 
-=== ls-guard on, no registered check
+=== browser-driver on, no registered check
 exit 1
 --- stdout
 bendit prove: feat-nocheck
@@ -418,6 +434,61 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
+require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
+path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
+path-contracts: allows a write to x.ts                                 | PASS   | 4
+post-edit-review --pre: allows a write (snapshot only)                 | PASS   | 4
+post-edit-review: flags a catch that returns success (advice)          | PASS   | 4
+post-edit-review: silent on a clean edit                               | PASS   | 4
+warn-suppressed-stderr: flags `2>/dev/null` with empty output (advice) | PASS   | 4
+warn-suppressed-stderr: silent without the redirect                    | PASS   | 4
+selfcheck --hook: silent when every guard answers                      | PASS   | 4
+Stop gate: --mark records a code edit                                  | PASS   | 4
+Stop gate: refuses when the harness exits 1                            | PASS   | 4
+Stop gate: allows when the harness exits 0                             | PASS   | 4
+harness: .claude/verify-harness exits 0                                | PASS   | 4
+harness: approved by you for the Stop gate                             | PASS   | 4
+privacy: agent-layer files carry no home path or email                 | PASS   | 4
+features: .claude/bendit.json readable                                 | PASS   | 4
+feature: browser-driver                                                | FAIL   | 4
+feature: ux-design-laws                                                | UNUSED | 4
+feature: session-brief                                                 | UNUSED | 4
+feature: ls-guard                                                      | UNUSED | 4
+
+unused features (not failures):
+  feature: ux-design-laws
+    UNUSED  not listed in .claude/bendit.json
+  feature: session-brief
+    UNUSED  not listed in .claude/bendit.json
+  feature: ls-guard
+    UNUSED  not listed in .claude/bendit.json
+
+failures:
+  feature: browser-driver
+    no check for browser-driver
+
+prove: 1 of 26 checks FAILED -- adoption is NOT complete
+not proved by this script: live wiring -- that Claude Code runs these hooks in a real
+session. Do the in-session check in references/prove.md (a refused force push whose
+message names bendit).
+
+=== ls-guard on
+exit 0
+--- stdout
+bendit prove: feat-ls
+kit:  <kit>
+repo: <tmp>/feat-ls
+
+check                                                                  | result | evidence rung
+-----------------------------------------------------------------------+--------+--------------
+block-dangerous-bash: refuses `git push --force`                       | PASS   | 4
+block-dangerous-bash: allows `git status`                              | PASS   | 4
+block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
+block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -437,7 +508,7 @@ features: .claude/bendit.json readable                                 | PASS   
 feature: browser-driver                                                | UNUSED | 4
 feature: ux-design-laws                                                | UNUSED | 4
 feature: session-brief                                                 | UNUSED | 4
-feature: ls-guard                                                      | FAIL   | 4
+feature: ls-guard                                                      | PASS   | 4
 
 unused features (not failures):
   feature: browser-driver
@@ -447,11 +518,7 @@ unused features (not failures):
   feature: session-brief
     UNUSED  not listed in .claude/bendit.json
 
-failures:
-  feature: ls-guard
-    no check for ls-guard
-
-prove: 1 of 24 checks FAILED -- adoption is NOT complete
+prove: all 26 checks passed (3 unused)
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -469,6 +536,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -490,7 +559,7 @@ failures:
   features: .claude/bendit.json readable
     <tmp>/feat-bad/.claude/bendit.json: not valid JSON: Expecting property name enclosed in double quotes: line 2 column 1 (char 14)
 
-prove: 1 of 20 checks FAILED -- adoption is NOT complete
+prove: 1 of 22 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -508,6 +577,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -537,7 +608,7 @@ unused features (not failures):
   feature: ls-guard
     UNUSED  not listed in .claude/bendit.json
 
-prove: all 24 checks passed (3 unused)
+prove: all 26 checks passed (3 unused)
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -555,6 +626,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -588,7 +661,7 @@ failures:
   feature: ux-design-laws
     bendit-web is not installed here
 
-prove: 1 of 24 checks FAILED -- adoption is NOT complete
+prove: 1 of 26 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -606,6 +679,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -639,7 +714,7 @@ failures:
   feature: ux-design-laws
     bendit-web is installed at user scope only, not for this project
 
-prove: 1 of 24 checks FAILED -- adoption is NOT complete
+prove: 1 of 26 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -657,6 +732,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -690,7 +767,7 @@ failures:
   feature: ux-design-laws
     bendit-web is installed for this project but disabled
 
-prove: 1 of 24 checks FAILED -- adoption is NOT complete
+prove: 1 of 26 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -708,6 +785,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -741,7 +820,7 @@ failures:
   feature: ux-design-laws
     could not check (claude plugin list failed: exit 1: boom: not logged in)
 
-prove: 1 of 24 checks FAILED -- adoption is NOT complete
+prove: 1 of 26 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -759,6 +838,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -792,7 +873,7 @@ failures:
   feature: ux-design-laws
     could not check (claude plugin list failed: unreadable output: Expecting value: line 1 column 1 (char 0))
 
-prove: 1 of 24 checks FAILED -- adoption is NOT complete
+prove: 1 of 26 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -810,6 +891,8 @@ block-dangerous-bash: refuses `git push --force`                       | FAIL   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -845,9 +928,9 @@ failures:
   block-dangerous-bash: refuses `git push --force`
     exit 0, wanted 2 (a refusal)
   selfcheck --hook: silent when every guard answers
-    exit 0, wanted 0 and no output; stdout: {"systemMessage": "bendit: 1 of 9 hooks is OFF -- it could not run, or let a known-bad call through, so that check is not protecting you this session. The rest still work.\n  - block-dangerous-bash.py (PreToolUse Bash): exit 0 on its known-bad probe: it no longer refuses `git push --force`\n    this...
+    exit 0, wanted 0 and no output; stdout: {"systemMessage": "bendit: 1 of 10 hooks is OFF -- it could not run, or let a known-bad call through, so that check is not protecting you this session. The rest still work.\n  - block-dangerous-bash.py (PreToolUse Bash): exit 0 on its known-bad probe: it no longer refuses `git push --force`\n    thi...
 
-prove: 2 of 24 checks FAILED -- adoption is NOT complete
+prove: 2 of 26 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -865,6 +948,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | FAIL   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -900,9 +985,9 @@ failures:
   path-contracts: refuses a write to x.gen.ts
     refused, but stderr does not name bendit (it must begin "[bendit]" or "BLOCKED by bendit"): [some-kit] x.gen.ts is generated (.gen.*): edit the generator, not its output. | If this file is no longer generated, rename it.
   selfcheck --hook: silent when every guard answers
-    exit 0, wanted 0 and no output; stdout: {"systemMessage": "bendit: 1 of 9 hooks is OFF -- it could not run, or let a known-bad call through, so that check is not protecting you this session. The rest still work.\n  - path-contracts.py (PreToolUse Write|Edit|MultiEdit): [some-kit] x.gen.ts is generated (.gen.*): edit the generator, not its...
+    exit 0, wanted 0 and no output; stdout: {"systemMessage": "bendit: 1 of 10 hooks is OFF -- it could not run, or let a known-bad call through, so that check is not protecting you this session. The rest still work.\n  - path-contracts.py (PreToolUse Write|Edit|MultiEdit): [some-kit] x.gen.ts is generated (.gen.*): edit the generator, not it...
 
-prove: 2 of 24 checks FAILED -- adoption is NOT complete
+prove: 2 of 26 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -920,6 +1005,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
 path-contracts: allows a write to x.ts                                 | PASS   | 4
@@ -961,7 +1048,7 @@ failures:
   harness: approved by you for the Stop gate
     : the gate will refuse instead of running it. In YOUR OWN terminal (not through the agent), run: 
 
-prove: 4 of 24 checks FAILED -- adoption is NOT complete
+prove: 4 of 26 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
@@ -979,6 +1066,8 @@ block-dangerous-bash: refuses `git push --force`                       | PASS   
 block-dangerous-bash: allows `git status`                              | PASS   | 4
 block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
 block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
 require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
 new-guard-nobody-probed.py: has a probe                                | FAIL   | 4
 path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
@@ -1017,7 +1106,7 @@ failures:
   selfcheck --hook: silent when every guard answers
     exit 0, wanted 0 and no output; stdout: {"systemMessage": "bendit: its self-check could not check everything; treat what it could not check as OFF.\n  - new-guard-nobody-probed.py (PreToolUse): selfcheck has no probe for it in scripts/probes.py\n    whether it works is UNKNOWN. Fix: add a probe for it to scripts/probes.py.\nAfter fixing, ...
 
-prove: 2 of 25 checks FAILED -- adoption is NOT complete
+prove: 2 of 27 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).

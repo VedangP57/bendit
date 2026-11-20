@@ -139,7 +139,7 @@ for key in seen:
         continue
     for pr in table:
         if pr.prove:
-            CHECK[pr.expect](pr.label, key[0], list(key[1]), pr.build(probe), timeouts[key], P.env_for(pr, ENV))
+            CHECK[pr.expect](pr.label, key[0], list(key[1]), pr.build(probe), timeouts[key], P.env_for(pr, ENV, probe))
 
 # --- the Stop gate, dry run -----------------------------------------------------
 if ('require-verification.py', ()) in seen:
@@ -338,7 +338,24 @@ def _check_ux_design_laws(repo, kit):
     return False, 'bendit-web is not installed here'
 
 
-FEATURE_CHECKS = {'ux-design-laws': _check_ux_design_laws}
+def _check_ls_guard(repo, kit):
+    """ON means block-ls-parsing.py refuses a parsed `ls` for THIS project: run
+    the hook as hooks.json does, with the refusal payload and this repo as the
+    project, and read exit 2 plus a message naming bendit."""
+    payload = json.dumps({'session_id': 'bendit-prove', 'cwd': repo, 'hook_event_name': 'PreToolUse',
+                          'tool_name': 'Bash', 'tool_input': {'command': 'ls | wc -l'}})
+    env = dict(os.environ, CLAUDE_PROJECT_DIR=repo, PYTHONDONTWRITEBYTECODE='1')
+    try:
+        p = subprocess.run(['python3', os.path.join(kit, 'scripts', 'block-ls-parsing.py')], input=payload,
+                           capture_output=True, text=True, timeout=10, env=env, cwd=repo)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f'could not run the hook: {type(e).__name__}: {e}'
+    if p.returncode == 2 and p.stderr.lstrip().startswith(P.PREFIXES):
+        return True, 'refuses `ls | wc -l` in this project'
+    return False, f'exit {p.returncode} on `ls | wc -l`, wanted 2 with a message naming bendit' + (f'; stderr: {short(p.stderr, 200)}' if p.stderr.strip() else '')
+
+
+FEATURE_CHECKS = {'ux-design-laws': _check_ux_design_laws, 'ls-guard': _check_ls_guard}
 label = 'features: .claude/bendit.json readable'
 try:
     feats = F.load(repo)

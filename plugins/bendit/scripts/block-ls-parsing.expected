@@ -1,0 +1,52 @@
+=== blocked: ls piped into wc
+exit 2
+--- stderr
+BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls.
+
+`ls` here is a formatter (an alias or function), so its output has extra rows
+and escape codes: counting its lines or splitting its words counts the
+decoration. The pipeline still exits 0 and hands back a plausible wrong number.
+
+Here, the ls output is piped into `wc`.
+
+Use one of:
+  command ls | ...     skips a function or alias
+  /bin/ls | ...        the real binary
+  find . -maxdepth 1 -mindepth 1 | wc -l     to COUNT entries
+  git ls-files | ...                         for tracked files
+
+A backslash before ls is NOT an escape hatch, and neither is quoting it: both
+suppress alias expansion only, so a function still runs.
+
+A bare `ls` with no pipe and no `$( )` is never refused.
+(Turn this guard off: set "ls-guard" to off in .claude/bendit.json.)
+
+=== blocked: ls captured by $( )
+exit 2
+--- stderr
+BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls.
+
+`ls` here is a formatter (an alias or function), so its output has extra rows
+and escape codes: counting its lines or splitting its words counts the
+decoration. The pipeline still exits 0 and hands back a plausible wrong number.
+
+Here, the ls output is captured by `$( )` to feed a `for ... in` list.
+
+Use one of:
+  command ls | ...     skips a function or alias
+  /bin/ls | ...        the real binary
+  find . -maxdepth 1 -mindepth 1 | wc -l     to COUNT entries
+  git ls-files | ...                         for tracked files
+
+A backslash before ls is NOT an escape hatch, and neither is quoting it: both
+suppress alias expansion only, so a function still runs.
+
+A bare `ls` with no pipe and no `$( )` is never refused.
+(Turn this guard off: set "ls-guard" to off in .claude/bendit.json.)
+
+=== blocked: malformed bendit.json
+exit 2
+--- stderr
+BLOCKED by bendit: `.claude/bendit.json` is unreadable: <tmp>/bad/.claude/bendit.json: not valid JSON: Expecting value: line 1 column 28 (char 27)
+ls-guard cannot tell whether it is on, so this command is refused until the file is fixed (or removed).
+

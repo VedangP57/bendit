@@ -89,6 +89,7 @@ bendit/
       shell_text.py                 shell lexer shared by guards
       block-dangerous-bash.py       PreToolUse Bash
       block-zsh-wordsplit.py        PreToolUse Bash, active only when $SHELL is zsh
+      block-ls-parsing.py           PreToolUse Bash, active only when bendit.json turns ls-guard on
       warn-suppressed-stderr.py     PostToolUse Bash
       path-contracts.py             PreToolUse Write|Edit|MultiEdit (.hot.* / .gen.*)
       post-edit-review.py           Pre/PostToolUse writes, band-aid patterns
@@ -123,7 +124,7 @@ bendit/
 Per-project state lives in the project, never in the plugin folder, and only
 where something reads it (a config file nothing reads is failure class F1).
 There is one config file, `.claude/bendit.json`, read by `prove.sh` (and so
-`/doctor`); the session-brief and ls-guard hooks will read it once they ship. It
+`/doctor`) and by the ls-guard hook (the session-brief hook will read it once it ships). It
 records which optional features
 (`browser-driver`, `ux-design-laws`, `session-brief`, `ls-guard`) are on and
 why, and `/adopt` writes it through `scripts/features.py`. For a web app,

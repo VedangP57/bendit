@@ -84,6 +84,8 @@ def env_for(probe, base, probe_dir=None):
         if v is None:
             env.pop(k, None)
         elif v is HERE:
+            if probe_dir is None:
+                raise ValueError('env_for: probe env uses HERE (the probe directory) but no probe_dir was given')
             env[k] = probe_dir
         else:
             env[k] = v

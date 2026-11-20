@@ -48,5 +48,5 @@ A bare `ls` with no pipe and no `$( )` is never refused.
 exit 2
 --- stderr
 BLOCKED by bendit: `.claude/bendit.json` is unreadable: <tmp>/bad/.claude/bendit.json: not valid JSON: Expecting value: line 1 column 28 (char 27)
-ls-guard cannot tell whether it is on, so this command is refused until the file is fixed (or removed).
+ls-guard cannot tell whether it is on, so a command that parses `ls` output is refused until the file is fixed: fix it with the Edit tool, or ask the person.
 

@@ -140,6 +140,11 @@ for key in seen:
     for pr in table:
         if pr.prove:
             CHECK[pr.expect](pr.label, key[0], list(key[1]), pr.build(probe), timeouts[key], P.env_for(pr, ENV, probe))
+            # A probe that turned a feature on must not leave it on for the next probe.
+            try:
+                os.remove(F.path(probe))
+            except FileNotFoundError:
+                pass
 
 # --- the Stop gate, dry run -----------------------------------------------------
 if ('require-verification.py', ()) in seen:

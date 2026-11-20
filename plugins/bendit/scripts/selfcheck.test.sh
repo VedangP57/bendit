@@ -138,6 +138,21 @@ chk "a user project with ls-guard OFF does not blind the ls probe (silent, exit 
 printf '{"version":1,"features":' > "$T/userproj/.claude/bendit.json"
 o=$(CLAUDE_PROJECT_DIR="$T/userproj" "$PY" "$KIT/scripts/selfcheck.py" --hook </dev/null 2>&1); rc=$?
 chk "  ...nor does a malformed one (the probe reads its own file)" "$rc|$o" "0|"
+out=$("$PY" - "$KIT/scripts" <<'PYE2' 2>&1
+import sys
+sys.path.insert(0, sys.argv[1])
+import probes
+pr = probes.Probe('allows', 'x', lambda d: '', env={'CLAUDE_PROJECT_DIR': probes.HERE})
+print(probes.env_for(pr, {}, '/p')['CLAUDE_PROJECT_DIR'])
+try:
+    probes.env_for(pr, {})
+    print('NO ERROR')
+except ValueError as e:
+    print('ValueError: HERE' in str(e) or 'raised')
+PYE2
+)
+chk "env_for fills HERE with the probe dir, and refuses HERE without one" "$out" "/p
+raised"
 if [ -z "$PY_GIVEN" ]; then
   expect_capture "healthy kit, --verbose (what /bendit:doctor prints)" "$PY" "$KIT/scripts/selfcheck.py" --verbose
   chk "--verbose on a healthy kit: exit 0" "$EXPECT_CODE" 0

@@ -4,15 +4,18 @@
 OFF BY DEFAULT. This guard runs only where the project's `.claude/bendit.json`
 turns `ls-guard` on (/adopt does that when it finds `ls` is a shell alias or
 function). Absent file or `"on": false` -> exit 0 at once. A malformed file is
-never read as "off": the guard refuses (exit 2) and names the file.
+never read as "off": the ls check still runs, and a command that would be
+refused as ls-parsing is refused (exit 2) with a message naming the file.
+Every other command passes: a broken file must not lock out `git status` or
+the Edit tool that would fix it.
 
 THE BUG: when `ls` is a function or alias that decorates its output (a table
 with border rows, a header row, colour escapes around every field), anything
 that counts or splits that output counts the decoration:
 
-    find . -maxdepth 1 -mindepth 1 | wc -l   ->   5   (the truth)
-    ls | wc -l                               ->   9   (border and header rows)
-    echo $(ls) | wc -w                       ->  74   (colour escapes)
+    find . -maxdepth 1 -mindepth 1 | wc -l   ->   N   (N entries: the truth)
+    ls | wc -l                               ->   more than N (border, header rows)
+    echo $(ls) | wc -w                       ->   far more than N (colour escapes)
 
 Nothing fails. The pipeline exits 0 and returns a plausible wrong number, so the
 error surfaces only if someone happens to know the real answer.
@@ -38,8 +41,11 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import features  # noqa: E402
-from shell_text import strip_quoted_heredocs  # noqa: E402
+
+# Imported inside main(), under run()'s crash net: a broken features.py or
+# shell_text.py must exit 2 (refuse), not exit 1 (a non-blocking error).
+features = None
+strip_quoted_heredocs = None
 
 # `ls` in COMMAND POSITION: at the start, or after a separator, with only
 # whitespace and an optional backslash between. Anchoring this way is what
@@ -228,13 +234,14 @@ def describe(text, pos, capture):
     return None
 
 
-def check(payload) -> int:
+def refusal(payload):
+    """The message for a command that parses `ls` output, else None."""
     tool_input = payload.get('tool_input') if isinstance(payload, dict) else None
     if not isinstance(tool_input, dict):
-        return 0   # a shape this hook does not understand: ignored, like junk
+        return None   # a shape this hook does not understand: ignored, like junk
     cmd = tool_input.get('command')
     if not isinstance(cmd, str) or not cmd:
-        return 0
+        return None
     # Quoted heredoc bodies are written to a file and run later by some other
     # shell, so they are not scanned. keep_for is EMPTY on purpose: a body fed
     # to `bash`/`sh`/`zsh` runs non-interactively, where a shell function from
@@ -247,29 +254,41 @@ def check(payload) -> int:
         if any(start <= pos < end for start, end in literal):
             continue
         how = describe(cmd, pos, capture)
-        if how is None:
-            continue
-        print(MESSAGE.format(how=how), file=sys.stderr)
-        return 2
-    return 0
+        if how is not None:
+            return MESSAGE.format(how=how)
+    return None
 
 
 def main() -> int:
+    global features, strip_quoted_heredocs
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import features as _features
+    from shell_text import strip_quoted_heredocs as _strip
+    features, strip_quoted_heredocs = _features, _strip
     try:
         payload = json.loads(sys.stdin.buffer.read().decode('utf-8', 'surrogateescape'))
     except ValueError:
         payload = None
     # The feature gate comes first: off or absent -> nothing else runs. A
-    # malformed bendit.json fails CLOSED -- never read as "off".
+    # malformed bendit.json is never read as "off", but it must not block
+    # every command either (a file from a newer bendit would lock out older
+    # teammates): run the ls check anyway and refuse only what it refuses.
+    unreadable = None
     try:
         if not features.is_on(features.project_root(payload), 'ls-guard'):
             return 0
     except features.FeaturesError as e:
-        print('BLOCKED by bendit: `.claude/bendit.json` is unreadable: %s\n'
-              'ls-guard cannot tell whether it is on, so this command is refused until the '
-              'file is fixed (or removed).' % e, file=sys.stderr)
-        return 2
-    return check(payload)
+        unreadable = e
+    msg = refusal(payload)
+    if msg is None:
+        return 0
+    if unreadable is not None:
+        msg = ('BLOCKED by bendit: `.claude/bendit.json` is unreadable: %s\n'
+               'ls-guard cannot tell whether it is on, so a command that parses `ls` output '
+               'is refused until the file is fixed: fix it with the Edit tool, or ask the person.'
+               % unreadable)
+    print(msg, file=sys.stderr)
+    return 2
 
 
 def run() -> int:

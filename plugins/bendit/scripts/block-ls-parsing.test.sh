@@ -96,10 +96,21 @@ python3 "$SD/features.py" set "$T/off" browser-driver on "another feature on, ls
 chk "another feature on, ls-guard off, allows"         "$(run 'ls | wc -l' "$T/off")" "0"
 # FAIL CLOSED: a malformed file is never read as "off".
 chk "a malformed bendit.json refuses"                  "$(run 'ls | wc -l' "$T/bad")" "2"
-chk "  ...even for a command that has no ls"           "$(run 'echo hi' "$T/bad")" "2"
+# ...but only a command the ls check refuses: a broken file must not lock out
+# git status, or the Edit tool that would fix it.
+chk "  ...a command with no ls still runs"             "$(run 'echo hi' "$T/bad")" "0"
+chk "  ...git status still runs"                       "$(run 'git status' "$T/bad")" "0"
+chk "  ...cat of the file itself still runs"           "$(run 'cat .claude/bendit.json' "$T/bad")" "0"
+chk "  ...a bare ls still runs"                        "$(run 'ls -la' "$T/bad")" "0"
 expect_capture "blocked: malformed bendit.json" python3 "$H" <<< "$(pl 'ls | wc -l' "$T/bad")"
 printf '{"version": 1, "features": {"ls-guard": {"on": true, "why": "x"}, "ls-guard": {"on": false, "why": "y"}}}' > "$T/bad/.claude/bendit.json"
 chk "a duplicate key refuses (fail closed)"            "$(run 'ls | wc -l' "$T/bad")" "2"
+# An import failure is inside the crash net: exit 2, never exit 1 (fail open).
+mkdir -p "$T/broken"; cp "$H" "$SD/shell_text.py" "$T/broken/"
+printf 'raise RuntimeError("broken features module")\n' > "$T/broken/features.py"
+chk "a broken features.py refuses (exit 2, not 1)"     "$(pl 'echo hi' | python3 "$T/broken/block-ls-parsing.py" >/dev/null 2>&1; echo $?)" "2"
+printf 'def broken(:\n' > "$T/broken/features.py"
+chk "an unparseable features.py refuses (exit 2)"      "$(pl 'echo hi' | python3 "$T/broken/block-ls-parsing.py" >/dev/null 2>&1; echo $?)" "2"
 # CLAUDE_PROJECT_DIR wins over the payload's cwd, like features.project_root says.
 chk "CLAUDE_PROJECT_DIR (off) beats an on cwd"         "$(CLAUDE_PROJECT_DIR="$T/off" run 'ls | wc -l' "$T/on")" "0"
 chk "CLAUDE_PROJECT_DIR (on) beats an off cwd"         "$(CLAUDE_PROJECT_DIR="$T/on" run 'ls | wc -l' "$T/off")" "2"

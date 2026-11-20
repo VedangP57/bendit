@@ -380,15 +380,50 @@ _HOSTNAME = re.compile(r"[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?(\.[a-z0-9_]([a-z0
 _IPV6 = re.compile(r"[0-9a-f:.]*:[0-9a-f:.]*")
 
 
-def _host_port(value):
-    """(host, port) from a URL (callers pass only values containing "://"). Never raises.
-    host is None unless it looks like a hostname, an IPv4 address or a
-    bracketed IPv6 address, so whatever is returned is safe to print.
+def _authority(auth):
+    """(host, port_s) if `auth` is exactly host[:digits] -- a hostname, IPv4 or
+    [IPv6] -- else None."""
+    if auth.startswith("["):  # [IPv6]:port
+        host, close, tail = auth[1:].partition("]")
+        if not close or not _IPV6.fullmatch(host):
+            return None
+        if tail and not tail.startswith(":"):
+            return None
+        port_s = tail[1:]
+    else:
+        host, _, port_s = auth.partition(":")
+        if len(host) > 253 or not _HOSTNAME.fullmatch(host):
+            return None
+    if port_s and not port_s.isdigit():
+        return None
+    return host, port_s
 
-    Userinfo is dropped FIRST: everything up to the last @ goes, whatever it
-    holds. Cutting the authority at the first / ? # before that let a password
-    holding one of them raw (`admin:1234#x@db`) come back as host "admin",
-    port 1234 -- printed as the probe's label. With no @ there is no userinfo
+
+def _host_port(value):
+    """(host, port) from a URL (callers pass only values containing "://"), or
+    (None, None) when no host can be named without risk. Never raises.
+
+    A password may hold / ? # @ raw, and a path or query may hold @, so where
+    userinfo ends is not knowable from the text alone. The rule:
+      1. a value with no @ has no userinfo (RFC 3986): its authority runs to
+         the first / ? or #;
+      2. a value with an @ HAS userinfo, ending at one of its @s. Each @ is
+         tried; a reading counts only if the text after that @, up to the
+         first / ? or #, is exactly host[:digits] with the host a hostname,
+         IPv4 or [IPv6];
+      3. if the readings that count all name the same host and port, that is
+         the answer; if none counts, or two disagree, there is no host.
+    So a raw # / ? in a password (`u:1234#x@h:5432`: only `h:5432` reads as a
+    host) is skipped, and an @ in the path of a URL with userinfo
+    (`u:p@h:5432/a@b`: host h with path /a@b, or password `p@h:5432/a` with
+    host b) is refused rather than guessed -- either guess could print part
+    of a password. Rule 2 is why `u:1234#x@h` is not read as host u, port
+    1234 and fragment `x@h`: that reading would print the password.
+    Known cost: a URL with NO userinfo but an @ in its path
+    (`https://h.example.com/x@y`) reads as userinfo `h.example.com/x`, host y.
+    It probes the wrong host; nothing before the @ is printed.
+
+    Whatever is returned is safe to print. With no @ there is no userinfo
     (RFC 3986), so `tok://x:1234` is host x, port 1234, like `redis://cache:6379`.
 
     Not urlsplit: an unencoded `[...]` in a password (`admin:[tok]@db...`) made
@@ -399,21 +434,21 @@ def _host_port(value):
     if not sep:
         scheme, rest = "", value
     scheme = scheme.lower()
-    rest = rest.rpartition("@")[2]  # everything up to the LAST @ is userinfo
-    auth = re.split(r"[/?#]", rest, maxsplit=1)[0].strip().lower()
-    if auth.startswith("["):  # [IPv6]:port
-        host, close, tail = auth[1:].partition("]")
-        port_s = tail[1:] if tail.startswith(":") else ""
-        if not close or (tail and not tail.startswith(":")) or not _IPV6.fullmatch(host):
-            host = ""
-    else:
-        host, _, port_s = auth.partition(":")
-        if len(host) > 253 or not _HOSTNAME.fullmatch(host):
-            host = ""
-    port = int(port_s) if port_s.isdigit() and 0 < int(port_s) < 65536 else None
+    rest = rest.strip().lower()
+    starts = [i + 1 for i, c in enumerate(rest) if c == "@"] or [0]
+    found = set()
+    for start in starts:
+        auth = re.split(r"[/?#]", rest[start:], maxsplit=1)[0]
+        hp = _authority(auth)
+        if hp is not None:
+            found.add(hp)
+    if len(found) != 1:
+        return None, None
+    host, port_s = found.pop()
+    port = int(port_s) if port_s and 0 < int(port_s) < 65536 else None
     if port is None and not port_s:
         port = DEFAULT_PORTS.get(scheme)
-    return host or None, port
+    return host, port
 
 
 def _probe_lines(label, short_label, p, stamp):

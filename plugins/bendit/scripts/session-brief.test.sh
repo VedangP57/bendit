@@ -262,7 +262,7 @@ has "bracketed IPv6 host" "[::1]:6543/db -> ('::1', 6543)"
 has "host lowercased, scheme default port" "https://Example.COM/path?q=1 -> ('example.com', 443)"
 has "explicit port" "http://h.example.com:8080 -> ('h.example.com', 8080)"
 has "no scheme, host:port" "db.example.com:6543 -> ('db.example.com', 6543)"
-has "a bad port is no port, not an exception" "https://h.example.com:notaport/ -> ('h.example.com', None)"
+has "a bad port is no host:port, not an exception" "https://h.example.com:notaport/ -> (None, None)"
 has "unknown scheme, no port -> no port" "mysql://h.example.com/x -> ('h.example.com', None)"
 
 # The authority is NOT cut at the first / ? or # before userinfo is dropped: a
@@ -279,19 +279,34 @@ cases = [("hash-in-password", "postgres://u:1234#x@h:5432"),
          ("empty-host", "postgres://u:p@:5432"),
          ("ipv4", "postgres://u:p@10.0.0.7:5432/db"),
          ("ipv6-junk-after-bracket", "postgres://u:p@[::1]x:5432"),
-         ("ipv6-not-hex", "postgres://u:p@[zz]:5432")]
+         ("ipv6-not-hex", "postgres://u:p@[zz]:5432"),
+         ("at-in-path", "postgres://u:p@h:5432/a@b"),
+         ("at-in-query", "postgres://u:p@h/db?x=a@b:99"),
+         ("at-in-path-no-userinfo", "https://h.example.com/x@y"),
+         ("at-in-path-not-a-host", "postgres://u:p@h:5432/a@b!c"),
+         ("at-ends-query", "postgres://u:p@h/db?x=a@")]
 for label, v in cases:
     print("%s -> %r" % (label, sb._host_port(v)))'
 has "# in the password: the host after the LAST @" "hash-in-password -> ('h', 5432)"
 has "/ in the password: the host after the LAST @" "slash-in-password -> ('h', 5432)"
 has "? in the password: the host after the LAST @" "query-in-password -> ('h.example.com', 5432)"
 has "no @ means no userinfo: a single-label host (a compose service) is a host" "no-userinfo-single-label -> ('x', 1234)"
-has "a host that is not hostname-shaped is no host" "not-host-like -> (None, 1234)"
-has "...after an @ too" "not-host-like-after-at -> (None, 5432)"
-has "an empty host is no host" "empty-host -> (None, 5432)"
+has "a host that is not hostname-shaped is no host" "not-host-like -> (None, None)"
+has "...after an @ too" "not-host-like-after-at -> (None, None)"
+has "an empty host is no host" "empty-host -> (None, None)"
 has "IPv4 host" "ipv4 -> ('10.0.0.7', 5432)"
-has "junk after ] is no host" "ipv6-junk-after-bracket -> (None, 5432)"
-has "[...] that is not an IPv6 address is no host" "ipv6-not-hex -> (None, 5432)"
+has "junk after ] is no host" "ipv6-junk-after-bracket -> (None, None)"
+has "[...] that is not an IPv6 address is no host" "ipv6-not-hex -> (None, None)"
+# An @ in the path or query makes a second reading: `u:p@h:5432/a@b` is host h
+# with path /a@b, OR password `p@h:5432/a` with host b. Nothing tells them
+# apart, and either guess may print part of a password, so: no host.
+has "@ in the path, both readings hosts: ambiguous, no host" "at-in-path -> (None, None)"
+has "@ in the query, both readings hosts: ambiguous, no host" "at-in-query -> (None, None)"
+# The stated cost of reading every @ as ending userinfo (rule 2 in _host_port):
+# with no userinfo, an @ in the path reads as one. Pinned so a change is seen.
+has "@ in the path of a URL with no userinfo reads as userinfo (the known cost)" "at-in-path-no-userinfo -> ('y', 443)"
+has "@ in the path, the other reading is no host: the one reading wins" "at-in-path-not-a-host -> ('h', 5432)"
+has "@ ending the query: the other reading is empty, the one reading wins" "at-ends-query -> ('h', 5432)"
 count "the password is never the host" "1234'|'p/q|'u'" 0
 
 # --- no network unless listed -------------------------------------------------
@@ -448,6 +463,15 @@ brief "probe-not-host-like" --cwd "$T/b-nothost"
 valid "probe-not-host-like"
 has "a non-host is reported as not probed" "| [files] API_URL has no usable host and port; not probed"
 count "  ...and never printed" 's3cr|1234' 0
+
+# An @ in the path makes the host ambiguous (see host-port-userinfo): nothing
+# from the value is printed, neither guess at the host.
+mk "$T/b-atpath"; printf 'DB_URL=postgres://u:p@x.invalid:5432/a@s3cretb\n' > "$T/b-atpath/.env.local"
+conf "$T/b-atpath" '{"probe_env_vars": ["DB_URL"]}'
+brief "probe-at-in-path" --cwd "$T/b-atpath"
+valid "probe-at-in-path"
+has "an ambiguous host is reported as not probed" "| [files] DB_URL has no usable host and port; not probed"
+count "  ...and neither reading is printed" 's3cretb|x\.invalid' 0
 
 # listen <4|6>  -- a loopback-only listener in the background, for the rest of
 # the suite; sets LPORT, or LPORT="" if that loopback cannot be bound here.

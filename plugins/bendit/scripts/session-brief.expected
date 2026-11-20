@@ -167,7 +167,7 @@ db.example.com/x -> ('db.example.com', 5432)
 https://Example.COM/path?q=1 -> ('example.com', 443)
 http://h.example.com:8080 -> ('h.example.com', 8080)
 db.example.com:6543 -> ('db.example.com', 6543)
-https://h.example.com:notaport/ -> ('h.example.com', None)
+https://h.example.com:notaport/ -> (None, None)
 mysql://h.example.com/x -> ('h.example.com', None)
 
 === host-port-userinfo
@@ -177,12 +177,17 @@ hash-in-password -> ('h', 5432)
 slash-in-password -> ('h', 5432)
 query-in-password -> ('h.example.com', 5432)
 no-userinfo-single-label -> ('x', 1234)
-not-host-like -> (None, 1234)
-not-host-like-after-at -> (None, 5432)
-empty-host -> (None, 5432)
+not-host-like -> (None, None)
+not-host-like-after-at -> (None, None)
+empty-host -> (None, None)
 ipv4 -> ('10.0.0.7', 5432)
-ipv6-junk-after-bracket -> (None, 5432)
-ipv6-not-hex -> (None, 5432)
+ipv6-junk-after-bracket -> (None, None)
+ipv6-not-hex -> (None, None)
+at-in-path -> (None, None)
+at-in-query -> (None, None)
+at-in-path-no-userinfo -> ('y', 443)
+at-in-path-not-a-host -> ('h', 5432)
+at-ends-query -> ('h', 5432)
 
 === no-network-by-default
 exit 0
@@ -319,6 +324,23 @@ first: Session brief — snapshot taken <time>. Where it disagrees with live git
 | [git] Uncommitted: ?? .env.local
 | [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
 toast: brief: main · 1 uncommitted · API_URL has no usable host and port; not probed
+toast <= 120 chars: True
+
+=== probe-at-in-path
+exit 0
+--- stdout
+exit: 0
+stdout lines: 1
+json: valid, keys ['context', 'toast']
+context <= 2000 chars: True
+first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
+| [files] DB_URL has no usable host and port; not probed
+| [git] Branch: main — 1 uncommitted file.
+| [git] Push: not on origin (as of the last fetch).
+| [git] Uncommitted: ?? .env.local
+| [git] Commits on this branch: unknown (no origin/HEAD, so no base branch to compare with)
+toast: brief: main · 1 uncommitted · DB_URL has no usable host and port; not probed
 toast <= 120 chars: True
 
 === local-port-v4-only

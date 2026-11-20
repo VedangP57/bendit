@@ -120,6 +120,7 @@ Stop gate + .claude/verify-harness| prove.sh Stop gate + harness rows
 
 ADVICE (skills/commands; the agent may ignore them)
 <skill or command>                | when it applies
+/vocabulary                       | on request; no hook runs it; not yet measured
 
 NOT POSSIBLE HERE, AND WHY
 <item>                            | <reason, with source>

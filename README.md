@@ -101,7 +101,8 @@ the layer that holds it, are in [docs/ladder.md](docs/ladder.md).
 | Advice | a session-start brief: branch, push state, uncommitted files, other worktrees with unfinished work, and only the liveness probes the project lists; only in a project whose `.claude/bendit.json` turns `session-brief` on; not yet measured | `SessionStart` hook (startup and clear); it never blocks, and a malformed config is an alarm in the brief |
 | Advice | band-aid patterns in edits, suppressed stderr | `PostToolUse` hooks: they speak after the tool ran and cannot block |
 | Advice | skills: `checks-that-can-lie`, `encode-lessons-in-structure`, `engineering-habits` | loaded when relevant; the agent may ignore them |
-| Advice | commands: `/ship`, `/review-diff`, `/verify`, `/doctor` | checklists the agent runs when asked |
+| Advice | a controlled vocabulary for agent prose (`scripts/controlled-vocabulary.py`, `/vocabulary`): flags inflated wording, requirements phrased as advice, and completion claims that name no observation; nothing runs it unless you do, and no hook is wired; not yet measured | `/vocabulary` or `--check FILE` in your own CI; it reports and never blocks |
+| Advice | commands: `/ship`, `/review-diff`, `/verify`, `/doctor`, `/vocabulary` | checklists the agent runs when asked |
 
 Guards read shell commands with a small lexer, so a rule asks about the command
 that would actually run (through `sudo`, `env`, `bash -c`, `xargs`…), and quoted

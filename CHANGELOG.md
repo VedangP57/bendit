@@ -50,6 +50,10 @@ Nothing below has an eval result yet: every new piece is *not yet measured*.
   `CONTRIBUTING.md`.
 
 ### Changed
+- **Saved login state** (`saveState` / `storageState` in a scenario): a relative path
+  now resolves against the scenario's folder, not the current directory, and must
+  stay inside it. Saved login state is git-ignored, and `saveState` is refused if
+  git would commit the file or if git cannot confirm it is ignored.
 - **`/adopt`** gains step 3b: detect the features (detect.md §8), ask before
   each missing dependency (Chrome, Node, Playwright, `bendit-web`), and write
   every feature to `.claude/bendit.json` in one chained `features.py` call. A

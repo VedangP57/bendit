@@ -640,6 +640,38 @@ Missing: git
 There is no terminal to ask on, so nothing was installed. Run the commands
 above yourself, or run this installer from a terminal.
 
+=== linux, pacman, root, no terminal
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      missing   any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+Missing: git
+  git: pacman -S --needed --noconfirm git
+    (if this fails, run `pacman -Syu` yourself first)
+There is no terminal to ask on, so nothing was installed. Run the commands
+above yourself, or run this installer from a terminal.
+
+=== linux, pacman, root, install fails
+exit 1
+--- stdout
+  item     found     needed  why
+✓ claude   2.1.328   any     runs the agent bendit plugs into
+✗ git      missing   any     reads and records your changes
+✓ python3  3.12.1    3.9+    runs bendit's guards
+
+git is missing or does not run (it reads and records your changes).
+  To install it, bendit would run:
+    pacman -S --needed --noconfirm git
+  Run that now? [y/N] 
+  The install command failed (exit 1), and git is still not ready.
+  Run `pacman -Syu` yourself first (a stale package database), then run this again.
+
+git is required, so bendit cannot go on without it.
+Install it, then run this again.
+
 === linux dnf, node 18
 exit 0
 --- stdout

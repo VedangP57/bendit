@@ -473,6 +473,17 @@ expect_capture "linux, pacman, no terminal" run_installer "$I"
 chk "pacman, no terminal: lists the command" "$(nodots "$EXPECT_STDOUT" '^  git: sudo pacman -S --needed --noconfirm git$')" 1
 chk "pacman, no terminal: says to upgrade first" "$(nodots "$EXPECT_STDOUT" 'if this fails, run `sudo pacman -Syu` yourself first')" 1
 chk "pacman, no terminal: nothing ran"  "$(callsfor "$I" sudo)$(callsfor "$I" pacman)" 00
+I="$T/i6pr"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/git"
+stub "$I" uname 0 Linux; stub "$I" pacman 0; stub "$I" id 0 0
+expect_capture "linux, pacman, root, no terminal" run_installer "$I"
+chk "pacman as root: command has no sudo" "$(nodots "$EXPECT_STDOUT" '^  git: pacman -S --needed --noconfirm git$')" 1
+chk "pacman as root: hint says pacman -Syu, no sudo" "$(nodots "$EXPECT_STDOUT" 'if this fails, run `pacman -Syu` yourself first')" 1
+chk "pacman as root: never mentions sudo" "$(nodots "$EXPECT_STDOUT" 'sudo')" 0
+I="$T/i6prf"; sandbox "$I" chmod; ok_tools "$I"; rm -f "$I/bin/git"
+stub "$I" uname 0 Linux; stub "$I" pacman 1; stub "$I" id 0 0; printf 'y\n' > "$I/ans"
+BENDIT_TTY="$I/ans" expect_capture "linux, pacman, root, install fails" run_installer "$I"
+chk "pacman as root, failed: hint says pacman -Syu, no sudo" "$(nodots "$EXPECT_STDOUT" 'Run `pacman -Syu` yourself first')" 1
+chk "pacman as root, failed: never mentions sudo" "$(nodots "$EXPECT_STDOUT" 'sudo')" 0
 I="$T/i6dn"; sandbox "$I" chmod; ok_tools "$I"; real_python "$I"; real_git "$I"; claude_reads "$I"
 stub "$I" uname 0 Linux; stub "$I" dnf 0; stub "$I" sudo 0; stub "$I" id 0 1000; stub "$I" node 0 "v18.19.0"
 printf '{"dependencies":{"next":"14"}}\n' > "$I/proj/package.json"; mkdir -p "$I/apps/Google Chrome.app"; printf 'y\n' > "$I/ans"

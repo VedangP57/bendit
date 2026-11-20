@@ -300,10 +300,12 @@ manual_pointer() {
 # bendit never upgrades the system for you, so it says how.
 pacman_hint() {
   case "$1" in *pacman\ *) ;; *) return 0 ;; esac
+  local s=""   # the prefix the install command itself used (empty for root)
+  case "$1" in "sudo "*) s="sudo " ;; esac
   if [ -n "${2:-}" ]; then
-    say "  Run \`sudo pacman -Syu\` yourself first (a stale package database), then run this again."
+    say "  Run \`${s}pacman -Syu\` yourself first (a stale package database), then run this again."
   else
-    say "    (if this fails, run \`sudo pacman -Syu\` yourself first)"
+    say "    (if this fails, run \`${s}pacman -Syu\` yourself first)"
   fi
 }
 

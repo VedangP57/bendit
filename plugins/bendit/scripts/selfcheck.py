@@ -40,7 +40,10 @@ tool's environment. Both are the same id: checked on Claude Code 2.1.329 with a
 headless session, on startup and on --resume. The markers live outside every
 project (one window may visit several), in
 ${BENDIT_LIVE_DIR:-${XDG_CACHE_HOME:-~/.cache}/bendit/live-sessions}; markers
-older than 30 days are removed. No id, or no marker: never "live".
+older than 30 days are removed. No id, or no marker: never "live"; a marker
+folder that cannot be written is named ("can't write <folder>"). A second line,
+`live test: run|skip`, says whether `git push --force bendit-probe HEAD` is
+harmless here: only while no git remote, file or folder is named bendit-probe.
 
 Exit (table mode): 0 every hook answered, 1 something is OFF or unchecked.
 """
@@ -340,19 +343,61 @@ def mark_live(payload_text):
         pass
 
 
+def unwritable(d):
+    """The nearest folder that exists at or above <d>, when the start-up check
+    could not create its marker there; else ''."""
+    cur = os.path.abspath(d)
+    while not os.path.exists(cur):
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            return ''
+        cur = parent
+    return '' if os.access(cur, os.W_OK | os.X_OK) else cur
+
+
+PROBE = 'bendit-probe'
+
+
+def live_test_line():
+    """Is `git push --force bendit-probe HEAD` harmless HERE? Only while that
+    name reaches nothing: no git remote of that name, no file or folder."""
+    try:
+        p = subprocess.run(['git', 'remote', 'get-url', PROBE], capture_output=True, text=True,
+                           timeout=10, stdin=subprocess.DEVNULL)
+        if p.returncode == 0:
+            return (f'live test: skip -- this project has a git remote named {PROBE}, '
+                    'so the test push could reach it')
+    except FileNotFoundError:
+        pass    # no git: the push cannot run either
+    except (OSError, subprocess.SubprocessError) as e:
+        return f'live test: skip -- could not check for a git remote named {PROBE} ({type(e).__name__})'
+    if os.path.lexists(PROBE):
+        return (f'live test: skip -- there is a file or folder named {PROBE} in this folder, '
+                'so the test push could reach it')
+    return f'live test: run -- nothing here is named {PROBE}, so the test push cannot reach anything'
+
+
 def session_report():
     sid = os.environ.get('CLAUDE_CODE_SESSION_ID', '')
     name = marker_name(sid)
+    rc = 1
     if not name:
         print('window: unknown -- Claude Code did not say which window this is '
               '(CLAUDE_CODE_SESSION_ID is not set), so the marker cannot be looked up')
-        return 3
-    if os.path.isfile(os.path.join(live_dir(), name)):
+        rc = 3
+    elif os.path.isfile(os.path.join(live_dir(), name)):
         print(f"window: live -- bendit's hooks started in this Claude window (session {sid})")
-        return 0
-    print(f"window: not live -- bendit's hooks did not start in this Claude window (session {sid}): "
-          'it was opened before bendit was set up, or bendit is not installed for this project')
-    return 1
+        rc = 0
+    else:
+        bad = unwritable(live_dir())
+        if bad:
+            print(f"window: not live (can't write {bad}) -- no marker for this Claude window "
+                  f'(session {sid}), and the start-up check could not have left one there')
+        else:
+            print(f"window: not live -- bendit's hooks did not start in this Claude window (session {sid}): "
+                  'it was opened before bendit was set up, or bendit is not installed for this project')
+    print(live_test_line())
+    return rc
 
 
 def main(argv):

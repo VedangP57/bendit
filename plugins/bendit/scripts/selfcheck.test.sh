@@ -392,10 +392,17 @@ startup "win-resumed" resume
 win "win-resumed"
 chk "a resumed window (source resume) is live too" "$WIN_RC" 0
 # A session id is data from outside: it must never name a path outside the dir.
-startup "../../escaped" startup
+# From $T/live, ../../<name> lands in the folder ABOVE $T: look there, and
+# under $T, for anything carrying the name; the marker folder must hold
+# exactly one file.
+ESC="bendit-escaped-$$"
+rm -rf "$BENDIT_LIVE_DIR"
+startup "../../$ESC" startup
 chk "a session_id with ../ writes nothing outside the marker folder" \
-    "$([ -e "$T/escaped" ] || [ -e "$BENDIT_LIVE_DIR/../escaped" ] && echo escaped || echo inside)" inside
-win "../../escaped"
+    "$(/usr/bin/find "$(dirname "$T")" -maxdepth 1 -name "*$ESC*" | wc -l | tr -d ' ')|$(/usr/bin/find "$T" -name "*$ESC*" ! -path "$BENDIT_LIVE_DIR/*" | wc -l | tr -d ' ')" "0|0"
+chk "  ...and leaves exactly one marker, inside it" \
+    "$(/usr/bin/find "$BENDIT_LIVE_DIR" -type f | wc -l | tr -d ' ')" 1
+win "../../$ESC"
 chk "  ...and --session reads it back by the same safe name" "$WIN_RC" 0
 # No payload, or one that is not JSON: no marker, no noise, still exit 0.
 rm -rf "$BENDIT_LIVE_DIR"
@@ -410,8 +417,25 @@ if [ "$(id -u)" -ne 0 ]; then
   chk "an unwritable marker folder: the hook still exits 0, silent" "$rc|$(cat "$T/st.out")" "0|"
   o="$(CLAUDE_CODE_SESSION_ID=ro-win BENDIT_LIVE_DIR="$T/ro/live" "$PY" "$KIT/scripts/selfcheck.py" --session 2>&1)"; rc=$?
   chk "  ...and --session then says not live, never live" "$rc" 1
+  has "  ...naming the folder it cannot write, so the cause is visible" "can't write $T/ro" "$o"
   chmod 755 "$T/ro"
 fi
+# The live test pushes to `bendit-probe`. Harmless only while that name reaches
+# nothing: --session says whether it is safe to run here (the current folder).
+lt() {  # lt <dir> -- the "live test:" line --session prints, run from <dir>
+  (cd "$1" && CLAUDE_CODE_SESSION_ID=win-started-here "$PY" "$KIT/scripts/selfcheck.py" --session 2>&1) | grep '^live test:'
+}
+LP="$T/lt-plain"; mkdir -p "$LP"; git -C "$LP" init -q
+has "no remote or folder named bendit-probe: the live test may run" "live test: run" "$(lt "$LP")"
+LR="$T/lt-remote"; mkdir -p "$LR"; git -C "$LR" init -q; git -C "$LR" remote add bendit-probe "$T/somewhere"
+has "a git remote named bendit-probe: the live test is skipped" "live test: skip" "$(lt "$LR")"
+has "  ...saying why" "git remote named bendit-probe" "$(lt "$LR")"
+LF="$T/lt-folder"; mkdir -p "$LF/bendit-probe"; git -C "$LF" init -q
+has "a folder named bendit-probe here: skipped" "live test: skip" "$(lt "$LF")"
+has "  ...saying why" "named bendit-probe in this folder" "$(lt "$LF")"
+LN="$T/lt-nogit"; mkdir -p "$LN"
+has "not a git repository: the push fails anyway, may run" "live test: run" "$(lt "$LN")"
+
 # Old markers are removed, so they cannot pile up: 30 days.
 mkdir -p "$BENDIT_LIVE_DIR"; : > "$BENDIT_LIVE_DIR/old-win"; : > "$BENDIT_LIVE_DIR/recent-win"
 "$PY" -c 'import os, sys, time; t = time.time() - 31 * 86400; os.utime(sys.argv[1], (t, t))' "$BENDIT_LIVE_DIR/old-win"
@@ -421,9 +445,11 @@ chk "a marker older than 30 days is removed when a new window starts" \
 chk "  ...a recent one is kept" "$([ -e "$BENDIT_LIVE_DIR/recent-win" ] && echo kept || echo removed)" kept
 if [ -z "$PY_GIVEN" ]; then
   startup "win-snap" startup
+  HERE="$PWD"; cd "$LP" || exit 2   # a folder with no bendit-probe: the same "live test:" line everywhere
   expect_capture "--session, a window bendit started in" env CLAUDE_CODE_SESSION_ID=win-snap "$PY" "$KIT/scripts/selfcheck.py" --session
   expect_capture "--session, a window opened before bendit was set up" env CLAUDE_CODE_SESSION_ID=win-before "$PY" "$KIT/scripts/selfcheck.py" --session
   expect_capture "--session, no session id from Claude Code" env -u CLAUDE_CODE_SESSION_ID "$PY" "$KIT/scripts/selfcheck.py" --session
+  cd "$HERE" || exit 2   # back: the rerun below starts "$0", which may be a relative path
 fi
 
 echo

@@ -125,14 +125,17 @@ add-on scope: bendit-web is installed for every project, not only this one. Fix:
 exit 0
 --- stdout
 window: live -- bendit's hooks started in this Claude window (session win-snap)
+live test: run -- nothing here is named bendit-probe, so the test push cannot reach anything
 
 === --session, a window opened before bendit was set up
 exit 1
 --- stdout
 window: not live -- bendit's hooks did not start in this Claude window (session win-before): it was opened before bendit was set up, or bendit is not installed for this project
+live test: run -- nothing here is named bendit-probe, so the test push cannot reach anything
 
 === --session, no session id from Claude Code
 exit 3
 --- stdout
 window: unknown -- Claude Code did not say which window this is (CLAUDE_CODE_SESSION_ID is not set), so the marker cannot be looked up
+live test: run -- nothing here is named bendit-probe, so the test push cannot reach anything
 

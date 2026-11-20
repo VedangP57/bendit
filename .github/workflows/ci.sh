@@ -8,7 +8,8 @@
 # Stages: shell  imports  privacy  validate
 #
 #   shell     every plugins/bendit/scripts/*.test.sh suite (only bendit has
-#             scripts; a plugin that gains some means changing $PLUGIN below)
+#             scripts; a plugin that gains some means changing $PLUGIN below),
+#             several at once (BENDIT_CI_JOBS=1 runs them one at a time)
 #   imports   byte-compiles every scripts/*.py under python3, and again under
 #             /usr/bin/python3 when it exists (3.9 on macOS: the oldest Python
 #             the kit supports), so syntax or an annotation 3.9 rejects fails
@@ -36,13 +37,56 @@ failed=()
 
 fail() { echo "FAIL: $*" >&2; }
 
+# Suites run CONCURRENTLY: each makes its own mktemp -d and touches nothing
+# shared, so the only thing serial order bought was wall time (4:51 here,
+# against the Stop gate's 300 s budget). Each suite's output goes to its own file and is
+# printed whole, in suite order, so the log reads as it did serially.
+# BENDIT_CI_JOBS caps the pool (default: half the CPUs, at least 2) -- not
+# every core, because some suites assert that a hook answers within its time
+# budget, and a fully loaded machine would test the machine, not the hook.
+ci_jobs() {
+  local n="${BENDIT_CI_JOBS:-}"
+  case "$n" in ''|*[!0-9]*|0) n="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"; n=$((n / 2)) ;; *) echo "$n"; return ;; esac
+  [ "$n" -ge 2 ] || n=2
+  echo "$n"
+}
+
 stage_shell() {
-  local suites=() s rc=0 ran=0
+  local suites=() s i rc=0 ran=0 jobs
+  local -a pids=() idx=() codes=()
   for s in "$PLUGIN"/scripts/*.test.sh; do [ -f "$s" ] && suites+=("$s"); done
   if [ "${#suites[@]}" -eq 0 ]; then fail "no $PLUGIN/scripts/*.test.sh found, so NOTHING was run"; return 1; fi
-  for s in "${suites[@]}"; do
+  jobs="$(ci_jobs)"
+  echo "--- ${#suites[@]} suites, up to $jobs at a time"
+  # reap -- wait until ANY running suite has finished, record its exit code and
+  # free its slot. Bash 3.2 (macOS /bin/bash) has no `wait -n`, so it polls:
+  # bash reaps a finished child itself, after which `kill -0` fails and `wait`
+  # still returns the child's saved status. (Waiting on the oldest instead let
+  # one long suite hold its slot's successors back.)
+  reap() {
+    local k
+    while :; do
+      for k in "${!pids[@]}"; do
+        if ! kill -0 "${pids[$k]}" 2>/dev/null; then
+          wait "${pids[$k]}"; codes[${idx[$k]}]=$?
+          unset "pids[$k]" "idx[$k]"; pids=("${pids[@]+"${pids[@]}"}"); idx=("${idx[@]+"${idx[@]}"}")
+          return
+        fi
+      done
+      sleep 0.2
+    done
+  }
+  for i in "${!suites[@]}"; do
+    while [ "${#pids[@]}" -ge "$jobs" ]; do reap; done
+    bash "${suites[$i]}" </dev/null >"$OUT/suite-$i.log" 2>&1 &
+    pids+=("$!"); idx+=("$i")
+  done
+  while [ "${#pids[@]}" -gt 0 ]; do reap; done
+  for i in "${!suites[@]}"; do
+    s="${suites[$i]}"
     echo "--- bash $s"
-    if bash "$s"; then ran=$((ran+1)); else fail "$s exited non-zero"; rc=1; fi
+    cat "$OUT/suite-$i.log"
+    if [ "${codes[$i]}" -eq 0 ]; then ran=$((ran+1)); else fail "$s exited non-zero"; rc=1; fi
   done
   echo "shell: ${ran}/${#suites[@]} suites passed"
   return $rc

@@ -84,5 +84,41 @@ ci "$F" validate
 chk "exit 1" "$CI_RC" 1
 has "  ...saying nothing was measured" "NOTHING was measured" "$CI_OUT"
 
+echo
+echo "shell: suites run concurrently, and every one is still reported and counted"
+# a and c can only both pass if they run AT THE SAME TIME: each writes its
+# marker, then waits up to 3s for the other's. Run one after the other, the
+# first times out and fails. b fails on purpose: a failure must not be lost.
+# shellfix <fixture> -- the three suites in <fixture>'s scripts/
+shellfix() {
+  local f="$1" n mine theirs
+  fixture "$f"
+  for n in a:c c:a; do
+    mine="${n%%:*}"; theirs="${n##*:}"
+    printf '#!/usr/bin/env bash\necho "%s-OUT"\n: > "%s/%s.mark"\nfor i in $(seq 1 30); do [ -e "%s/%s.mark" ] && exit 0; sleep 0.1; done\necho "%s never saw %s"; exit 1\n' \
+      "$mine" "$f" "$mine" "$f" "$theirs" "$mine" "$theirs" > "$f/plugins/bendit/scripts/$mine.test.sh"
+  done
+  printf '#!/usr/bin/env bash\necho "b-OUT"\nexit 1\n' > "$f/plugins/bendit/scripts/b.test.sh"
+}
+F="$T/shell"; shellfix "$F"
+ci "$F" shell
+chk "a failing suite fails the stage" "$CI_RC" 1
+has "  ...named" "FAIL: ./plugins/bendit/scripts/b.test.sh exited non-zero" "$CI_OUT"
+has "  ...and counted" "shell: 2/3 suites passed" "$CI_OUT"
+case "$CI_OUT" in *"never saw"*) o=serial ;; *) o=concurrent ;; esac
+chk "two suites waiting on each other both passed (they ran at once)" "$o" concurrent
+chk "each suite's output is printed whole, in suite order" \
+    "$(grep -E '^(--- bash|[abc]-OUT)' <<<"$CI_OUT" | sed 's|^--- bash ./plugins/bendit/scripts/||')" \
+    "a.test.sh
+a-OUT
+b.test.sh
+b-OUT
+c.test.sh
+c-OUT"
+F="$T/shell1"; shellfix "$F"
+BENDIT_CI_JOBS=1 ci "$F" shell
+has "BENDIT_CI_JOBS=1 runs them one at a time (so the knob is real)" "a never saw c" "$CI_OUT"
+chk "  ...and that fails the stage" "$CI_RC" 1
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$pass" -gt 0 ] && [ "$fail" -eq 0 ]

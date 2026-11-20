@@ -259,16 +259,43 @@ def refusal(payload):
     return None
 
 
+def no_bendit_json(payload) -> bool:
+    """True only when the project certainly has no .claude/bendit.json.
+
+    This hook runs on every Bash call, and almost every project has no file:
+    answering that from one stat, before features.py and shell_text.py are
+    imported, is most of the hook's cost. The root is features.project_root's
+    first two choices (CLAUDE_PROJECT_DIR, then the payload's cwd); anything
+    else -- no root, a NUL byte, a stat that fails for another reason --
+    returns False and takes the full path, which fails closed.
+    """
+    root = os.environ.get('CLAUDE_PROJECT_DIR')
+    if not root:
+        cwd = payload.get('cwd') if isinstance(payload, dict) else None
+        root = cwd if isinstance(cwd, str) and cwd else None
+    if not root:
+        return False
+    try:
+        os.stat(os.path.join(root, '.claude', 'bendit.json'))
+    except FileNotFoundError:
+        return True
+    except (OSError, ValueError):
+        return False
+    return False
+
+
 def main() -> int:
     global features, strip_quoted_heredocs
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    import features as _features
-    from shell_text import strip_quoted_heredocs as _strip
-    features, strip_quoted_heredocs = _features, _strip
     try:
         payload = json.loads(sys.stdin.buffer.read().decode('utf-8', 'surrogateescape'))
     except ValueError:
         payload = None
+    if no_bendit_json(payload):
+        return 0
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import features as _features
+    from shell_text import strip_quoted_heredocs as _strip
+    features, strip_quoted_heredocs = _features, _strip
     # The feature gate comes first: off or absent -> nothing else runs. A
     # malformed bendit.json is never read as "off", but it must not block
     # every command either (a file from a newer bendit would lock out older

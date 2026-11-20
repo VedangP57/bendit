@@ -111,6 +111,14 @@ printf 'raise RuntimeError("broken features module")\n' > "$T/broken/features.py
 chk "a broken features.py refuses (exit 2, not 1)"     "$(pl 'echo hi' | python3 "$T/broken/block-ls-parsing.py" >/dev/null 2>&1; echo $?)" "2"
 printf 'def broken(:\n' > "$T/broken/features.py"
 chk "an unparseable features.py refuses (exit 2)"      "$(pl 'echo hi' | python3 "$T/broken/block-ls-parsing.py" >/dev/null 2>&1; echo $?)" "2"
+# No bendit.json: the guard exits 0 before it imports anything of its own (it
+# runs on every Bash call). Proven with the broken features.py above: it is
+# never imported where there is no file, and still refuses where there is one.
+chk "no bendit.json: a broken features.py is never imported (exit 0)" "$(pl 'ls | wc -l' "$T/none" | python3 "$T/broken/block-ls-parsing.py" >/dev/null 2>&1; echo $?)" "0"
+chk "  ...CONTROL: with a bendit.json it is (exit 2)" "$(pl 'ls | wc -l' "$T/on" | python3 "$T/broken/block-ls-parsing.py" >/dev/null 2>&1; echo $?)" "2"
+chk "  ...a malformed bendit.json still takes the full path" "$(pl 'echo hi' "$T/bad" | python3 "$T/broken/block-ls-parsing.py" >/dev/null 2>&1; echo $?)" "2"
+chk "  ...CLAUDE_PROJECT_DIR with no file, on cwd: exits 0" "$(CLAUDE_PROJECT_DIR="$T/none" run 'ls | wc -l' "$T/on")" "0"
+chk "  ...CLAUDE_PROJECT_DIR on, cwd with no file: still blocks" "$(CLAUDE_PROJECT_DIR="$T/on" run 'ls | wc -l' "$T/none")" "2"
 # CLAUDE_PROJECT_DIR wins over the payload's cwd, like features.project_root says.
 chk "CLAUDE_PROJECT_DIR (off) beats an on cwd"         "$(CLAUDE_PROJECT_DIR="$T/off" run 'ls | wc -l' "$T/on")" "0"
 chk "CLAUDE_PROJECT_DIR (on) beats an off cwd"         "$(CLAUDE_PROJECT_DIR="$T/on" run 'ls | wc -l' "$T/off")" "2"

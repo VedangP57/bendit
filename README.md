@@ -169,7 +169,7 @@ guards, the install route) use `/bendit:adopt --detailed`, which is the full
 interview and also how to change a set-up project later.
 
 That URL is "latest". To pin a release, put its tag in the URL, for example
-`https://raw.githubusercontent.com/VedangP57/bendit/v0.3.0/install.sh`
+`https://raw.githubusercontent.com/VedangP57/bendit/v0.4.0/install.sh`
 (`/<tag>/` for any other release).
 
 The installer checks that your machine has what bendit needs (`claude`, `git`,

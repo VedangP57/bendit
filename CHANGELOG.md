@@ -4,6 +4,8 @@ All notable changes. Dates are UTC.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-20
+
 ### Added
 - **One-question `/bendit:adopt`**: the default flow detects the stack, shows one
   plain-words summary (what you get, every file, every install) and asks one

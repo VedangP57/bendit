@@ -72,13 +72,25 @@ s = http.server.HTTPServer(("127.0.0.1", 0), H)
 open(log + ".port", "w").write(str(s.server_port))
 s.serve_forever()
 PYEOF
-python3 -I "$T/srv.py" "$T/srv.log" & SRV=$!
+python3 -I "$T/srv.py" "$T/srv.log" 2>"$T/srv.err" & SRV=$!
 trap 'kill $SRV 2>/dev/null; rm -rf "$T"' EXIT
-for _ in $(seq 50); do [ -s "$T/srv.log.port" ] && break; sleep 0.1; done
+# Wait (bounded, 30s: a cold CI runner can take seconds to start python) until
+# the server has written its port AND accepts a connection; otherwise FAIL loudly.
+READY=0
+for _ in $(seq 300); do
+  kill -0 $SRV 2>/dev/null || break
+  if [ -s "$T/srv.log.port" ] && python3 -I -c 'import socket,sys; socket.create_connection(("127.0.0.1", int(sys.argv[1])), 2).close()' "$(cat "$T/srv.log.port")" 2>/dev/null; then READY=1; break; fi
+  sleep 0.1
+done
+if [ "$READY" != 1 ]; then
+  chk "loopback test server became ready ($(kill -0 $SRV 2>/dev/null && echo 'still starting after 30s' || echo 'exited'); stderr: $(head -c 300 "$T/srv.err" 2>/dev/null | tr '\n' ' '))" n y
+  echo "pass=$pass fail=$fail"; exit 1
+fi
 rm -f "$T/bin/curl"
 probe() { # $1 = script under test
   rm -f "$T/srv.log" "$T/MARKER"
-  HOME="$T/home" BENDIT_PROBE_BASE="http://127.0.0.1:$(cat "$T/srv.log.port")" bash "$1" route $SRC
+  # CI proxies must not capture loopback (test env only; the product keeps honouring proxies).
+  NO_PROXY=127.0.0.1,localhost no_proxy=127.0.0.1,localhost HOME="$T/home" BENDIT_PROBE_BASE="http://127.0.0.1:$(cat "$T/srv.log.port")" bash "$1" route $SRC
 }
 out=$(probe "$S")
 chk "hostile ~/.curlrc and ~/.netrc: result is github" "${out%% *}" "github"

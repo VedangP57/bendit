@@ -5,9 +5,10 @@
 # Why it exists: v0.4.0 ran fine on a real project, but its two last steps
 # (approve the check in a new Terminal; close and reopen Claude) scrolled away
 # above a long report, and /bendit:doctor ended in engineer words without
-# saying "reopen Claude" or giving the test to type. These are prompts, so the
-# text IS the behaviour: this pins the endings, and RUNS the undo one-liner
-# exactly as quick.md prints it, on bash and on every python3 here.
+# saying "reopen Claude". These are prompts, so the text IS the behaviour: this
+# pins the endings, and RUNS the undo command exactly as quick.md prints it
+# (with the template's indent, as a person pastes it, and without), on bash and
+# on every python3 here.
 #
 #   bash adopt-quick.test.sh
 set -uo pipefail
@@ -15,6 +16,7 @@ SD="$(cd "$(dirname "$0")" && pwd)"
 KIT="$(cd "$SD/.." && pwd)"
 QUICK="$KIT/skills/adopt-bendit/references/quick.md"
 DOCTOR="$KIT/commands/doctor.md"
+LAYER="$KIT/skills/adopt-bendit/references/project-layer.md"
 T=$(mktemp -d); T=$(cd "$T" && pwd -P); pass=0; fail=0
 trap 'rm -rf "$T"' EXIT
 chk() { if [ "$2" = "$3" ]; then printf '  ok    %s\n' "$1"; pass=$((pass+1));
@@ -31,16 +33,18 @@ block() {
     on { print }' "$1"
 }
 
+STEP2='Close Claude and open it again in this project, then type /bendit:doctor.'
+
 echo "QUICK: THE REPORT ENDS WITH WHAT TO DO NEXT"
 REPORT="$(block "$QUICK" '^## 6\. The report' 1)"
 chk "the report template was found" "$([ -n "$REPORT" ] && echo y || echo n)" y
 # The last four non-empty lines of the template, exactly the owner's wording.
 tail4="$(printf '%s\n' "$REPORT" | grep -v '^[[:space:]]*$' | tail -n 4)"
 chk "its last lines are the two last steps, and nothing after them" "$tail4" \
-'Two last steps:
+"Two last steps:
   1. Open a new Terminal window (not this chat), paste this, and type y:
-       <the exact --trust command prove.sh printed, e.g. python3 "<KIT>/scripts/require-verification.py" --trust "<ROOT>">
-  2. Close Claude and open it again in this project. Then type /bendit:doctor.'
+       <the exact --trust command prove.sh printed, e.g. python3 \"<KIT>/scripts/require-verification.py\" --trust \"<ROOT>\">
+  2. $STEP2"
 first="$(printf '%s\n' "$REPORT" | grep -v '^[[:space:]]*$' | head -n 1)"
 chk "  ...and it still opens with the header" "$first" "<header>"
 rec="$(printf '%s\n' "$REPORT" | grep -n 'What I did (for the record' | cut -d: -f1)"
@@ -48,8 +52,12 @@ steps="$(printf '%s\n' "$REPORT" | grep -n '^Two last steps:' | cut -d: -f1)"
 chk "  ...the record comes BEFORE the steps" "$([ -n "$rec" ] && [ -n "$steps" ] && [ "$rec" -lt "$steps" ] && echo y || echo n)" y
 RULES="$(sed -n '/^## 6\. The report/,$p' "$QUICK")"
 has "only step 2 left (the check already approved): one last step" "One last step:" "$RULES"
-has "step 9 asks whether this window is already live" 'scripts/selfcheck.py" --session' "$(cat "$QUICK")"
-has "  ...and then leaves step 2 out" "then last step 2 is left out" "$(cat "$QUICK")"
+has "  ...worded as the ruling says" "$STEP2" "$RULES"
+Q_TXT="$(cat "$QUICK")"
+has "step 9 asks whether this window is already live" 'scripts/selfcheck.py" --session' "$Q_TXT"
+has "  ...and then leaves step 2 out" "then last step 2 is left out" "$Q_TXT"
+has "step 9 always runs the live test (unless --session says to skip it)" "Always run the live force-push check" "$Q_TXT"
+hasnt "the person is never asked to type a force push" "run: git push" "$Q_TXT"
 
 echo
 echo "QUICK: THE SUMMARY IS IN EVERYDAY WORDS"
@@ -64,57 +72,95 @@ has "  ...and where the port is noted" "ports.json" "$RECORD"
 
 echo
 echo "QUICK: THE INSTALL'S 'OPTIONS NOT YET SET' IS EXPLAINED IN ONE PLAIN LINE"
-has "the line the person sees" "bendit uses its standard settings" "$(cat "$QUICK")"
+has "the line the person sees" "bendit uses its standard settings" "$Q_TXT"
 
 echo
-echo "QUICK: THE UNDO ONE-LINER WORKS, AS PRINTED"
-# Lifted from the template exactly as printed, its two-space indent removed.
-UNDO="$(printf '%s\n' "$REPORT" | sed -n "/^  python3 -I -c 'import sys/,/CLAUDE.md:@AGENTS.md/p" | sed 's/^  //')"
-chk "the undo template has the one-liner" "$([ -n "$UNDO" ] && echo y || echo n)" y
+echo "QUICK: WHERE @AGENTS.md GOES IS PINNED, SO THE UNDO REVERSES IT EXACTLY"
+PIN='`@AGENTS.md` as the first line, then one blank line'
+has "quick.md says it" "$PIN" "$Q_TXT"
+has "project-layer.md says it" "$PIN" "$(cat "$LAYER")"
+
+echo
+echo "QUICK: THE UNDO COMMAND WORKS, AS PRINTED"
+# AS PRINTED: the template's two-space indent kept on every line, which is what
+# a person copies; STRIPPED: the indent removed. Both must work.
+PRINTED="$(printf '%s\n' "$REPORT" | sed -n "/^  python3 -I -c '/,/CLAUDE.md:@AGENTS.md/p")"
+STRIPPED="$(printf '%s\n' "$PRINTED" | sed 's/^  //')"
+chk "the undo template has the command" "$([ -n "$PRINTED" ] && echo y || echo n)" y
+has "  ...as one python3 -I command" "python3 -I -c" "$PRINTED"
 fixture() {  # fixture <dir> -- CLAUDE.md and .gitignore as quick adopt leaves them
   mkdir -p "$1"
   printf '%s\n' '@AGENTS.md' '' '# My notes' 'keep me' > "$1/CLAUDE.md"
   printf 'node_modules/\n.claude/.bendit-state/\ndist/\n' > "$1/.gitignore"
 }
-for py in python3 /usr/bin/python3; do
-  command -v "$py" >/dev/null || continue
-  D="$T/undo-$(basename "$py")"; fixture "$D"
-  mkdir -p "$D.bin"; ln -sf "$(command -v "$py")" "$D.bin/python3"
-  out="$(cd "$D" && PATH="$D.bin:$PATH" /bin/bash -c "$UNDO" 2>&1)"; rc=$?
-  v="$("$py" -V 2>&1)"
-  chk "$v, /bin/bash: exit 0, silent" "$rc|$out" "0|"
-  chk "  ...CLAUDE.md loses the @AGENTS.md line and the blank after it, nothing else" \
-      "$(cat "$D/CLAUDE.md")" "# My notes
+undo() {  # undo <dir> <text> [python] -- leaves U_RC, U_OUT
+  local bin="$1.bin"
+  mkdir -p "$bin"; ln -sf "$(command -v "${3:-python3}")" "$bin/python3"
+  U_OUT="$(cd "$1" && PATH="$bin:$PATH" /bin/bash -c "$2" 2>&1)"; U_RC=$?
+}
+for form in PRINTED STRIPPED; do
+  eval "text=\"\$$form\""
+  for py in python3 /usr/bin/python3; do
+    command -v "$py" >/dev/null || continue
+    v="$("$py" -V 2>&1)"
+    D="$T/undo-$form-$(basename "$py")"; fixture "$D"
+    undo "$D" "$text" "$py"
+    chk "$form, $v, /bin/bash: exit 0, silent" "$U_RC|$U_OUT" "0|"
+    chk "  ...CLAUDE.md loses the @AGENTS.md line and the blank after it, nothing else" \
+        "$(cat "$D/CLAUDE.md")" "# My notes
 keep me"
-  chk "  ...and keeps its last newline" "$(tail -c 1 "$D/CLAUDE.md" | od -An -c | tr -d ' ')" '\n'
-  chk "  ....gitignore loses only bendit's line" "$(cat "$D/.gitignore")" "node_modules/
+    chk "  ...and keeps its last newline" "$(tail -c 1 "$D/CLAUDE.md" | od -An -c | tr -d ' ')" '\n'
+    chk "  ....gitignore loses only bendit's line" "$(cat "$D/.gitignore")" "node_modules/
 dist/"
+  done
 done
 # The import as the LAST line, after the person's own text.
 D="$T/undo-last"; mkdir -p "$D"; printf '%s\n' '# Mine' '' '@AGENTS.md' > "$D/CLAUDE.md"
 printf '.claude/.bendit-state/\n' > "$D/.gitignore"
-out="$(cd "$D" && /bin/bash -c "$UNDO" 2>&1)"; rc=$?
-chk "@AGENTS.md as the last line: exit 0" "$rc|$out" "0|"
+undo "$D" "$PRINTED"
+chk "@AGENTS.md as the last line: exit 0" "$U_RC|$U_OUT" "0|"
 chk "  ...the person's text and blank line kept" "$(cat "$D/CLAUDE.md"; echo '|')" "# Mine
 
 |"
 # Run twice: the second run finds nothing to remove and says nothing.
-out="$(cd "$D" && /bin/bash -c "$UNDO" 2>&1)"; rc=$?
-chk "a second run (already undone): exit 0, silent, nothing changed" "$rc|$out|$(cat "$D/CLAUDE.md"; echo '|')" "0||# Mine
+undo "$D" "$PRINTED"
+chk "a second run (already undone): exit 0, silent, nothing changed" "$U_RC|$U_OUT|$(cat "$D/CLAUDE.md"; echo '|')" "0||# Mine
 
 |"
+# A file that is gone is skipped, said plainly, and the rest still runs.
+D="$T/undo-missing"; fixture "$D"; rm "$D/.gitignore"
+undo "$D" "$PRINTED"
+chk "a missing .gitignore: exit 0" "$U_RC" 0
+has "  ...says it skipped it" ".gitignore: not found, skipped" "$U_OUT"
+hasnt "  ...no traceback" "Traceback" "$U_OUT"
+chk "  ...and CLAUDE.md is still undone" "$(cat "$D/CLAUDE.md")" "# My notes
+keep me"
+# Windows line endings stay Windows line endings.
+D="$T/undo-crlf"; mkdir -p "$D"
+printf '@AGENTS.md\r\n\r\n# Notes\r\n' > "$D/CLAUDE.md"
+printf 'dist/\r\n.claude/.bendit-state/\r\nout/\r\n' > "$D/.gitignore"
+undo "$D" "$PRINTED"
+chk "CRLF files: exit 0, silent" "$U_RC|$U_OUT" "0|"
+chk "  ...CLAUDE.md: the line and the blank after it gone, CRLF kept" "$(od -An -c "$D/CLAUDE.md" | tr -s ' ' | tr -d '\n')" \
+    "$(printf '# Notes\r\n' | od -An -c | tr -s ' ' | tr -d '\n')"
+chk "  ....gitignore: only bendit's line gone, CRLF kept" "$(od -An -c "$D/.gitignore" | tr -s ' ' | tr -d '\n')" \
+    "$(printf 'dist/\r\nout/\r\n' | od -An -c | tr -s ' ' | tr -d '\n')"
 
 echo
 echo "DOCTOR: THE ENDING IS PLAIN, AND LAST"
 D_TXT="$(cat "$DOCTOR")"
 has "it asks which window this is" 'selfcheck.py" --session' "$D_TXT"
 has "it may run the live test without a permission prompt" "Bash(git push --force bendit-probe HEAD)" "$(sed -n '1,/^---$/{/^allowed-tools/p;}' "$DOCTOR")"
+has "it ALWAYS runs the live test (a missing marker must not loop 'restart' forever)" "Always run the live test" "$D_TXT"
+hasnt "  ...never skips it because the window looks not live" "do not run it" "$D_TXT"
+has "  ...except when --session says the name reaches something" "live test: skip" "$D_TXT"
 has "not live: says why, plainly" "> This window was opened before bendit was set up, so its protection isn't running here yet." "$D_TXT"
-has "  ...says to reopen Claude" "> Close Claude and open it again in this project, then type:" "$D_TXT"
-has "  ...gives the exact test" ">     run: git push --force bendit-probe HEAD" "$D_TXT"
-has "  ...and what it should say" "> It should say BLOCKED by bendit." "$D_TXT"
+has "  ...and says to reopen Claude, then /bendit:doctor" "> $STEP2" "$D_TXT"
+hasnt "the person is never asked to type a force push" "run: git push" "$D_TXT"
+has "the approval step, when prove.sh says it is not approved" "> Open a new Terminal window (not this chat), paste this, and type y:" "$D_TXT"
 has "live: says so, plainly" "> bendit is active in this window: it just stopped a test force-push, as it should." "$D_TXT"
 has "never 'active' without the refusal" "Never say bendit is active in this window without that refusal." "$D_TXT"
+has "never 'active' while a guard is OFF" "Never say bendit is active while a guard is OFF." "$D_TXT"
 last="$(grep -n '^\*\*The ending\.\*\*' "$DOCTOR" | cut -d: -f1)"
 after="$(sed -n "$((${last:-1}+1)),\$p" "$DOCTOR" | grep -c '^#\|^\*\*' | tr -d ' ')"
 chk "  ...the ending is the last section of doctor.md" "${last:+found}|$after" "found|0"

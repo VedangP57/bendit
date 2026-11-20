@@ -18,7 +18,10 @@ listed in the report as `/bendit:new-guard` candidates, not moved.
 **Make sure Claude Code reads it.** Claude Code loads `CLAUDE.md`. If the project
 has no `CLAUDE.md`, propose one containing the single line `@AGENTS.md` (an
 import). If it has one, propose adding that line rather than copying rules
-across: one definition per rule.
+across: one definition per rule. Add it like this:
+`@AGENTS.md` as the first line, then one blank line, above the file's own text,
+and nowhere else: the undo command in quick.md removes exactly that line and
+the blank after it.
 
 ## 2. `.claude/verify-harness` (and a verification skill, if there is an app)
 

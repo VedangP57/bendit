@@ -110,7 +110,7 @@ in your head; the summary is built from it.
 | feature dependencies | `browser-driver` on: Node 20+ missing → `brew install node` (macOS with Homebrew); Chrome missing → `brew install --cask google-chrome`; `drive-setup.sh --check` exits 1 → `bash "$KIT/scripts/drive-setup.sh"`. Each only if not already installed. No Homebrew for a missing Node or Chrome: the feature is off with why `Node not found` / `Chrome not found (Chromium cannot be driven)`, and the summary says so. |
 | install route | Already installed for this project at project scope: nothing. `install-route.sh route` prints `github` → bendit from GitHub (anyone else who downloads this project gets it too). `vendor` → a copy inside the project, stated as "works on this computer only". |
 | marketplace conflict | `conflict` exit 0 and silent: nothing. Exit 0 with `switch: <sentence>`: proceed, and put the sentence in the summary and report. Non-zero: §3 question B. |
-| existing AGENTS.md / CLAUDE.md | Absent: create (`AGENTS.md` from `KIT/templates/AGENTS.md`, placeholders with no answer deleted with their line; `CLAUDE.md` the single line `@AGENTS.md`). Present: add only what is missing (project-layer.md §1), never rewrite. |
+| existing AGENTS.md / CLAUDE.md | Absent: create (`AGENTS.md` from `KIT/templates/AGENTS.md`, placeholders with no answer deleted with their line; `CLAUDE.md` the single line `@AGENTS.md`). Present: add only what is missing (project-layer.md §1), never rewrite; a `CLAUDE.md` without the import gets `@AGENTS.md` as the first line, then one blank line, above its own text (exactly what the undo command removes). |
 | dead configuration (detect.md §6) | Not changed. Listed in the report as found. |
 
 ## 2. The one question
@@ -274,14 +274,17 @@ report (§6) with NOT COMPLETE, the failing command, its output, and the fix.
    earlier step finished. prove.sh (next) reads it for its feature rows.
 9. **Prove it.** `bash "$KIT/scripts/prove.sh" "$ROOT"`, then
    `python3 "$KIT/scripts/selfcheck.py" --session` (is bendit running in this
-   Claude window? `window: live`, `not live` or `unknown`). Only when it says
-   `live` or `unknown`, run the live force-push check, exactly as prove.md
-   says; `not live` means the live check waits until Claude is reopened.
-   prove.sh's "approved by you" row fails until the person does last step 1
-   in §6, and the live check may wait for a reopened Claude: those two alone
-   are expected, and are reported as the last steps, not as a pass. This
-   window counts as already protected only when the live check was refused by
-   bendit; then last step 2 is left out.
+   Claude window? `window: live`, `not live` or `unknown`; and a `live test:`
+   line). Always run the live force-push check, exactly as prove.md says,
+   whatever the window line says, unless the `live test:` line says `skip`
+   (something here is named `bendit-probe`; the report says so plainly, and
+   the live check is "skipped"). A refusal by bendit means this window is
+   already protected: then last step 2 is left out. Anything else: step 2
+   stays, and the window line only explains why (`not live`: this window was
+   opened before bendit was set up). prove.sh's "approved by you" row fails
+   until the person does last step 1 in §6, and the live check may wait for a
+   reopened Claude: those two alone are expected, and are reported as the last
+   steps, not as a pass.
 
 ## 6. The report
 
@@ -303,7 +306,7 @@ next, with nothing after them:
 - both steps open: the "Two last steps:" block, exactly as in the template.
 - only step 2 (the check was already approved, as on a re-run):
   `One last step:` then, on the next line, `  Close Claude and open it again in
-  this project. Then type /bendit:doctor.`
+  this project, then type /bendit:doctor.`
 - only step 1 (this window is already protected): `One last step:` then the
   step 1 lines, unnumbered.
 - NOT COMPLETE: the last line repeats `To fix it: <the fix>.`
@@ -340,14 +343,20 @@ How to undo all of it (paste into a Terminal window)
   rm -r <every folder this run created, by exact path: .claude/skills/verify-<name>, .claude/vendor/bendit, .venv, <name>.egg-info>
   rm -r .claude/.bendit-state      (bendit's working notes; only if it was not there before this run)
   rmdir .claude/skills .claude/vendor .claude     (only the ones this run created; rmdir refuses a folder that still has anything else in it, so nothing else is lost)
-  python3 -I -c 'import sys
-  for a in sys.argv[1:]:
-      f, line = a.split(":", 1)
-      s = open(f).read().split("\n")
-      if line in s:
-          i = s.index(line)
-          del s[i:i + (2 if f == "CLAUDE.md" and i + 2 < len(s) and s[i + 1] == "" else 1)]
-          open(f, "w").write("\n".join(s))' 'CLAUDE.md:@AGENTS.md' '.gitignore:.claude/.bendit-state/'
+  python3 -I -c 'if 1:
+      import os, sys
+      for a in sys.argv[1:]:
+          f, line = a.split(":", 1)
+          if not os.path.isfile(f):
+              print(f + ": not found, skipped")
+              continue
+          s = open(f, newline="").read().split("\n")
+          k = [x.rstrip("\r") for x in s]
+          if line in k:
+              i = k.index(line)
+              n = 2 if f == "CLAUDE.md" and i + 2 < len(k) and k[i + 1] == "" else 1
+              del s[i:i + n]
+              open(f, "w", newline="").write("\n".join(s))' 'CLAUDE.md:@AGENTS.md' '.gitignore:.claude/.bendit-state/'
   <AGENTS.md, when this run added bendit's section to an existing one: the exact lines to delete from it>
   rm -rf .git      (only if this run started tracking the folder; this also deletes anything saved to the project's history since)
   rm -r "<cache dir>/drive"                                      (only if this run installed Playwright)
@@ -371,13 +380,15 @@ What I did (for the record; no action needed)
 Two last steps:
   1. Open a new Terminal window (not this chat), paste this, and type y:
        <the exact --trust command prove.sh printed, e.g. python3 "<KIT>/scripts/require-verification.py" --trust "<ROOT>">
-  2. Close Claude and open it again in this project. Then type /bendit:doctor.
+  2. Close Claude and open it again in this project, then type /bendit:doctor.
 ```
 
 The undo list names real paths from this run, never a placeholder, and
 leaves out lines that do not apply. The `python3 -I -c` command removes
 lines this run added, by their exact text (from `CLAUDE.md`, the `@AGENTS.md`
-line and the blank line after it); it runs the same on macOS and Linux. Give
+line and the blank line after it); it runs the same on macOS and Linux, keeps
+each file's line endings, works pasted with or without the indent shown (its
+`if 1:` first line is why), and skips a file that is gone, saying so. Give
 it one `'<file>:<line>'` argument per line this run added to `CLAUDE.md`,
 `.gitignore` or `.git/info/exclude` (so also `'.gitignore:.venv/'` and
 `'.gitignore:!.env.verify.example'` when this run added them), and leave out a

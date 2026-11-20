@@ -13,7 +13,10 @@ Rules for the whole path:
   the project folder, guards, generated files, invariants, branches, CI, the
   install route or which package list to use.
 - **Nothing outside the summary.** Every file written and every command that
-  installs something is listed in the summary first. If a step turns out to
+  installs something is listed in the summary first, in everyday words (the
+  `.git/info/exclude` lines are the "private list" in the `.gitignore` row, and
+  the port note is "remember it on this computer"; the report's record section
+  names the exact paths). If a step turns out to
   need something the summary did not list, stop and say so; do not add it.
 - **No per-step shows.** The detailed flow's "show, then write" is replaced by
   the summary. Instead, the final report lists every file written and every
@@ -134,8 +137,8 @@ Files I'll add or change in your project
   .claude/verify-harness        the test check above                       (new only)
   .claude/bendit.json           which parts are on, and why
   .claude/skills/verify-<name>/ and .env.verify.example   browser testing  (web apps, also when the test check is kept)
-  .gitignore                    keeps bendit's working notes out of your project's saved history (<n> lines added)
-  .git/info/exclude             the same, on this computer only
+  .gitignore                    keeps bendit's working notes out of your project's saved history (<n> lines added;
+                                a few more go in a private list only this computer reads)
   .venv/                        a private folder for your project's Python packages (only when §1 creates it)
   <name>.egg-info/              a small folder Python's installer writes   (only when §1's install makes it)
 
@@ -148,8 +151,8 @@ What I'll do on this computer
     this computer will now point at the public version on GitHub; <name> may switch back to its own copy
     the next time you open Claude there. Nothing in <name>'s files changes.">
   • The design-advice part (bendit's web add-on).                          (web apps)
-  • Note a web address number (port) for your app in ~/.config/bendit, so it never clashes with your
-    other projects' apps.                                                   (web apps, unless already noted)
+  • Pick a web address number for your app that none of your other projects use, and remember it
+    on this computer.                                                       (web apps, unless already noted)
   • A helper (Playwright) that lets the AI use Chrome, stored in bendit's own folder, not in your project.   (only if not already installed)
   • Install <tool>, which your project uses for <purpose> (with Homebrew).   (only if not already installed;
     e.g. "Install Google Chrome, which browser testing uses to open your app (with Homebrew).")
@@ -215,7 +218,13 @@ report (§6) with NOT COMPLETE, the failing command, its output, and the fix.
 1. `git init` (not a repository only).
 2. **Install bendit.** `github`: `claude plugin marketplace add
    https://github.com/VedangP57/bendit --scope project` then `claude plugin
-   install bendit@bendit --scope project`. `vendor`: install.md Route B steps
+   install bendit@bendit --scope project`. It may print that bendit's 2
+   options (`userConfig`) are not yet set. That is expected: unset, they mean
+   their defaults (the zsh check on; the main branch found from the project).
+   Do not pass `--config` or run `claude plugin configure`: both save the values
+   in `~/.claude/settings.json`, which quick never edits. Say it once, right
+   after the install, in one plain line: "Claude says 2 bendit settings aren't
+   set yet. That's fine: bendit uses its standard settings. Nothing to do." `vendor`: install.md Route B steps
    1–5 (clone into a `mktemp -d`, copy, register, install, `VENDORED_FROM`),
    then remove the temporary clone (`rm -r <that mktemp dir>`).
 3. **Web add-on.** `claude plugin install bendit-web@bendit --scope project`.
@@ -263,11 +272,16 @@ report (§6) with NOT COMPLETE, the failing command, its output, and the fix.
    step 3b, with the real state and why. `.claude/bendit.json` is written
    last on purpose: §0 treats it as "set up", so it exists only once every
    earlier step finished. prove.sh (next) reads it for its feature rows.
-9. **Prove it.** `bash "$KIT/scripts/prove.sh" "$ROOT"`, then the live
-   force-push check, both exactly as prove.md says. Its "approved by you" row
-   fails until the person does last step 1 in §6, and the live check may be
-   "pending a new session": those two alone are expected, and are reported as
-   the two last steps, not as a pass.
+9. **Prove it.** `bash "$KIT/scripts/prove.sh" "$ROOT"`, then
+   `python3 "$KIT/scripts/selfcheck.py" --session` (is bendit running in this
+   Claude window? `window: live`, `not live` or `unknown`). Only when it says
+   `live` or `unknown`, run the live force-push check, exactly as prove.md
+   says; `not live` means the live check waits until Claude is reopened.
+   prove.sh's "approved by you" row fails until the person does last step 1
+   in §6, and the live check may wait for a reopened Claude: those two alone
+   are expected, and are reported as the last steps, not as a pass. This
+   window counts as already protected only when the live check was refused by
+   bendit; then last step 2 is left out.
 
 ## 6. The report
 
@@ -276,9 +290,23 @@ Plain words first, the evidence after. The header is the first that applies:
 - a FAIL other than the two expected rows, or question A skipped:
   `bendit is NOT fully set up: <what failed, plainly>. To fix it: <the fix>.`
 - only the expected rows open: `bendit is almost set up: two last steps.`
-  The "Two last steps" block shows, with only the steps still open.
-- everything passed (an earlier run's harness was already approved):
-  `bendit is set up in <project>.` The "Two last steps" block is left out.
+  (or `one last step.`). The last steps block shows, with only the steps still
+  open.
+- everything passed (the harness already approved, and the live check refused
+  by bendit in this window): `bendit is set up in <project>.` The last steps
+  block is left out, and the report ends with "Nothing else to do."
+
+**What is on screen last.** The report is long, and the person reads its end.
+The full report comes first; the LAST lines are only what the person must do
+next, with nothing after them:
+
+- both steps open: the "Two last steps:" block, exactly as in the template.
+- only step 2 (the check was already approved, as on a re-run):
+  `One last step:` then, on the next line, `  Close Claude and open it again in
+  this project. Then type /bendit:doctor.`
+- only step 1 (this window is already protected): `One last step:` then the
+  step 1 lines, unnumbered.
+- NOT COMPLETE: the last line repeats `To fix it: <the fix>.`
 
 Template:
 
@@ -290,12 +318,6 @@ What you got
   • Test check before "done": <the check>. Ran it: <passed in Ns | failed: …>.
   • Browser testing / design advice / project note / file-list check: on or off, with why.
   <the switch sentence, if any>
-
-Two last steps
-  1. Open a new Terminal window (not this chat), paste this, and type y:
-       <the --trust command prove.sh printed, e.g. python3 "<KIT>/scripts/require-verification.py" --trust "<ROOT>">
-     It shows the test check bendit will run and asks you to type y to approve.
-  2. Close and reopen Claude in this project, then run /bendit:doctor.
 
 How to use it
   /bendit:verify       run the full check now (for a web app: start it and click through it)
@@ -318,7 +340,15 @@ How to undo all of it (paste into a Terminal window)
   rm -r <every folder this run created, by exact path: .claude/skills/verify-<name>, .claude/vendor/bendit, .venv, <name>.egg-info>
   rm -r .claude/.bendit-state      (bendit's working notes; only if it was not there before this run)
   rmdir .claude/skills .claude/vendor .claude     (only the ones this run created; rmdir refuses a folder that still has anything else in it, so nothing else is lost)
-  <for every file this run changed: the exact line(s) to delete from it, including .gitignore and .git/info/exclude>
+  python3 -I -c 'import sys
+  for a in sys.argv[1:]:
+      f, line = a.split(":", 1)
+      s = open(f).read().split("\n")
+      if line in s:
+          i = s.index(line)
+          del s[i:i + (2 if f == "CLAUDE.md" and i + 2 < len(s) and s[i + 1] == "" else 1)]
+          open(f, "w").write("\n".join(s))' 'CLAUDE.md:@AGENTS.md' '.gitignore:.claude/.bendit-state/'
+  <AGENTS.md, when this run added bendit's section to an existing one: the exact lines to delete from it>
   rm -rf .git      (only if this run started tracking the folder; this also deletes anything saved to the project's history since)
   rm -r "<cache dir>/drive"                                      (only if this run installed Playwright)
   Left installed, because other apps may use them: <each install this run did, with its undo:
@@ -335,11 +365,23 @@ What I did (for the record; no action needed)
   Commands run:  <every command, in order, with its exit status>
   prove.sh:      <its table, as printed>
   Live check:    <PASS / FAIL / inconclusive / waits until you reopen Claude>
+  Also noted:    <.git/info/exclude: the lines added; the port, in ~/.config/bendit/ports.json (web apps)>
   Found, not changed: <dead configuration, other tools' privacy notices>
+
+Two last steps:
+  1. Open a new Terminal window (not this chat), paste this, and type y:
+       <the exact --trust command prove.sh printed, e.g. python3 "<KIT>/scripts/require-verification.py" --trust "<ROOT>">
+  2. Close Claude and open it again in this project. Then type /bendit:doctor.
 ```
 
 The undo list names real paths from this run, never a placeholder, and
-leaves out lines that do not apply. `claude plugin marketplace remove bendit
+leaves out lines that do not apply. The `python3 -I -c` command removes
+lines this run added, by their exact text (from `CLAUDE.md`, the `@AGENTS.md`
+line and the blank line after it); it runs the same on macOS and Linux. Give
+it one `'<file>:<line>'` argument per line this run added to `CLAUDE.md`,
+`.gitignore` or `.git/info/exclude` (so also `'.gitignore:.venv/'` and
+`'.gitignore:!.env.verify.example'` when this run added them), and leave out a
+file this run created: `rm` removes that one. `claude plugin marketplace remove bendit
 --scope project` also removes bendit from the computer's list of plugin
 sources (`~/.claude/plugins/known_marketplaces.json`; seen 2026-11-20 with
 one project). Another project that still names bendit in its own

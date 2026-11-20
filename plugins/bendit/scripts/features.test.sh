@@ -103,6 +103,18 @@ bad "why is not a string" '{"version":1,"features":{"ls-guard":{"on":true,"why":
 bad "why missing" '{"version":1,"features":{"ls-guard":{"on":true}}}' "why"
 bad "brief on a feature that has none" '{"version":1,"features":{"ls-guard":{"on":true,"why":"x","brief":{}}}}' "brief"
 bad "brief is not an object" '{"version":1,"features":{"session-brief":{"on":true,"why":"x","brief":[1]}}}' "brief"
+# The brief object is validated as strictly as the rest: a wrong type is a
+# refusal naming the key, never a silent default.
+bad "an unknown brief key" '{"version":1,"features":{"session-brief":{"on":true,"why":"x","brief":{"ports":[3000]}}}}' "'ports'"
+bad "brief env_files is a string" '{"version":1,"features":{"session-brief":{"on":true,"why":"x","brief":{"env_files":".env"}}}}' "env_files"
+bad "brief env_files holds a number" '{"version":1,"features":{"session-brief":{"on":true,"why":"x","brief":{"env_files":[".env",1]}}}}' "env_files"
+bad "brief probe_env_vars is null" '{"version":1,"features":{"session-brief":{"on":true,"why":"x","brief":{"probe_env_vars":null}}}}' "probe_env_vars"
+bad "brief local_ports holds a bool" '{"version":1,"features":{"session-brief":{"on":true,"why":"x","brief":{"local_ports":[true]}}}}' "local_ports"
+bad "brief local_ports holds 0" '{"version":1,"features":{"session-brief":{"on":true,"why":"x","brief":{"local_ports":[0]}}}}' "local_ports"
+bad "brief local_ports holds 65536" '{"version":1,"features":{"session-brief":{"on":true,"why":"x","brief":{"local_ports":[65536]}}}}' "local_ports"
+bad "brief local_ports holds a string" '{"version":1,"features":{"session-brief":{"on":true,"why":"x","brief":{"local_ports":["3000"]}}}}' "local_ports"
+bad "brief local_ports holds 3000.0" '{"version":1,"features":{"session-brief":{"on":true,"why":"x","brief":{"local_ports":[3000.0]}}}}' "local_ports"
+bad "brief docs_glob is a number" '{"version":1,"features":{"session-brief":{"on":true,"why":"x","brief":{"docs_glob":5}}}}' "docs_glob"
 bad "an unknown key on a feature" '{"version":1,"features":{"ls-guard":{"on":true,"why":"x","colour":1}}}' "colour"
 bad "extra top-level key" '{"version":1,"features":{},"extra":1}' "extra"
 bad "top level is a list" '[]' "object"
@@ -149,6 +161,12 @@ cap "no arguments"
 chk "usage -> exit 2" "$EXPECT_CODE" "2"; has "  ...says usage" "usage:" "$EXPECT_STDERR"
 proj bad '{"version":1,"features":{"lsguard":{"on":true,"why":"x"}}}'
 cap "show on a malformed file" show "$T/bad"; refused "show on a malformed file" "lsguard"
+proj full '{"version":1,"features":{"session-brief":{"on":true,"why":"x","brief":{"env_files":[".env.local",".env"],"probe_env_vars":["APP_URL"],"local_ports":[1,3000,65535],"docs_glob":null}}}}'
+cap "every brief key, each at an edge of its type" get "$T/full" session-brief
+chk "a full, valid brief is accepted" "$EXPECT_CODE|$EXPECT_STDOUT" "0|on"
+proj full '{"version":1,"features":{"session-brief":{"on":true,"why":"x","brief":{"docs_glob":"docs/**/*.md","env_files":[]}}}}'
+cap "a docs_glob string and empty env_files" get "$T/full" session-brief
+chk "a docs_glob string and an empty list are accepted" "$EXPECT_CODE|$EXPECT_STDOUT" "0|on"
 ls_none=$(/usr/bin/find "$T/none" -name '*.tmp'); chk "no stray temp files after the refusals" "$ls_none" ""
 
 echo; echo "FILE MODE"
@@ -200,7 +218,9 @@ PYE
 chk "a failing os.replace raises FeaturesError, after a temp file existed" "$out" "raised [True]"
 chk "  ...old file intact" "$(cat "$T/ro/.claude/bendit.json")" "$before"
 chk "  ...temp file cleaned up" "$(/usr/bin/find "$T/ro/.claude" -name '*.tmp')" ""
-# An unserialisable value: write must raise FeaturesError, not TypeError.
+# An unserialisable value: write must raise FeaturesError, not TypeError. (The
+# strict brief check now refuses it before json.dumps sees it; the outcome is
+# what is pinned.)
 out=$("$PY" - "$SD" "$T/ro" <<'PYE'
 import sys
 sys.path.insert(0, sys.argv[1])

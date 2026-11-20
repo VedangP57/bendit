@@ -132,6 +132,56 @@ exit 2
 --- stderr
 features: <tmp>/bad/.claude/bendit.json: feature 'session-brief': 'brief' must be an object
 
+=== an unknown brief key
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'session-brief': 'brief': unknown key 'ports' (known: docs_glob, env_files, local_ports, probe_env_vars)
+
+=== brief env_files is a string
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'session-brief': 'brief': 'env_files' must be a list of strings, got '.env'
+
+=== brief env_files holds a number
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'session-brief': 'brief': 'env_files' must be a list of strings, got ['.env', 1]
+
+=== brief probe_env_vars is null
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'session-brief': 'brief': 'probe_env_vars' must be a list of strings, got None
+
+=== brief local_ports holds a bool
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'session-brief': 'brief': 'local_ports' must be a list of integers from 1 to 65535, got [True]
+
+=== brief local_ports holds 0
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'session-brief': 'brief': 'local_ports' must be a list of integers from 1 to 65535, got [0]
+
+=== brief local_ports holds 65536
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'session-brief': 'brief': 'local_ports' must be a list of integers from 1 to 65535, got [65536]
+
+=== brief local_ports holds a string
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'session-brief': 'brief': 'local_ports' must be a list of integers from 1 to 65535, got ['3000']
+
+=== brief local_ports holds 3000.0
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'session-brief': 'brief': 'local_ports' must be a list of integers from 1 to 65535, got [3000.0]
+
+=== brief docs_glob is a number
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'session-brief': 'brief': 'docs_glob' must be a string or null, got 5
+
 === an unknown key on a feature
 exit 2
 --- stderr
@@ -201,6 +251,16 @@ usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <ro
 exit 2
 --- stderr
 features: <tmp>/bad/.claude/bendit.json: unknown feature 'lsguard' (known: browser-driver, ux-design-laws, session-brief, ls-guard)
+
+=== every brief key, each at an edge of its type
+exit 0
+--- stdout
+on
+
+=== a docs_glob string and empty env_files
+exit 0
+--- stdout
+on
 
 === rewrite a 0664 file
 exit 0

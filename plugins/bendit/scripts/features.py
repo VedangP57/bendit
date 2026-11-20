@@ -8,6 +8,11 @@ Format, version 1:
                 "session-brief": {"on": true, "why": "git project",
                                   "brief": {"local_ports": [3000]}}}}
 
+The "brief" object (session-brief only) is validated key by key, see
+BRIEF_KEYS: env_files and probe_env_vars are lists of strings, local_ports a
+list of integers 1-65535, docs_glob a string or null; any other key, or a
+wrong type, is malformed.
+
 A malformed file is never read as "everything off": load() raises
 FeaturesError naming the file, and every caller must refuse (fail closed).
 Absent is different: it means the project never chose, and is_on() is False.
@@ -32,6 +37,27 @@ _CONFIG_KEY = {'session-brief': 'brief'}
 
 class FeaturesError(Exception):
     pass
+
+
+def _str_list(v):
+    return isinstance(v, list) and all(isinstance(x, str) for x in v)
+
+
+def _port_list(v):
+    # bool is an int subclass: `true` is not port 1.
+    return isinstance(v, list) and all(
+        type(x) is int and 0 < x < 65536 for x in v)
+
+
+# The session brief's object: every key optional (session-brief.py holds the
+# defaults), each with one type. Anything else is refused, never defaulted.
+BRIEF_KEYS = {
+    'env_files': (_str_list, 'a list of strings'),
+    'probe_env_vars': (_str_list, 'a list of strings'),
+    'local_ports': (_port_list, 'a list of integers from 1 to 65535'),
+    'docs_glob': (lambda v: v is None or isinstance(v, str), 'a string or null'),
+}
+_CONFIG_SCHEMA = {'brief': BRIEF_KEYS}
 
 
 def path(root):
@@ -67,6 +93,16 @@ def _validate(data, where):
                 raise FeaturesError('%s: feature %r: unknown key %r' % (where, name, k))
             if not isinstance(v, dict):
                 raise FeaturesError('%s: feature %r: %r must be an object' % (where, name, k))
+            schema = _CONFIG_SCHEMA[k]
+            for ck, cv in v.items():
+                if ck not in schema:
+                    raise FeaturesError('%s: feature %r: %r: unknown key %r (known: %s)'
+                                        % (where, name, k, ck, ', '.join(sorted(schema))))
+                ok, what = schema[ck]
+                if not ok(cv):
+                    got = repr(cv)
+                    raise FeaturesError('%s: feature %r: %r: %r must be %s, got %s'
+                                        % (where, name, k, ck, what, got if len(got) <= 80 else got[:77] + '...'))
     return data
 
 

@@ -754,7 +754,7 @@ def main(argv) -> int:
     if '--self-test' in flags:
         return self_test()
 
-    # /vocabulary pre-approves the read forms (`--report *` and the like), so
+    # /bendit:vocabulary pre-approves the read forms (`--report *` and the like), so
     # a read flag must never carry a write: `--report --init .` would
     # otherwise run --init with no question asked.
     reads = sorted(flags & {'--report', '--dict', '--check', '--json'})

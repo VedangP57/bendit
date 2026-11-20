@@ -89,7 +89,7 @@ configuration that looks live and is dead:
 
 For prose rules in `CLAUDE.md`/`AGENTS.md`, note any that a machine could check
 (file length, forbidden flags, required commands): they are candidates for
-`/new-guard` later, not something to change now.
+`/bendit:new-guard` later, not something to change now.
 
 ## 7. Is there an app to run?
 

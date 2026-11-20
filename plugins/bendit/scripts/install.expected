@@ -253,7 +253,7 @@ python3 is missing or older than 3.9 (it runs bendit's guards).
   Run that now? [y/N] 
   python3 is ready.
 
-This folder is not a git repository; /adopt will offer git init.
+This folder is not a git repository; /bendit:adopt will offer git init.
 This machine is ready. Fetching bendit...
 2.1.328
 
@@ -309,7 +309,7 @@ node is missing or older than 20 (it drives the browser for a web app).
 Skipping node: the browser driver will be off, so bendit cannot look at
 your web app until that is installed. Everything else will work.
 
-This folder is not a git repository; /adopt will offer git init.
+This folder is not a git repository; /bendit:adopt will offer git init.
 This machine is ready. Fetching bendit...
 2.1.328
 
@@ -360,7 +360,7 @@ Chrome is missing (the browser bendit looks at your app with).
 Skipping node chrome: the browser driver will be off, so bendit cannot look at
 your web app until that is installed. Everything else will work.
 
-This folder is not a git repository; /adopt will offer git init.
+This folder is not a git repository; /bendit:adopt will offer git init.
 This machine is ready. Fetching bendit...
 2.1.328
 
@@ -453,7 +453,7 @@ exit 0
 ✓ git      found     any     reads and records your changes
 ✓ python3  3.12.1    3.9+    runs bendit's guards
 
-This folder is not a git repository; /adopt will offer git init.
+This folder is not a git repository; /bendit:adopt will offer git init.
 This machine is ready. Fetching bendit...
 
 === cache inside a git repo, empty v folder
@@ -464,7 +464,7 @@ exit 0
 ✓ git      found     any     reads and records your changes
 ✓ python3  3.12.1    3.9+    runs bendit's guards
 
-This folder is not a git repository; /adopt will offer git init.
+This folder is not a git repository; /bendit:adopt will offer git init.
 This machine is ready. Fetching bendit...
 
 === clone missing plugin.json
@@ -475,7 +475,7 @@ exit 0
 ✓ git      found     any     reads and records your changes
 ✓ python3  3.12.1    3.9+    runs bendit's guards
 
-This folder is not a git repository; /adopt will offer git init.
+This folder is not a git repository; /bendit:adopt will offer git init.
 This machine is ready. Fetching bendit...
 
 === unreachable source
@@ -489,7 +489,7 @@ could not fetch bendit from <tmp>/gone (v0.2.0).
 ✓ git      found     any     reads and records your changes
 ✓ python3  3.12.1    3.9+    runs bendit's guards
 
-This folder is not a git repository; /adopt will offer git init.
+This folder is not a git repository; /bendit:adopt will offer git init.
 This machine is ready. Fetching bendit...
 
 === ready, no terminal
@@ -500,11 +500,11 @@ exit 0
 ✓ git      found     any     reads and records your changes
 ✓ python3  3.12.1    3.9+    runs bendit's guards
 
-This folder is not a git repository; /adopt will offer git init.
+This folder is not a git repository; /bendit:adopt will offer git init.
 This machine is ready. Fetching bendit...
 
 There is no terminal to open Claude on. To finish, run this in your project:
-  claude --plugin-dir <tmp>/f4/home/.cache/bendit/v0.2.0/plugins/bendit "/adopt"
+  claude --plugin-dir <tmp>/f4/home/.cache/bendit/v0.2.0/plugins/bendit "/bendit:adopt"
 
 === space in HOME, with a terminal
 exit 0
@@ -527,7 +527,7 @@ exit 0
 This machine is ready. Fetching bendit...
 
 There is no terminal to open Claude on. To finish, run this in your project:
-  claude --plugin-dir <tmp>/f5/h\ ome/.cache/bendit/v0.2.0/plugins/bendit "/adopt"
+  claude --plugin-dir <tmp>/f5/h\ ome/.cache/bendit/v0.2.0/plugins/bendit "/bendit:adopt"
 
 === linux, git missing, apt-get
 exit 1
@@ -689,7 +689,7 @@ node is missing or older than 20 (it drives the browser for a web app).
 Skipping node: the browser driver will be off, so bendit cannot look at
 your web app until that is installed. Everything else will work.
 
-This folder is not a git repository; /adopt will offer git init.
+This folder is not a git repository; /bendit:adopt will offer git init.
 This machine is ready. Fetching bendit...
 
 === linux apt, node 18
@@ -709,7 +709,7 @@ node is missing or older than 20 (it drives the browser for a web app).
 Skipping node: the browser driver will be off, so bendit cannot look at
 your web app until that is installed. Everything else will work.
 
-This folder is not a git repository; /adopt will offer git init.
+This folder is not a git repository; /bendit:adopt will offer git init.
 This machine is ready. Fetching bendit...
 
 === linux, git missing, no package manager
@@ -775,7 +775,7 @@ claude is missing (the agent bendit plugs into).
   claude is in ~/.local/bin, which this shell's PATH lacks: open a new terminal
   (or add ~/.local/bin to PATH) before you run claude yourself.
 
-This folder is not a git repository; /adopt will offer git init.
+This folder is not a git repository; /bendit:adopt will offer git init.
 This machine is ready. Fetching bendit...
 
 === check, git found but broken
@@ -846,6 +846,6 @@ node is missing or older than 20 (it drives the browser for a web app).
 Skipping node: the browser driver will be off, so bendit cannot look at
 your web app until that is installed. Everything else will work.
 
-This folder is not a git repository; /adopt will offer git init.
+This folder is not a git repository; /bendit:adopt will offer git init.
 This machine is ready. Fetching bendit...
 

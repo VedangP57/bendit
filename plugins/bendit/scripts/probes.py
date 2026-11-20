@@ -1,7 +1,7 @@
 """The probe table: a known-bad and a known-good payload for every hook in
 hooks/hooks.json. ONE definition, read by two callers:
 
-  prove.sh      /adopt's proof -- feeds every probe marked `prove`, prints a table
+  prove.sh      /bendit:adopt's proof -- feeds every probe marked `prove`, prints a table
   selfcheck.py  the SessionStart check -- fires ONE probe per hook (its refusal
                 when it has one) to find a guard that can no longer run
 

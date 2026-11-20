@@ -11,7 +11,7 @@ Nothing below has an eval result yet: every new piece is *not yet measured*.
   (`claude`, `git`, `python3` 3.9+; for a web app also Node 20+ and Google
   Chrome), asks before every install (default no, no `--yes`), fetches bendit at
   the matching release tag into the cache folder and starts Claude Code on
-  `/adopt`; with no terminal it prints that command instead. Writes nothing in
+  `/bendit:adopt`; with no terminal it prints that command instead. Writes nothing in
   the project. Flags `--check`, `--version`, `--help`; settings
   `BENDIT_SOURCE`, `BENDIT_REF`, `BENDIT_CACHE`; exit codes 0, 1, 2.
 - **Wrappers** for the same installer: `npx bendit` (`packages/npm`) and
@@ -36,11 +36,11 @@ Nothing below has an eval result yet: every new piece is *not yet measured*.
   `<cache>/drive/<version>/` (never a project, never a browser download;
   `--check` exits 0 or 1).
 - **`bendit-web` add-on** with the `ux-design-laws` skill, listed in the
-  marketplace; `/adopt` installs it with `--scope project` for a web app.
+  marketplace; `/bendit:adopt` installs it with `--scope project` for a web app.
 - **`blast-radius` skill**, stack-neutral, with `paths:` globs for auth,
   sessions, secrets, policies, migrations, webhooks, payments, `.env*` and CI
   workflows.
-- **Controlled vocabulary** (`controlled-vocabulary.py`, `/vocabulary`):
+- **Controlled vocabulary** (`controlled-vocabulary.py`, `/bendit:vocabulary`):
   reports inflated wording, requirements phrased as advice and completion
   claims with no observation; no hook runs it.
 - **Plan linter and missing-import notes** (`check-plan.py`,
@@ -54,7 +54,7 @@ Nothing below has an eval result yet: every new piece is *not yet measured*.
   now resolves against the scenario's folder, not the current directory, and must
   stay inside it. Saved login state is git-ignored, and `saveState` is refused if
   git would commit the file or if git cannot confirm it is ignored.
-- **`/adopt`** gains step 3b: detect the features (detect.md §8), ask before
+- **`/bendit:adopt`** gains step 3b: detect the features (detect.md §8), ask before
   each missing dependency (Chrome, Node, Playwright, `bendit-web`), and write
   every feature to `.claude/bendit.json` in one chained `features.py` call. A
   "no" turns that feature off with why `you declined <it>`; it never stops
@@ -64,7 +64,7 @@ Nothing below has an eval result yet: every new piece is *not yet measured*.
   for the add-on in this project, the ls guard on `ls | wc -l`, the brief
   naming the branch), UNUSED when it is off, which is not a failure. The
   privacy row also scans `.claude/bendit.json`.
-- **`/doctor`** prints the features table (`selfcheck.py --features`) and warns
+- **`/bendit:doctor`** prints the features table (`selfcheck.py --features`) and warns
   when `bendit-web` is enabled at user scope.
 - **CI** validates and budget-checks every `plugins/*/`; the shell stage runs
   suites in parallel (half the CPUs, `BENDIT_CI_JOBS`), the suites that bind
@@ -74,6 +74,14 @@ Nothing below has an eval result yet: every new piece is *not yet measured*.
 - The Bash guard refuses setting `BENDIT_TTY` (pre-answering the installer).
 
 ### Fixed
+- **The installer's hand-over now works on a real terminal.** Two bugs seen
+  live on 2026-11-20 (Claude Code 2.1.328): on macOS, handing claude `/dev/tty`
+  as stdin crashed it (kqueue cannot watch a tty), and the command it was
+  started on, `/adopt`, printed "Unknown command: /adopt" because plugin
+  commands are namespaced by plugin name. The hand-over is now
+  `claude --plugin-dir <kit>/plugins/bendit "/bendit:adopt"`, and every place
+  that tells a person or the agent to type a bendit command (README, docs,
+  commands, skills, script messages) uses the namespaced form.
 - The import check times out (5 s) before its hook does (10 s), so a hung
   checker no longer loses the band-aid notes with it.
 - A malformed `bendit.json` makes the ls guard refuse only what it would
@@ -87,7 +95,7 @@ Nothing below has an eval result yet: every new piece is *not yet measured*.
   private, so the curl URL, `npx bendit` and `pipx run bendit` do not work for
   anyone yet. It was run from a local clone (`BENDIT_SOURCE`) with no
   terminal, on a Next.js-shaped, a Python and a Go throwaway project.
-- `/adopt`'s interactive flow has not been driven end to end by a person: its
+- `/bendit:adopt`'s interactive flow has not been driven end to end by a person: its
   headless parts (the detect.md §8 commands, the `features.py` chain,
   `prove.sh`) were run by hand on those three projects.
 - `prove.sh`'s `ux-design-laws` PASS path (an entry with `projectEnabled` true
@@ -110,11 +118,11 @@ the eval sweeps recorded in `plugins/bendit/evals/results/INDEX.md`.
   machine with no prompt. You approve in your own terminal
   (`require-verification.py --trust <repo>`); any change needs approval again;
   the Bash guard refuses `--trust` from the agent and any write to the approval
-  list. `/adopt`, the scaffold and `prove.sh` all say so.
+  list. `/bendit:adopt`, the scaffold and `prove.sh` all say so.
 
 ### Added
 - **Guard self-check** at session start: silent when healthy; names any guard
-  that cannot run or no longer refuses, and how to fix it. `/doctor` runs it on
+  that cannot run or no longer refuses, and how to fix it. `/bendit:doctor` runs it on
   demand together with `prove.sh`.
 - `engineering-habits` skill (see Changed).
 - Plugin icon, `CONTRIBUTING.md`, `SECURITY.md`, issue templates, this changelog.
@@ -174,5 +182,5 @@ the eval sweeps recorded in `plugins/bendit/evals/results/INDEX.md`.
 ## [0.1.0] - 2026-11-18
 
 First version: fail-closed guard hooks, the Stop gate, the verify-harness
-generator, `/adopt`, `/new-guard`, `/ship`, `/review-diff`, the eval kit, and
+generator, `/bendit:adopt`, `/bendit:new-guard`, `/bendit:ship`, `/bendit:review-diff`, the eval kit, and
 the first measured result (Bash guard 12/12 vs 0/12 in two cases).

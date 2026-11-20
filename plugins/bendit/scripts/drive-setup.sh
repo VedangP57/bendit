@@ -13,7 +13,7 @@
 # NO BROWSER is downloaded (PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1): drive.mjs drives
 # the Chrome already on the machine, or BENDIT_BROWSER_CHANNEL's browser.
 #
-# It never asks. /adopt asks the person before it runs this; anything else that
+# It never asks. /bendit:adopt asks the person before it runs this; anything else that
 # runs it has decided to download Playwright from npm.
 #
 # The install lands in a temporary folder beside <dir> and is moved into place

@@ -474,18 +474,44 @@ fetch_kit() {
   say "$dir/plugins/bendit"
 }
 
-# hand_over <plugin-dir> -- with a terminal, becomes claude running /adopt (its
+# handover_stdin -- sets HANDOVER_STDIN to where claude should read its input:
+# empty means "leave stdin alone" (it already is the terminal); otherwise a path.
+# Under `curl | bash` stdin is the script pipe, so claude needs the terminal
+# explicitly -- and the real device (/dev/ttys003), not the /dev/tty alias:
+# macOS kqueue cannot watch /dev/tty, and a Bun claude dies with EINVAL on it.
+# Sets a variable instead of printing: a command substitution would hide the
+# terminal on stdout.
+handover_stdin() {
+  local dev=""
+  HANDOVER_STDIN=""
+  if [ -n "${BENDIT_TTY:-}" ]; then HANDOVER_STDIN="$BENDIT_TTY"; return 0; fi
+  [ -t 0 ] && return 0
+  if [ -t 2 ]; then dev="$(tty 0<&2 2>/dev/null)"
+  elif [ -t 1 ]; then dev="$(tty 0<&1 2>/dev/null)"; fi
+  if [ -n "$dev" ] && [ "$dev" != "not a tty" ] && [ -c "$dev" ]; then
+    HANDOVER_STDIN="$dev"
+  else
+    HANDOVER_STDIN=/dev/tty
+  fi
+  return 0
+}
+
+# hand_over <plugin-dir> -- with a terminal, becomes claude running /bendit:adopt (its
 # input is the terminal, not the script a curl pipe may be feeding stdin);
 # without one, prints the command to run.
 hand_over() {
   local plugin="$1" q
   if have_tty; then
-    exec claude --plugin-dir "$plugin" "/adopt" < "${BENDIT_TTY:-/dev/tty}"
+    handover_stdin
+    if [ -n "$HANDOVER_STDIN" ]; then
+      exec claude --plugin-dir "$plugin" "/bendit:adopt" < "$HANDOVER_STDIN"
+    fi
+    exec claude --plugin-dir "$plugin" "/bendit:adopt"
   fi
   printf -v q '%q' "$plugin"
   say ""
   say "There is no terminal to open Claude on. To finish, run this in your project:"
-  say "  claude --plugin-dir $q \"/adopt\""
+  say "  claude --plugin-dir $q \"/bendit:adopt\""
   exit 0
 }
 
@@ -494,7 +520,7 @@ repo_note() {
   local out
   out="$(LC_ALL=C git rev-parse --is-inside-work-tree 2>&1)" && return 0
   case "$out" in
-    *"not a git repository"*) say "This folder is not a git repository; /adopt will offer git init." ;;
+    *"not a git repository"*) say "This folder is not a git repository; /bendit:adopt will offer git init." ;;
     *) say "git could not tell whether this folder is a repository: $(printf '%s\n' "$out" | head -n 1)" ;;
   esac
 }

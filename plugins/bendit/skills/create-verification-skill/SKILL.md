@@ -109,7 +109,7 @@ the check still describes it -- not when it last passed.
 
 ### 7. Run it end to end
 
-Run `/verify` (or `sh .claude/verify-harness`), read the output, and open the
+Run `/bendit:verify` (or `sh .claude/verify-harness`), read the output, and open the
 evidence (`artifacts/<scenario>-<timestamp>/` for a web app). **A harness that
 was never executed is a draft, not a deliverable.** Report the evidence rung
 reached.

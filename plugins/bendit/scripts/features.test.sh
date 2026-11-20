@@ -55,7 +55,7 @@ chk "file is sorted keys, 2-space indent, one trailing newline" "$fmt" "True Tru
 cap "show after merges" show "$T/merge"
 
 echo; echo "RE-ADOPT"
-# /adopt writes every feature with one chain of `set` calls; running /adopt
+# /bendit:adopt writes every feature with one chain of `set` calls; running /bendit:adopt
 # again on an unchanged project must not churn the committed file.
 readopt() {
   "$PY" "$F" set "$T/readopt" browser-driver on "package.json:5 next" &&

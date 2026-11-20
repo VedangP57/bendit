@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# prove.sh is the check /adopt reports from, so it is held to the rule it
+# prove.sh is the check /bendit:adopt reports from, so it is held to the rule it
 # enforces: seen to fail. Each case below breaks one thing in a COPY of the
 # plugin or in a scratch repo -- a guard that waves everything through, a guard
 # that refuses under another kit's name, a Stop gate that never refuses, a hook
@@ -119,7 +119,7 @@ echo "PER-PROJECT FEATURES"
 expect_capture "no bendit.json" bash "$SD/prove.sh" "$G"
 chk "no bendit.json: exit 0 (UNUSED is not a failure)" "$EXPECT_CODE" "0"
 chk "  ...four features read UNUSED" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -c '^feature: .*| UNUSED ')" "4"
-has "  ...saying why" "UNUSED  not set up by /adopt yet" "$EXPECT_STDOUT"
+has "  ...saying why" "UNUSED  not set up by /bendit:adopt yet" "$EXPECT_STDOUT"
 has "  ...and the summary counts them" "checks passed (4 unused)" "$EXPECT_STDOUT"
 has "  ...readable row passes" "features: .claude/bendit.json readable" "$EXPECT_STDOUT"
 

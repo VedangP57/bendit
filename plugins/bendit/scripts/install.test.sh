@@ -371,7 +371,7 @@ INSTALL_STDIN="$F/pipe" KIT_SOURCE="$KIT" BENDIT_TTY="$F/ans" expect_capture "re
 chk "ready: exits 0"                   "$EXPECT_CODE" 0
 chk "ready: one clone in the cache"    "$(clones "$F")" 1
 chk "ready: the clone is a git repo"   "$(git -C "$(cache_of "$F")/v$VERSION" rev-parse --verify HEAD >/dev/null 2>&1 && echo yes || echo no)" yes
-chk "ready: claude is handed over to"  "$(handed "$F")" "claude [--plugin-dir] [$(cache_of "$F")/v$VERSION/plugins/bendit] [/adopt]"
+chk "ready: claude is handed over to"  "$(handed "$F")" "claude [--plugin-dir] [$(cache_of "$F")/v$VERSION/plugins/bendit] [/bendit:adopt]"
 chk "ready: claude reads the terminal, not the pipe" "$(fed "$F")" "claude stdin [typed-at-terminal]"
 chk "ready: the hand-over is the last thing" "$(tail -n 1 "$F/calls.log")" "claude stdin [typed-at-terminal]"
 chk "ready: a git repo gets no git-init note" "$(nodots "$EXPECT_STDOUT" "$REPO_NOTE")" 0
@@ -382,14 +382,14 @@ KIT_SOURCE="$T/gone" BENDIT_TTY="$F/ans" expect_capture "second run" run_install
 chk "second run: exits 0"              "$EXPECT_CODE" 0
 chk "second run: still one clone"      "$(clones "$F")" 1
 chk "second run: the source was not asked again" "$(find "$(cache_of "$F")/v$VERSION" -name marker-dir | wc -l | tr -d ' ')" 1
-chk "second run: same hand-over"       "$(handed "$F")" "claude [--plugin-dir] [$(cache_of "$F")/v$VERSION/plugins/bendit] [/adopt]"
+chk "second run: same hand-over"       "$(handed "$F")" "claude [--plugin-dir] [$(cache_of "$F")/v$VERSION/plugins/bendit] [/bendit:adopt]"
 chk "second run: two claude calls in all" "$(callsfor "$F" "claude [--plugin-dir]")" 2
 chk "second run: no install calls"     "$(callsfor "$F" brew)" 0
 F="$T/f2"; ready_kit "$F"; : > "$F/ans"
 mkdir -p "$(cache_of "$F")/v$VERSION/plugins"; : > "$(cache_of "$F")/v$VERSION/stale"
 KIT_SOURCE="$KIT" BENDIT_TTY="$F/ans" expect_capture "cache without .git" run_installer "$F"
 chk "no .git: exits 0"                 "$EXPECT_CODE" 0
-chk "not a repo: says /adopt will offer git init" "$(nodots "$EXPECT_STDOUT" "^This folder is $REPO_NOTE; /adopt will offer git init.$")" 1
+chk "not a repo: says /bendit:adopt will offer git init" "$(nodots "$EXPECT_STDOUT" "^This folder is $REPO_NOTE; /bendit:adopt will offer git init.$")" 1
 chk "no .git: the stale folder is gone" "$([ -e "$(cache_of "$F")/v$VERSION/stale" ] && echo kept || echo replaced)" replaced
 chk "no .git: a fresh clone is there"  "$([ -d "$(cache_of "$F")/v$VERSION/.git" ] && echo yes || echo no)" yes
 # A cache inside a git work tree (HOME is a dotfiles repo): an empty v folder must
@@ -417,15 +417,46 @@ chk "unreachable: claude not called"   "$(callsfor "$F" "claude [--plugin-dir]")
 F="$T/f4"; ready_kit "$F"
 KIT_SOURCE="$KIT" BENDIT_TTY=/nonexistent expect_capture "ready, no terminal" run_installer "$F"
 chk "no terminal: exits 0"             "$EXPECT_CODE" 0
-chk "no terminal: prints the command"  "$(nodots "$EXPECT_STDOUT" '^  claude --plugin-dir .*/plugins/bendit "/adopt"$')" 1
+chk "no terminal: prints the command"  "$(nodots "$EXPECT_STDOUT" '^  claude --plugin-dir .*/plugins/bendit "/bendit:adopt"$')" 1
 chk "no terminal: claude not called"   "$(callsfor "$F" "claude [--plugin-dir]")" 0
+
+# handover_choice <stdin> <stderr> [BENDIT_TTY] -- runs the installer's own
+# handover_stdin with stdin/stderr each either a real pseudo-terminal ("pty") or
+# /dev/null, and prints "<chosen source>|<pty device>". "inherit" means no
+# redirect. Needs python3 for the pty; the function text is cut out of $INSTALL.
+handover_choice() {
+  local fn; fn="$(sed -n '/^handover_stdin() {/,/^}/p' "$INSTALL")"
+  python3 -I - "$1" "$2" "${3:-}" "$fn" <<'PY'
+import os, pty, subprocess, sys
+si, se, bt, fn = sys.argv[1:5]
+m, s = pty.openpty()
+dev = os.ttyname(s)
+null = open(os.devnull)
+env = {"PATH": os.environ["PATH"]}
+if bt: env["BENDIT_TTY"] = bt
+code = fn + '\nhandover_stdin; printf "%s" "${HANDOVER_STDIN:-inherit}"'
+r = subprocess.run(["bash", "-c", code], stdin=s if si == "pty" else null,
+                   stderr=s if se == "pty" else null, stdout=subprocess.PIPE, env=env)
+print("%s|%s" % (r.stdout.decode(), dev))
+PY
+}
+echo "hand-over: where claude reads"
+HC="$(handover_choice pty pty)"
+chk "stdin is a terminal: no redirect"        "${HC%%|*}" inherit
+HC="$(handover_choice null pty)"
+chk "piped, stderr a terminal: real device"   "${HC%%|*}" "${HC#*|}"
+chk "piped: never the /dev/tty alias"         "$([ "${HC%%|*}" = /dev/tty ] && echo alias || echo real)" real
+HC="$(handover_choice null null)"
+chk "no terminal at all: /dev/tty fallback"   "${HC%%|*}" /dev/tty
+HC="$(handover_choice pty pty /some/seam)"
+chk "BENDIT_TTY wins"                         "${HC%%|*}" /some/seam
 F="$T/f5"; ready_kit "$F"; printf 'typed-at-terminal\n' > "$F/ans"
 mkdir -p "$F/h ome" "$F/my app"; ( cd "$F/my app" && git init -q . )
 expect_capture "space in HOME, with a terminal" \
   env -i PATH="$F/bin" HOME="$F/h ome" BENDIT_TTY="$F/ans" BENDIT_SOURCE="$KIT" BENDIT_APP_DIRS="$F/noapps" \
   bash -c 'cd "$1" && bash "$2" </dev/null' _ "$F/my app" "$INSTALL"
 chk "space, terminal: exits 0"         "$EXPECT_CODE" 0
-chk "space, terminal: claude got the unsplit path" "$(handed "$F")" "claude [--plugin-dir] [$F/h ome/.cache/bendit/v$VERSION/plugins/bendit] [/adopt]"
+chk "space, terminal: claude got the unsplit path" "$(handed "$F")" "claude [--plugin-dir] [$F/h ome/.cache/bendit/v$VERSION/plugins/bendit] [/bendit:adopt]"
 chk "space, terminal: claude reads the terminal" "$(fed "$F")" "claude stdin [typed-at-terminal]"
 expect_capture "space in HOME, no terminal" \
   env -i PATH="$F/bin" HOME="$F/h ome" BENDIT_TTY=/nonexistent BENDIT_SOURCE="$KIT" BENDIT_APP_DIRS="$F/noapps" \

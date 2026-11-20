@@ -76,7 +76,7 @@ echo "wrote $PY"
 echo "wrote $TEST"
 
 # Running a guard or its tests writes __pycache__/ beside it (seen in a live
-# /new-guard run). Ignore it from the start; never touch an existing .gitignore.
+# /bendit:new-guard run). Ignore it from the start; never touch an existing .gitignore.
 if [ ! -e "$DIR/.gitignore" ]; then
   printf '__pycache__/\n' > "$DIR/.gitignore"
   echo "wrote $DIR/.gitignore (ignores __pycache__/)"

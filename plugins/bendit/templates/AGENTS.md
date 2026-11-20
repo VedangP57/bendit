@@ -31,7 +31,7 @@ dev:        {{dev_command}}
 
 {{canonical_helpers}}
 
-## Invariants (checked by /ship and /review-diff on every change)
+## Invariants (checked by /bendit:ship and /bendit:review-diff on every change)
 
 {{invariants}}
 

@@ -23,7 +23,7 @@ whole codebase (types, call graphs), it belongs in a lint rule or CI instead.
 ## 2. Scaffold it
 
 ```
-/new-guard <name>
+/bendit:new-guard <name>
 ```
 
 That runs `bash KIT/scripts/new-guard.sh <name>`, which writes

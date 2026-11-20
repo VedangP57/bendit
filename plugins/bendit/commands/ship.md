@@ -46,7 +46,7 @@ git merge-base HEAD "origin/$BASE" || echo "NO MERGE-BASE with origin/$BASE"
 
 ## 1. Gates: run every one this project has
 
-Take the commands from `AGENTS.md` (written by `/adopt`), else from the project's own manifest (`package.json` scripts, `Makefile`, `pyproject.toml`, `Cargo.toml`, `go.mod`). Run in this order:
+Take the commands from `AGENTS.md` (written by `/bendit:adopt`), else from the project's own manifest (`package.json` scripts, `Makefile`, `pyproject.toml`, `Cargo.toml`, `go.mod`). Run in this order:
 
 ```
 lint  →  typecheck  →  test  →  build

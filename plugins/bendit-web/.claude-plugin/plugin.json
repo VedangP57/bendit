@@ -1,6 +1,6 @@
 {
   "name": "bendit-web",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "bendit add-on for web apps: UI design skill. Installed by /bendit:adopt, per project.",
   "author": {
     "name": "VedangP57"

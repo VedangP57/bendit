@@ -4,6 +4,8 @@ All notable changes. Dates are UTC.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-20
+
 Nothing below has an eval result yet: every new piece is *not yet measured*.
 
 ### Added

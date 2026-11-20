@@ -1,6 +1,6 @@
 ---
 description: Report, fix or baseline this repo's controlled vocabulary: one word, one meaning
-allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/controlled-vocabulary.py *)
+allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/controlled-vocabulary.py --report *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/controlled-vocabulary.py --dict *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/controlled-vocabulary.py --check *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/controlled-vocabulary.py --json *)
 ---
 
 Check this repo's agent prose against its controlled vocabulary. The dictionary
@@ -24,7 +24,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/controlled-vocabulary.py" --init .
 ```
 
 2. Print the report as it came out. Never write a file (`--init`, `--fix`,
-   `--baseline`, `--html`) without the user's yes. Then explain the two writes
+   `--baseline`, `--html`) without the user's yes. Only the read forms are
+   pre-approved, so a write also brings up Claude Code's own permission prompt;
+   the script refuses a read flag combined with a write flag. Then explain the two writes
    they may want next:
 
    - `--fix [PATH]` applies only the `substitute` rule's one-for-one swaps

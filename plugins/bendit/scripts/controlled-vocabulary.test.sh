@@ -268,6 +268,52 @@ check "a second --init refuses (exit 1)" "1" "$rc"
 check "  ...and left the file alone" "MINE" "$(cat "$I/.claude/vocabulary.json")"
 if grep -q 'already exists' "$TMP/init2"; then ok "  ...and says why on stderr"; else bad "  ...and says why on stderr" "$(cat "$TMP/init2")"; fi
 
+echo '--- a read flag never carries a write: what /vocabulary pre-approves stays read-only'
+# commands/vocabulary.md pre-approves only read forms (`--report *` and the
+# like). A wildcard after a read flag would still admit `--report --init .`,
+# so the script itself must refuse a read flag next to a write flag.
+W="$TMP/mixed"; mkdir -p "$W"; ( cd "$W" && git init -q . )
+printf '# Notes\n\nRun it in order to seed.\n' > "$W/AGENTS.md"
+for combo in "--report --init" "--json --fix" "--dict --baseline" "--check NOTES.md --html out.html"; do
+  # shellcheck disable=SC2086
+  ( cd "$W" && NO_COLOR=1 "$PY" "$CV" $combo . >/dev/null 2>"$TMP/mixed.err" ); rc=$?
+  check "'$combo' is refused (exit 2)" "2" "$rc"
+  if grep -q 'read-only' "$TMP/mixed.err"; then ok "  ...and says why on stderr"; else bad "  ...and says why on stderr" "$(cat "$TMP/mixed.err")"; fi
+done
+check "  ...and none of them wrote a file" "" "$(cd "$W" && git status --porcelain --untracked-files=all | grep -v ' AGENTS.md$')"
+check "  ...and AGENTS.md is unchanged" "1" "$(grep -c 'in order to' "$W/AGENTS.md")"
+( cd "$W" && NO_COLOR=1 "$PY" "$CV" --report --all . >/dev/null 2>&1 ); rc=$?
+check "control: --report --all (two read flags) still runs" "0" "$rc"
+
+# allowed_cmd <command> -- 0 when a Bash(...) pattern in vocabulary.md's
+# allowed-tools admits it ("X *" admits X and anything after "X ").
+CMD_MD="$HERE/../commands/vocabulary.md"
+allowed_cmd() {
+  "$PY" - "$CMD_MD" "$1" <<'PYEOF'
+import re, sys
+md, cmd = sys.argv[1], sys.argv[2]
+front = open(md).read().split('---')[1]
+line = [l for l in front.splitlines() if l.startswith('allowed-tools:')]
+pats = re.findall(r'Bash\(([^)]*)\)', line[0]) if line else []
+if not pats:
+    sys.exit(3)
+for p in pats:
+    if p.endswith(' *'):
+        if cmd == p[:-2] or cmd.startswith(p[:-1]):
+            sys.exit(0)
+    elif cmd == p:
+        sys.exit(0)
+sys.exit(1)
+PYEOF
+}
+V='python3 ${CLAUDE_PLUGIN_ROOT}/scripts/controlled-vocabulary.py'
+for f in "--report ." "--dict" "--check AGENTS.md" "--json ."; do
+  allowed_cmd "$V $f"; check "/vocabulary pre-approves the read form '$f'" "0" "$?"
+done
+for f in "--init ." "--fix ." "--baseline ." "--html out.html ." "."; do
+  allowed_cmd "$V $f"; check "/vocabulary does NOT pre-approve '$f' (it asks the person)" "1" "$?"
+done
+
 echo '--- --self-test ignores a local dictionary'
 printf '{"substitute":{}}\n' > "$I/.claude/vocabulary.json"
 ( cd "$I" && NO_COLOR=1 "$PY" "$CV" --self-test >/dev/null 2>&1 )

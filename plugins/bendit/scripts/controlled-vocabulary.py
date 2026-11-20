@@ -754,6 +754,16 @@ def main(argv) -> int:
     if '--self-test' in flags:
         return self_test()
 
+    # /vocabulary pre-approves the read forms (`--report *` and the like), so
+    # a read flag must never carry a write: `--report --init .` would
+    # otherwise run --init with no question asked.
+    reads = sorted(flags & {'--report', '--dict', '--check', '--json'})
+    writes = sorted(flags & {'--init', '--fix', '--baseline', '--html'})
+    if reads and writes:
+        print(f'controlled-vocabulary: {" ".join(reads)} is read-only and cannot be combined '
+              f'with {" ".join(writes)}; run the write on its own.', file=sys.stderr)
+        return 2
+
     strict = '--strict' in flags
     paths = args or ['.']
 

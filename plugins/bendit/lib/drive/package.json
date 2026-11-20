@@ -1,0 +1,8 @@
+{
+  "name": "bendit-drive",
+  "private": true,
+  "description": "bendit's browser driver (drive.mjs). Playwright is NOT a dependency here: scripts/drive-setup.sh installs exactly playwrightVersion into the user's cache, never into a project. playwrightVersion is the latest stable release on npm on playwrightChosenOn; engines.node is that release's own engines.node, and install.sh's NODE_MIN is its major (drive.test.sh checks both).",
+  "playwrightVersion": "1.65.1",
+  "playwrightChosenOn": "2026-11-19",
+  "engines": { "node": ">=20" }
+}

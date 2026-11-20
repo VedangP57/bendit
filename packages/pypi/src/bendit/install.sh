@@ -13,6 +13,8 @@ ASKED="
 CLT_MISSING=0
 
 BENDIT_VERSION="0.2.0"
+# The major of Playwright's own engines.node floor (plugins/bendit/lib/drive/
+# package.json): the browser driver cannot run on less. drive.test.sh checks it.
 NODE_MIN=20
 
 say() { printf '%s\n' "$*"; }

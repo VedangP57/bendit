@@ -174,6 +174,35 @@ o=$(drv denial2); has "  ...and the status check can fail (a 404 is not a 200)" 
 rm -f "$SC/nothing.sh" "$SC/wrong.sh" "$SC/denial.sh" "$SC/denial2.sh"
 o=$(drv smoke --bogus x); has "an unknown drive option is refused" "unknown drive option" "$o"
 
+# --- a .json scenario goes to the browser driver ---------------------------------
+# `node` is a stub that logs its argv and answers as the driver would, so this
+# pins the ROUTING; drive.test.sh drives the real browser.
+echo
+echo "DRIVE: A .json SCENARIO RUNS IN THE BROWSER DRIVER"
+NB="$T/nodestub"; mkdir -p "$NB"
+cat > "$NB/node" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$@" > "$NODE_LOG"
+if [ "${NODE_RC:-0}" = 0 ]; then echo "VERDICT: VERIFIED"; else echo "VERDICT: NOT VERIFIED"; fi
+exit "${NODE_RC:-0}"
+EOF
+chmod +x "$NB/node"
+jdrv() ( cd "$R" && PATH="$NB:$PATH" NODE_LOG="$T/node.log" BENDIT_KIT_ROOT="$SD/.." PORT="$PORT" "$V" drive "$@" 2>&1; echo "rc=$?" )
+printf '{"name":"home","steps":[{"goto":"/"},{"expectText":"hello fixture"}]}\n' > "$SC/home.json"
+o=$(jdrv home)
+has "a .json scenario is VERIFIED when the driver says so" "VERDICT: VERIFIED" "$o"; has "  ...exit 0" "rc=0" "$o"
+NL="$(cat "$T/node.log")"
+has "  ...run by the kit's drive.mjs" "$SD/../lib/drive/drive.mjs" "$NL"
+has "  ...on that scenario file" "$SC/home.json" "$NL"
+has "  ...against this checkout's port" "--base
+http://localhost:$PORT" "$NL"
+has "  ...leaving evidence in artifacts/home-<timestamp>" "--out
+$R/.claude/skills/verify-repo/artifacts/home-" "$NL"
+o=$(NODE_RC=1 jdrv home); has "a failing driver fails the scenario" "rc=1" "$o"; hasnt "  ...and it is not VERIFIED" "VERDICT: VERIFIED" "$o"
+printf '. "$PROBE"\nexpect_ok /\n' > "$SC/home.sh"
+o=$(jdrv home); has "a name with both a .sh and a .json is refused as ambiguous" "both" "$o"; has "  ...exit 2" "rc=2" "$o"
+rm -f "$SC/home.sh" "$SC/home.json" "$T/node.log"
+
 # --- Guard 3: evidence pruning -----------------------------------------------
 echo
 echo "GUARD 3: EVIDENCE IS PRUNED, NEVER THE RUN BEING WRITTEN"

@@ -130,10 +130,47 @@ chk "a declined feature is UNUSED with its reason, exit 0" "$EXPECT_CODE" "0"
 has "  ...the reason is shown" "UNUSED  you declined Chrome" "$EXPECT_STDOUT"
 
 BENDIT_JSON='{"version":1,"features":{"browser-driver":{"on":true,"why":"Chrome"}}}'
-F2="$T/feat-nocheck"; repo "$F2" 'exit 0'
-expect_capture "browser-driver on, no registered check" bash "$SD/prove.sh" "$F2"
+F2="$T/feat-browser"; repo "$F2" 'exit 0'
+K0="$T/kit-nocheck"; kitcopy "$K0"
+sed -i.bak "/^    'browser-driver': _check_browser_driver,\$/d" "$K0/scripts/prove.sh"
+chk "  (the copy really lost its browser-driver check)" "$(grep -c "'browser-driver': _check_browser_driver" "$K0/scripts/prove.sh")" "0"
+expect_capture "browser-driver on, no registered check" bash "$K0/scripts/prove.sh" "$F2"
 chk "an ON feature with no registered check fails prove" "$EXPECT_CODE" "1"
 has "  ...naming it" "no check for browser-driver" "$EXPECT_STDOUT"
+# browser-driver: ON means Playwright is installed (drive-setup.sh --check) AND
+# the driver passes its own selftest page. Both are stand-ins in a kit copy
+# here, so this pins what the check runs and reads; drive.test.sh drives the
+# real browser.
+K6="$T/kit-noplaywright"; kitcopy "$K6"
+printf '#!/usr/bin/env bash\necho "drive-setup: Playwright is not installed"\nexit 1\n' > "$K6/scripts/drive-setup.sh"
+expect_capture "browser-driver on, Playwright not installed" bash "$K6/scripts/prove.sh" "$F2"
+chk "browser-driver on with no Playwright fails prove (exit 1)" "$EXPECT_CODE" "1"
+has "  ...giving the command that installs it" "drive-setup.sh" "$(printf '%s\n' "$EXPECT_STDOUT" | sed -n '/^failures:/,$p')"
+# fakedrive <kit> <exit code>: a drive.mjs that checks it was handed the selftest,
+# writes into its --out like the real one, and exits as told.
+fakedrive() {
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$1/scripts/drive-setup.sh"
+  cat > "$1/lib/drive/drive.mjs" <<EOF
+import { mkdirSync, writeFileSync } from 'node:fs';
+const a = process.argv.slice(2), v = (n) => a[a.indexOf(n) + 1];
+const ok = a[0].endsWith('/lib/drive/selftest/pass.json') && String(v('--base')).startsWith('file://') && a.includes('--out');
+mkdirSync(v('--out'), { recursive: true }); writeFileSync(v('--out') + '/verdict.md', 'x');
+console.log(!ok ? 'VERDICT: NOT VERIFIED -- unexpected args ' + a.join(' ')
+  : $2 === 0 ? 'VERDICT: VERIFIED' : 'FAIL  5  expectText  — "Saved"\nVERDICT: NOT VERIFIED');
+process.exit(ok ? $2 : 3);
+EOF
+}
+K7="$T/kit-drivefails"; kitcopy "$K7"; fakedrive "$K7" 1
+expect_capture "browser-driver on, selftest fails" bash "$K7/scripts/prove.sh" "$F2"
+chk "a driver that fails its selftest fails prove (exit 1)" "$EXPECT_CODE" "1"
+has "  ...saying the selftest failed" "selftest" "$(printf '%s\n' "$EXPECT_STDOUT" | sed -n '/^failures:/,$p')"
+K8="$T/kit-drivepasses"; kitcopy "$K8"; fakedrive "$K8" 0
+gst "$F2" >/dev/null; before=$(gst "$F2"; snap "$F2")
+expect_capture "browser-driver on, selftest passes" bash "$K8/scripts/prove.sh" "$F2"
+chk "browser-driver: installed and the selftest passes -> prove passes" "$EXPECT_CODE" "0"
+chk "  ...its row says PASS" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^feature: browser-driver +\| PASS ')" "1"
+chk "  ...and the selftest's evidence went nowhere near the repo" "$([ "$before" = "$(gst "$F2"; snap "$F2")" ] && echo same || echo changed)" same
+chk "  ...nor stayed in the temp dir" "$(/bin/ls -A "$TMPDIR")" ""
 
 BENDIT_JSON='{"version":1,"features":{"ls-guard":{"on":true,"why":"ls is a formatter"}}}'
 F2b="$T/feat-ls"; repo "$F2b" 'exit 0'

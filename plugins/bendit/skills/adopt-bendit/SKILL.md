@@ -47,6 +47,14 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
    google-chrome`; otherwise the download page, https://nodejs.org/ or
    https://www.google.com/chrome/) *[no]*. A "no" turns that feature off with why
    `you declined <dep>` (e.g. `you declined Chrome`); it never stops adoption.
+   For `browser-driver` that includes Playwright: when
+   `bash "$KIT/scripts/drive-setup.sh" --check` exits 1, ask *"Install
+   Playwright for the browser driver: `bash "$KIT/scripts/drive-setup.sh"`
+   (downloads the pinned version from npm into
+   `${BENDIT_CACHE:-${XDG_CACHE_HOME:-~/.cache}/bendit}/drive/`; no browser is
+   downloaded and nothing is written in this project)? [no]"*. Run it only
+   after a yes, and read its output; a "no" is why `you declined Playwright`.
+   The script itself never asks, so this question is the only consent.
    If `ux-design-laws` is on, it needs the `bendit-web` add-on. Run
    `claude plugin list --json` **from the project root** (read-only; the human
    `claude plugin list` shows the project-scope installs of every project

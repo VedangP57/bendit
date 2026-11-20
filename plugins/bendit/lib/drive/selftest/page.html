@@ -1,0 +1,13 @@
+<!doctype html><meta charset="utf-8"><title>bendit drive selftest</title>
+<h1>Entities</h1>
+<label for="n">Legal name</label>
+<input id="n" name="n">
+<button id="save">Save</button>
+<p id="out" hidden>Saved</p>
+<script>
+  document.getElementById('save').addEventListener('click', () => {
+    if (document.getElementById('n').value.trim()) {
+      document.getElementById('out').hidden = false;
+    }
+  });
+</script>

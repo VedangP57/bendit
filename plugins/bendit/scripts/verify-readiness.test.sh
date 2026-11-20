@@ -212,6 +212,23 @@ case "$outn" in *"nothing was verified"*) ok "  ...saying nothing was verified";
 if [ -f "$RN/.claude/.bendit-state/verified" ]; then bad "  ...and writes no stamp" "stamp written"; else ok "  ...and writes no stamp"; fi
 
 echo
+echo "BROWSER (.json) SCENARIOS ARE SCENARIOS"
+# A repo whose only scenario is a browser scenario. Globbing *.sh alone found
+# none and refused the repo as "nothing was verified".
+RJ=$(make_repo json 200)
+rm -f "$RJ/.claude/skills/verify-json/scenarios/"*.sh
+printf '{"name":"home","steps":[{"goto":"/"}]}\n' > "$RJ/.claude/skills/verify-json/scenarios/home.json"
+mkdir -p "$RJ/.claude/skills/verify-json/scenarios/home.json.baselines" "$RJ/.claude/skills/verify-json/scenarios/fixtures"
+printf '{}\n' > "$RJ/.claude/skills/verify-json/scenarios/fixtures/state.json"
+outj=$(run_verify "$RJ" json); rcj=$?
+case "$outj" in *"1/1 verified"*) ok "a lone .json scenario is run (exit $rcj)";; *) bad "a lone .json scenario is run" "$(printf '%s' "$outj" | tail -3)";; esac
+case "$outj" in *"home"*) ok "  ...by its name";; *) bad "  ...by its name" "$(printf '%s' "$outj" | tail -3)";; esac
+case "$outj" in *"state"*) bad "  ...and a .json in a subfolder (saved login state) is not a scenario" "it ran 'state'";; *) ok "  ...and a .json in a subfolder (saved login state) is not a scenario";; esac
+printf ': scenario\n' > "$RJ/.claude/skills/verify-json/scenarios/b.sh"
+outj2=$(run_verify "$RJ" json)
+case "$outj2" in *"2/2 verified"*) ok "  ...and alongside a .sh scenario both run";; *) bad "  ...and alongside a .sh scenario both run" "$(printf '%s' "$outj2" | tail -3)";; esac
+
+echo
 echo "NO APP HARNESS: THE DECLARED HARNESS IS THE VERIFICATION"
 decl_repo() { # <name> <harness body>
   local R="$TMP/$1"; mkdir -p "$R/.claude"; git -C "$R" init -q . 2>/dev/null

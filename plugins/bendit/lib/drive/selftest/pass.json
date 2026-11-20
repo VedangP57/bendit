@@ -1,0 +1,40 @@
+{
+  "name": "selftest-pass",
+  "steps": [
+    {
+      "goto": "/page.html"
+    },
+    {
+      "expectVisible": {
+        "role": "heading",
+        "name": "Entities"
+      }
+    },
+    {
+      "expectNotVisible": {
+        "text": "Saved"
+      }
+    },
+    {
+      "fill": {
+        "label": "Legal name",
+        "value": "Acme Holdings LLC"
+      }
+    },
+    {
+      "click": {
+        "role": "button",
+        "name": "Save"
+      }
+    },
+    {
+      "expectText": "Saved"
+    },
+    {
+      "snapshot": "after"
+    },
+    {
+      "screenshot": "after"
+    }
+  ]
+}

@@ -72,6 +72,23 @@ never from the file.
 `VERDICT: VERIFIED` only if it exits 0, made at least one check, and none
 failed. Fetch the page first and read it; write assertions from what it says.
 
+When the behaviour lives in the browser (a click, a form, client-side
+rendering), write `scenarios/<name>.json` instead: steps such as
+`{"goto": "/"}`, `{"click": {"role": "button", "name": "Save"}}`,
+`{"expectText": "Saved"}`, `{"screenshot": "after-save"}`, run in a real Chrome
+by bendit's driver (`lib/drive/drive.mjs`; the generated `SKILL.md` lists every
+step). `verify` runs `.sh` and `.json` scenarios alike, by name. The driver needs
+Playwright, installed once per machine outside the repo (ask first: it
+downloads from npm):
+
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/drive-setup.sh          # --check: 0 installed, 1 not
+```
+
+No Playwright or no Chrome is exit 2 naming what is missing, never `VERIFIED`;
+`BENDIT_BROWSER_CHANNEL` picks another installed browser (e.g. `msedge`). After a
+run, open the screenshot and look at it.
+
 ### 4. Prove a denial, not just a success
 
 For every capability, check the negative too: the logged-out request is

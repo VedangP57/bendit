@@ -105,7 +105,7 @@ is that signal's source, written as you would cite it in the report.
 
 | feature | on when | why (its source) | needs |
 |---|---|---|---|
-| `browser-driver` | web app: a `package.json` dependency key from the list below, or `index.html` at the root | `package.json:<line> <name>`, or `index.html` | Node 20+ and Chrome |
+| `browser-driver` | web app: a `package.json` dependency key from the list below, or `index.html` at the root | `package.json:<line> <name>`, or `index.html` | Node 20+, Chrome, and Playwright installed by `scripts/drive-setup.sh`: `bash "$KIT/scripts/drive-setup.sh"` (SKILL.md step 3b asks first) |
 | `ux-design-laws` | web app (same signal) | same as `browser-driver` | the `bendit-web` add-on (SKILL.md step 3b installs it) |
 | `session-brief` | a git project | `git project (git rev-parse --show-toplevel)` | nothing |
 | `ls-guard` | `ls` is not the real `ls` in the user's shell | `type ls in <shell>: ls is a shell function` or `…: ls is an alias` (`<shell>` is the basename of `$SHELL`) | nothing |
@@ -149,9 +149,12 @@ for c in google-chrome google-chrome-stable chromium chromium-browser; do comman
 for d in /Applications "$HOME/Applications"; do
   for a in "Google Chrome.app" "Chromium.app"; do test -e "$d/$a" && echo "$d/$a"; done
 done
+bash "$KIT/scripts/drive-setup.sh" --check   # exit 0: Playwright installed; 1: not (it installs nothing)
 ```
 
 Chrome is found if either loop prints a line (the installer's `find_chrome`).
+The driver launches Chrome by default; `BENDIT_BROWSER_CHANNEL` names another
+installed browser (`msedge`, `chrome-beta`).
 A missing dependency does not turn the feature off here: SKILL.md step 3b asks.
 
 **`ls`.** Ask the user's interactive shell what `ls` is. Its rc files run, and

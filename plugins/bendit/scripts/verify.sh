@@ -271,7 +271,14 @@ fi
 echo
 list=${1:-}
 if [ -n "$list" ]; then scenarios="$list"
-else scenarios=$(find "$SK/scenarios" -name '*.sh' -not -name '_*' -exec basename {} .sh \; 2>/dev/null | sort); fi
+# <name>.sh (probes) and <name>.json (a real browser) are both scenarios, run by
+# name; the harness refuses a name that has both. Top level only: a browser
+# scenario keeps files beside it (saved login state under fixtures/, baselines
+# in <name>.json.baselines/), and none of those is a scenario.
+elif [ -d "$SK/scenarios" ]; then
+  scenarios=$(find "$SK/scenarios/" -maxdepth 1 \( -type f -o -type l \) \( -name '*.sh' -o -name '*.json' \) -not -name '_*' \
+    | sed -e 's|.*/||' -e 's/\.sh$//' -e 's/\.json$//' | sort -u)
+else scenarios=""; fi
 # No scenarios is a FAILURE. Exiting 0 here would let a fresh harness pass the
 # Stop gate having exercised nothing but readiness.
 [ -n "$scenarios" ] || die "verify: no scenarios in $SK/scenarios/, so nothing was verified. Write one."

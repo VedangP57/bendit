@@ -45,7 +45,7 @@ trap 'exit 130' INT TERM
 export PYTHONDONTWRITEBYTECODE=1
 
 python3 - "$KIT" "$REPO" "$W" <<'PY'
-import json, os, signal, subprocess, sys
+import json, os, signal, subprocess, sys, tempfile
 
 kit, repo, w = sys.argv[1:4]
 rows = []          # (check, state, rung, detail); state is PASS, FAIL or UNUSED
@@ -395,8 +395,47 @@ def _check_session_brief(repo, kit):
     return True, f'briefs this repo on {branch or "a detached HEAD"}'
 
 
-FEATURE_CHECKS = {'ux-design-laws': _check_ux_design_laws, 'ls-guard': _check_ls_guard,
-                  'session-brief': _check_session_brief}
+def _check_browser_driver(repo, kit):
+    """ON means the browser driver runs on THIS machine: Playwright is installed
+    where drive.mjs loads it from (drive-setup.sh --check), and the driver passes
+    its own selftest -- a real browser filling and reading lib/drive/selftest's
+    local page, compared with its committed baseline. No app is needed, and
+    nothing is written in the repo: the run's cwd, evidence and temp files are
+    all in a temp dir of its own, removed after."""
+    setup = os.path.join(kit, 'scripts', 'drive-setup.sh')
+    selftest = os.path.join(kit, 'lib', 'drive', 'selftest')
+    try:
+        c = subprocess.run(['bash', setup, '--check'], capture_output=True, text=True, timeout=30,
+                           stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f'could not run drive-setup.sh --check: {type(e).__name__}: {e}'
+    if c.returncode != 0:
+        return False, (f'Playwright is not installed for the browser driver (drive-setup.sh --check exit {c.returncode}). '
+                       f'Install it with: bash {setup}')
+    with tempfile.TemporaryDirectory() as tmp:
+        env = dict(os.environ, TMPDIR=tmp)
+        env.pop('PORT', None)
+        try:
+            p = subprocess.run(['node', os.path.join(kit, 'lib', 'drive', 'drive.mjs'),
+                                os.path.join(selftest, 'pass.json'), '--base', 'file://' + selftest,
+                                '--out', os.path.join(tmp, 'evidence')],
+                               capture_output=True, text=True, timeout=120, env=env, cwd=tmp,
+                               stdin=subprocess.DEVNULL)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            return False, f'could not run the driver selftest: {type(e).__name__}: {e}'
+    if p.returncode == 0 and 'VERDICT: VERIFIED' in p.stdout:
+        return True, 'Playwright installed; the driver passes its selftest in a real browser'
+    out = (p.stdout + p.stderr).strip().splitlines()
+    why = next((l for l in out if l.startswith(('FAIL', 'drive:'))), out[-1] if out else 'no output')
+    return False, f'the driver selftest failed (exit {p.returncode}): {short(why, 300)}'
+
+
+FEATURE_CHECKS = {
+    'browser-driver': _check_browser_driver,
+    'ux-design-laws': _check_ux_design_laws,
+    'ls-guard': _check_ls_guard,
+    'session-brief': _check_session_brief,
+}
 label = 'features: .claude/bendit.json readable'
 try:
     feats = F.load(repo)

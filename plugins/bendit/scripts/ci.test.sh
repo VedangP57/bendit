@@ -130,7 +130,7 @@ chk "ci.sh declares the serial lane" "$([ -n "$SERIAL" ] && echo y || echo n)" y
 binders="$(cd "$SD" && grep -lE 'bind[(]|listen[(]|create[S]erver|http[.]server|socket[s]erver' -- *.test.sh | sed 's/\.test\.sh$//' | sort | tr '\n' ' ')"
 missing=""; for b in $binders; do case " $SERIAL " in *" $b "*) ;; *) missing="$missing $b" ;; esac; done
 chk "every suite that binds a port is in the serial lane (binders: $binders)" "$missing" ""
-chk "  ...and the lane is exactly these" "$SERIAL" "ports scaffold-verification-skill session-brief verify-readiness"
+chk "  ...and the lane is exactly these" "$SERIAL" "drive ports scaffold-verification-skill session-brief verify-readiness"
 # Behaviour: two lane suites each take a lock dir and fail if it is already
 # held (they overlapped), and each needs the pool suite's done-marker (it ran
 # after the pool). Named after real lane members, so ci.sh puts them there.

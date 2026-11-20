@@ -153,8 +153,9 @@ npx bendit
 pipx run bendit        # or: uvx bendit
 ```
 
-That URL is "latest". To pin a release, put its tag in the URL:
-`https://raw.githubusercontent.com/VedangP57/bendit/<tag>/install.sh`.
+That URL is "latest". To pin a release, put its tag in the URL, for example
+`https://raw.githubusercontent.com/VedangP57/bendit/v0.3.0/install.sh`
+(`/<tag>/` for any other release).
 
 The installer checks that your machine has what bendit needs (`claude`, `git`,
 `python3` 3.9 or newer; for a web app also `node` 20 or newer and Google Chrome;

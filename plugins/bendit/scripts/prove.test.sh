@@ -205,6 +205,29 @@ chk "a home path in .claude/bendit.json fails prove (exit 1)" "$EXPECT_CODE" "1"
 chk "  ...on the privacy row" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^privacy: .*\| FAIL ')" "1"
 has "  ...naming the file" ".claude/bendit.json" "$(printf '%s\n' "$EXPECT_STDOUT" | sed -n '/^failures:/,$p')"
 
+# Privacy FAILS only for files bendit writes; another tool's skills are notices.
+unset BENDIT_JSON   # the case above left a home path in it; these repos must start clean
+# plantskill <repo> <skill-dir> -- a committed skill file carrying a home path.
+plantskill() {
+  mkdir -p "$1/.claude/skills/$2"; printf 'see %s/bob/x\n' "$U" > "$1/.claude/skills/$2/SKILL.md"
+  git -C "$1" add -A && git -C "$1" -c user.email=t@example.com -c user.name=t commit -qm skill
+}
+PO="$T/priv-other"; repo "$PO" 'exit 0'; plantskill "$PO" other-tool
+expect_capture "finding only in another tool's skill" bash "$SD/prove.sh" "$PO"
+chk "another tool's skill finding does not fail prove (exit 0)" "$EXPECT_CODE" "0"
+chk "  ...privacy row PASSes" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^privacy: .*\| PASS ')" "1"
+has "  ...with a notices block" "notices (not failures):" "$EXPECT_STDOUT"
+has "  ...naming the file and line" ".claude/skills/other-tool/SKILL.md:1:" "$(printf '%s\n' "$EXPECT_STDOUT" | sed -n '/^notices/,$p')"
+PA="$T/priv-agents"; repo "$PA" 'exit 0'; printf 'see %s/bob/x\n' "$U" >> "$PA/AGENTS.md"
+git -C "$PA" add -A && git -C "$PA" -c user.email=t@example.com -c user.name=t commit -qm leak
+expect_capture "finding in AGENTS.md" bash "$SD/prove.sh" "$PA"
+chk "a finding in AGENTS.md fails prove (exit 1)" "$EXPECT_CODE" "1"
+chk "  ...on the privacy row" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^privacy: .*\| FAIL ')" "1"
+PV="$T/priv-verify"; repo "$PV" 'exit 0'; plantskill "$PV" verify-x
+expect_capture "finding in the generated verify-x skill" bash "$SD/prove.sh" "$PV"
+chk "a finding in .claude/skills/verify-x fails prove (exit 1)" "$EXPECT_CODE" "1"
+chk "  ...on the privacy row" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^privacy: .*\| FAIL ')" "1"
+
 BENDIT_JSON='{"version":1,'
 F3="$T/feat-bad"; repo "$F3" 'exit 0'
 expect_capture "malformed bendit.json" bash "$SD/prove.sh" "$F3"

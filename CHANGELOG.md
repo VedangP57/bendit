@@ -4,6 +4,37 @@ All notable changes. Dates are UTC.
 
 ## [Unreleased]
 
+### Added
+- **One-question `/bendit:adopt`**: the default flow detects the stack, shows one
+  plain-words summary (what you get, every file, every install) and asks one
+  question, "Go ahead?"; nothing outside that summary is written or installed.
+  Ends with one command for the person to paste into a new Terminal window to
+  approve the test check.
+- **`/bendit:adopt --detailed`** keeps the full interview as before; it is also
+  how to change a project that is already set up.
+- **`scripts/install-route.sh`**: decides how bendit is installed for a project
+  (GitHub or a vendored copy) and detects a conflicting copy elsewhere.
+- **`scaffold-verification-skill.sh --keep-harness`**: leaves an existing
+  `.claude/verify-harness` and verify skill exactly as they are, so a retry after
+  a late failure resumes instead of being refused.
+- A short README for the npm and PyPI package pages (they were blank).
+
+### Changed
+- `prove.sh`'s privacy row fails only on bendit's own files, not on other tools'
+  notices in the project.
+- The Stop gate's "nobody has approved it" message opens with one plain
+  paragraph (what the check is, why a person approves it, the one command to
+  paste into a new Terminal window) before the harness content. Its
+  no-harness hints now say `/bendit:adopt --detailed`, since plain
+  `/bendit:adopt` answers "already set up" on an adopted project.
+
+### Fixed
+- A retry of adopt after a late failure no longer stops on the harness an earlier
+  run left behind (`--keep-harness`).
+
+### Not yet seen in a live session
+- Quick mode's install-and-write steps have not been run by a person end to end.
+
 ## [0.3.0] - 2026-11-20
 
 Nothing below has an eval result yet: every new piece is *not yet measured*.

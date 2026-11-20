@@ -10,6 +10,15 @@ harness that proves a change works, and a report that says which is which, with
 evidence. `KIT` below is the plugin root: two directories above this skill's
 base directory (it contains `hooks/`, `scripts/`, `templates/`).
 
+## Which flow
+
+- **`/bendit:adopt`** (the default): follow `references/quick.md` and nothing
+  below. One plain question, safe defaults for everything else, a plain report.
+- **`/bendit:adopt --detailed`** (the arguments contain `--detailed`): the
+  step-by-step flow below, for engineers who want to choose each answer.
+
+# The --detailed flow
+
 ## Ground rules for the whole flow
 
 - **Detect before asking.** Ask only what files could not answer, **one question
@@ -124,7 +133,7 @@ LIVE WIRING                       | PASS / FAIL / inconclusive / pending | 5
 
 FEATURES (.claude/bendit.json)    | on/off | why             | measured?
 <every feature>                   | on/off | <its source>    | not yet measured
-(an off feature: install its missing dependency or add-on, then re-run /bendit:adopt)
+(an off feature: install its missing dependency or add-on, then re-run /bendit:adopt --detailed)
 
 ENFORCED (refuses, exit 2)        | proved by
 <guard>                           | prove.sh rows + live check

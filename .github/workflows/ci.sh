@@ -74,7 +74,7 @@ ci_jobs() {
 # AT A TIME, after the pool, so no two of them -- and no pool suite -- ever
 # share a moment. ci.test.sh fails if a suite that binds is missing from this
 # list.
-SERIAL_SUITES=(drive ports scaffold-verification-skill session-brief verify-readiness)
+SERIAL_SUITES=(drive install-route ports scaffold-verification-skill session-brief verify-readiness)
 is_serial() { local n; for n in "${SERIAL_SUITES[@]}"; do [ "$(basename "$1" .test.sh)" = "$n" ] && return 0; done; return 1; }
 
 # One suite per wrapper: its own session (so its whole process group can be

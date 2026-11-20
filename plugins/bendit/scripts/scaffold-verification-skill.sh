@@ -30,6 +30,19 @@
 #                      expanded at run time, e.g. --dev 'uvicorn app:app --port "$PORT"'
 #   --pm <pm>          npm | pnpm | yarn | bun   (default: from the lockfile)
 #   --force            overwrite an existing harness (scenarios are kept)
+#   --keep-harness     an existing .claude/verify-harness, and an existing app
+#                      harness (.claude/skills/verify-<name>/), are left
+#                      exactly as they are (not refused, not rewritten); what
+#                      is missing is generated as usual. An app harness with
+#                      no bin/verify-<name> (an interrupted run) is completed:
+#                      its missing files are written, existing ones kept.
+#                      /bendit:adopt uses it to keep a project's own test
+#                      check, and to resume.
+#   --harness-owner    write nothing; print who owns .claude/verify-harness:
+#                      absent, own (bendit's: it has a TODO(bendit): line, or
+#                      git does not track it and it is byte-for-byte what this
+#                      scaffold would write now, with the same options), or
+#                      kept (anyone else's, so never replace it)
 #   --dry-run          print what was detected; write nothing
 #
 # exit: 0 generated, nothing left to fill in
@@ -37,9 +50,9 @@
 #       2 refused: bad arguments, not a git repo, or a harness already exists
 set -euo pipefail
 
-usage() { sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,46p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 
-REPO_ARG=""; NAME=""; KIND_OVER=""; DEV_OVER=""; PM_OVER=""; FORCE=""; DRY=""
+REPO_ARG=""; NAME=""; KIND_OVER=""; DEV_OVER=""; PM_OVER=""; FORCE=""; DRY=""; KEEP=""; OWNER=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --name)    NAME="${2:?--name needs a value}"; shift 2 ;;
@@ -47,7 +60,9 @@ while [ $# -gt 0 ]; do
     --dev)     DEV_OVER="${2:?--dev needs a command}"; shift 2 ;;
     --pm)      PM_OVER="${2:?--pm needs a value}"; shift 2 ;;
     --force)   FORCE=1; shift ;;
+    --keep-harness) KEEP=1; shift ;;
     --dry-run) DRY=1; shift ;;
+    --harness-owner) OWNER=1; shift ;;
     -h|--help) usage ;;
     -*)        echo "scaffold: unknown option $1" >&2; usage ;;
     *)         if [ -z "$REPO_ARG" ]; then REPO_ARG="$1"
@@ -57,6 +72,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -n "$REPO_ARG" ] || usage
+if [ -n "$OWNER" ] && [ -n "$DRY$FORCE$KEEP" ]; then
+  echo "scaffold: --harness-owner only reads; it takes no --dry-run, --force or --keep-harness" >&2; exit 2
+fi
 case "$KIND_OVER" in ''|web|cli|library) ;; *) echo "scaffold: --kind must be web, cli or library (got '$KIND_OVER')" >&2; exit 2 ;; esac
 case "$PM_OVER" in ''|npm|pnpm|yarn|bun) ;; *) echo "scaffold: --pm must be npm, pnpm, yarn or bun (got '$PM_OVER')" >&2; exit 2 ;; esac
 REPO="$(cd "$REPO_ARG" 2>/dev/null && pwd)" || { echo "scaffold: no such directory: $REPO_ARG" >&2; exit 2; }
@@ -492,48 +510,10 @@ report() {
   lines "$TODOS" '  TODO      : '
 }
 
-if [ -n "$DRY" ]; then
-  echo "detected (dry run, nothing written): $REPO"
-  report
-  [ -z "$TODOS" ] || exit 3
-  exit 0
-fi
-
-HARNESS="$REPO/.claude/verify-harness"
-SK="$REPO/.claude/skills/verify-$NAME"
-if [ -z "$FORCE" ]; then
-  for f in "$HARNESS" "$SK"; do
-    if [ -e "$f" ]; then
-      echo "scaffold: ${f#$REPO/} already exists -- refusing to overwrite a harness someone may have edited. Re-run with --force to regenerate it (scenarios are kept)." >&2
-      exit 2
-    fi
-  done
-fi
-
-# --- port: allocated from the machine-wide registry, never guessed ----------
-# Only an app needs one. `ports.py add` is idempotent: re-scaffolding never
-# moves a repo's port.
-PORT=""
-if [ "$KIND" = web ]; then
-  PORT="$(python3 "$SCRIPTS/ports.py" add "$REPO")" || { echo "scaffold: could not allocate a port block for $REPO" >&2; exit 2; }
-  case "$PORT" in ''|*[!0-9]*) echo "scaffold: registry returned a non-number: '$PORT'" >&2; exit 2 ;; esac
-fi
-
-# Per-checkout state stays out of the repo's history: the Stop gate's state and
-# the optional local overrides. .git/info/exclude is per-clone and never
-# committed, so this edits no tracked file -- and nothing generated may DEPEND
-# on what it hides, because a fresh clone has none of it.
-EXCLUDE="$(git -C "$REPO" rev-parse --git-common-dir)"
-case "$EXCLUDE" in /*) ;; *) EXCLUDE="$REPO/$EXCLUDE" ;; esac
-EXCLUDE="$EXCLUDE/info/exclude"
-mkdir -p "$(dirname "$EXCLUDE")"
-if ! grep -q 'bendit verification state' "$EXCLUDE" 2>/dev/null; then
-  printf '\n# bendit verification state -- local only, never this repo'"'"'s history.\n.claude/.bendit-state/\n.env.verify.local\n' >> "$EXCLUDE"
-fi
-
-# --- .claude/verify-harness -------------------------------------------------
-mkdir -p "$REPO/.claude"
-{
+# --- .claude/verify-harness: its text ---------------------------------------
+# A function, so --harness-owner can compare an existing harness with exactly
+# what this run would write, without writing it.
+harness_text() {
   cat <<HEOF
 # What verifies $NAME. The Stop gate (bendit's require-verification.py)
 # runs this file when code changed and nothing has verified it: every line that
@@ -580,10 +560,89 @@ HEOF
 "\$(git rev-parse --show-toplevel)/.claude/skills/verify-$NAME/bin/verify-$NAME" verify
 HEOF
   fi
-} > "$HARNESS"
+}
+
+# --harness-owner: read-only. A TODO(bendit): line means a scaffold wrote it and
+# nobody finished it; untracked and byte-identical means nobody has touched it.
+# Anything else -- an edit, or a commit (the project took it as its own) -- is
+# someone's check, so it is kept. Fails closed: when unsure, kept.
+if [ -n "$OWNER" ]; then
+  H="$REPO/.claude/verify-harness"
+  if [ ! -e "$H" ] && [ ! -L "$H" ]; then echo absent; exit 0; fi
+  if [ -f "$H" ] && grep -q 'TODO(bendit):' "$H"; then echo own; exit 0; fi
+  if [ -f "$H" ] && [ ! -L "$H" ] && ! git -C "$REPO" ls-files --error-unmatch -- .claude/verify-harness >/dev/null 2>&1 \
+     && [ "$(harness_text | cksum)" = "$(cksum < "$H")" ]; then
+    echo own; exit 0
+  fi
+  echo kept; exit 0
+fi
+
+if [ -n "$DRY" ]; then
+  echo "detected (dry run, nothing written): $REPO"
+  report
+  [ -z "$TODOS" ] || exit 3
+  exit 0
+fi
+
+HARNESS="$REPO/.claude/verify-harness"
+SK="$REPO/.claude/skills/verify-$NAME"
+HARNESS_KEPT=""
+HOUT="$HARNESS"
+if [ -n "$KEEP" ] && [ -e "$HARNESS" ]; then HARNESS_KEPT=1; HOUT=/dev/null; fi
+APP_KEPT=""; APP_PARTIAL=""
+# Kept only when it is whole enough to run: a folder with no bin/verify-<name>
+# is what an interrupted run leaves, and is completed instead (below).
+if [ -n "$KEEP" ] && [ -e "$SK" ]; then
+  if [ -x "$SK/bin/verify-$NAME" ]; then APP_KEPT=1; else APP_PARTIAL=1; fi
+fi
+if [ -z "$FORCE" ]; then
+  for f in "$HARNESS" "$SK"; do
+    [ "$f" = "$HARNESS" ] && [ -n "$HARNESS_KEPT" ] && continue
+    [ "$f" = "$SK" ] && [ -n "$APP_KEPT$APP_PARTIAL" ] && continue
+    if [ -e "$f" ]; then
+      echo "scaffold: ${f#$REPO/} already exists -- refusing to overwrite a harness someone may have edited. Re-run with --force to regenerate it (scenarios are kept)." >&2
+      exit 2
+    fi
+  done
+fi
+
+# --- port: allocated from the machine-wide registry, never guessed ----------
+# Only an app needs one. `ports.py add` is idempotent: re-scaffolding never
+# moves a repo's port.
+PORT=""
+if [ "$KIND" = web ]; then
+  PORT="$(python3 "$SCRIPTS/ports.py" add "$REPO")" || { echo "scaffold: could not allocate a port block for $REPO" >&2; exit 2; }
+  case "$PORT" in ''|*[!0-9]*) echo "scaffold: registry returned a non-number: '$PORT'" >&2; exit 2 ;; esac
+fi
+
+# Per-checkout state stays out of the repo's history: the Stop gate's state and
+# the optional local overrides. .git/info/exclude is per-clone and never
+# committed, so this edits no tracked file -- and nothing generated may DEPEND
+# on what it hides, because a fresh clone has none of it.
+EXCLUDE="$(git -C "$REPO" rev-parse --git-common-dir)"
+case "$EXCLUDE" in /*) ;; *) EXCLUDE="$REPO/$EXCLUDE" ;; esac
+EXCLUDE="$EXCLUDE/info/exclude"
+mkdir -p "$(dirname "$EXCLUDE")"
+if ! grep -q 'bendit verification state' "$EXCLUDE" 2>/dev/null; then
+  printf '\n# bendit verification state -- local only, never this repo'"'"'s history.\n.claude/.bendit-state/\n.env.verify.local\n' >> "$EXCLUDE"
+fi
+
+# --- .claude/verify-harness -------------------------------------------------
+mkdir -p "$REPO/.claude"
+harness_text > "$HOUT"
 
 # --- the app harness (web only) ----------------------------------------------
-if [ "$KIND" = web ]; then
+# Under --keep-harness an existing one is left byte-for-byte: it may be a
+# previous run's, with scenarios someone has since written.
+# A partial one (--keep-harness, no bin/verify-<name>) is generated whole in a
+# scratch folder that starts with its scenarios, then only the files it lacks
+# are copied in: nothing already there is overwritten.
+SK_REAL="$SK"; SK_TMP=""
+if [ "$KIND" = web ] && [ -n "$APP_PARTIAL" ]; then
+  SK_TMP="$(mktemp -d)"; SK="$SK_TMP/verify-$NAME"; mkdir -p "$SK"
+  if [ -d "$SK_REAL/scenarios" ]; then cp -R "$SK_REAL/scenarios" "$SK/scenarios"; fi
+fi
+if [ "$KIND" = web ] && [ -z "$APP_KEPT" ]; then
   mkdir -p "$SK/bin" "$SK/lib" "$SK/scenarios" "$SK/artifacts"
   echo '*' > "$SK/artifacts/.gitignore"
   # COMMITTED, and documentation only: nothing reads it. The harness works with
@@ -1146,11 +1205,20 @@ A pass ends in exactly one of \`clean\` / \`changed\` / \`blocked\`. \`blocked\`
 - [ ] Run \`/bendit:verify\` end to end and read the evidence it left
 MDEOF
 fi
+if [ -n "$SK_TMP" ]; then
+  ( cd "$SK" && find . -type f -print ) | while IFS= read -r f; do
+    f="${f#./}"
+    if [ ! -e "$SK_REAL/$f" ] && [ ! -L "$SK_REAL/$f" ]; then
+      mkdir -p "$(dirname "$SK_REAL/$f")"; cp -p "$SK/$f" "$SK_REAL/$f"
+    fi
+  done
+  rm -rf "$SK_TMP"; SK="$SK_REAL"
+fi
 
 # --- report ------------------------------------------------------------------
 echo "scaffolded: $REPO"
-echo "  harness   : .claude/verify-harness"
-[ "$KIND" = web ] && echo "  app       : .claude/skills/verify-$NAME/ (port $PORT)"
+echo "  harness   : .claude/verify-harness${HARNESS_KEPT:+ (kept as it was: --keep-harness)}"
+[ "$KIND" = web ] && echo "  app       : .claude/skills/verify-$NAME/ (${APP_KEPT:+kept as it was: --keep-harness; }${APP_PARTIAL:+completed: missing pieces generated, existing files kept; }port $PORT)"
 [ "$KIND" = web ] && echo "  overrides : .env.verify.example (commit it; .env.verify.local is optional and local)"
 report
 # A committed example that the repo's own .gitignore swallows (a bare `.env*`
@@ -1168,8 +1236,13 @@ echo "                python3 $(printf '%q' "$SCRIPTS/require-verification.py") 
 echo "              read the harness it shows, answer y. Re-run after any change to it."
 if [ -n "$TODOS" ]; then
   echo
-  echo "scaffold: NOT DONE -- the harness refuses (exit 2) until each TODO above is replaced"
-  echo "          in .claude/verify-harness with the real check it names."
+  if [ -n "$HARNESS_KEPT" ]; then
+    echo "scaffold: NOT DONE -- the TODOs above are not in .claude/verify-harness (kept as it was);"
+    echo "          fix them in .claude/skills/verify-$NAME/ or re-run with the flag each one names."
+  else
+    echo "scaffold: NOT DONE -- the harness refuses (exit 2) until each TODO above is replaced"
+    echo "          in .claude/verify-harness with the real check it names."
+  fi
   exit 3
 fi
 exit 0

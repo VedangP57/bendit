@@ -16,10 +16,12 @@
 #   harness    <repo>/.claude/verify-harness, run as the Stop gate runs it
 #              (non-comment lines, one sh script, from the repo root), with
 #              BENDIT_KIT_ROOT pointing at this plugin. Missing is a FAIL.
-#   privacy    the agent-layer files (AGENTS.md, CLAUDE.md, .claude/verify-harness,
-#              .env.verify.example, .claude/bendit.json, .claude/skills/) carry
-#              no home path or email. bendit.json is committed free text: each
-#              feature's `why` and the session brief's config.
+#   privacy    the files bendit writes (AGENTS.md, CLAUDE.md, .claude/verify-harness,
+#              .env.verify.example, .claude/bendit.json, .claude/skills/verify-*/)
+#              carry no home path or email; only these can FAIL the row.
+#              bendit.json is committed free text: each feature's `why` and the
+#              session brief's config. Findings in any other .claude/skills/
+#              file (another tool's) print as "notices (not failures)".
 #
 # It writes NOTHING inside <repo>: probes, the scratch repo and every temp file
 # live under one mktemp -d, removed by a trap. Its own git reads take no
@@ -289,18 +291,42 @@ else:
             f'In YOUR OWN terminal (not through the agent), run: {how}')
 
 # --- the files adoption writes carry no personal data -------------------------------
-cands = [f for f in ('AGENTS.md', 'CLAUDE.md', '.claude/verify-harness', '.env.verify.example',
+# Only files bendit WRITES can fail this row. Another tool's skills in
+# .claude/skills/ are scanned too, but a finding there is a notice: adoption is
+# not "incomplete" for something bendit did not write.
+owned = [f for f in ('AGENTS.md', 'CLAUDE.md', '.claude/verify-harness', '.env.verify.example',
                      '.claude/bendit.json')
          if os.path.isfile(os.path.join(repo, f))]
 ls = subprocess.run(['git', '-C', repo, 'ls-files', '--cached', '--others', '--exclude-standard',
                      '--', '.claude/skills'], capture_output=True, text=True)
-cands += [f for f in ls.stdout.splitlines() if f and os.path.isfile(os.path.join(repo, f))]
+others = []
+for f in ls.stdout.splitlines():
+    if not f or not os.path.isfile(os.path.join(repo, f)):
+        continue
+    # .claude/skills/verify-*/** is the generated verification skill (bendit's)
+    if f.startswith('.claude/skills/verify-'):
+        owned.append(f)
+    else:
+        others.append(f)
 label = 'privacy: agent-layer files carry no home path or email'
-if not cands:
+notices = []
+
+
+def scan(files):
+    return subprocess.run(['python3', os.path.join(kit, 'scripts', 'privacy-scan.py'), *files],
+                          cwd=repo, capture_output=True, text=True, env=ENV)
+
+
+if others:
+    q = scan(others)
+    if q.returncode != 0:
+        notices = [l for l in q.stdout.splitlines() if l.strip() and not l.startswith('privacy-scan:')]
+        if not notices:  # an unreadable file etc.: still say so
+            notices = [l for l in q.stderr.splitlines() if l.strip()]
+if not owned:
     row(label, 'FAIL', 'no agent-layer files to scan (no AGENTS.md, CLAUDE.md, .claude/verify-harness)')
 else:
-    p = subprocess.run(['python3', os.path.join(kit, 'scripts', 'privacy-scan.py'), *cands],
-                       cwd=repo, capture_output=True, text=True, env=ENV)
+    p = scan(owned)
     row(label, 'PASS' if p.returncode == 0 else 'FAIL',
         '' if p.returncode == 0 else f'exit {p.returncode}: {short(p.stdout + p.stderr, 400)}')
 
@@ -481,6 +507,12 @@ if unused:
     for check, _s, _r, detail in unused:
         print(f'  {check}')
         print(f'    UNUSED  {detail}')
+    print()
+if notices:
+    print('notices (not failures):')
+    print("  in files bendit did not write (other tools' skills); they do not change the result")
+    for line in notices:
+        print(f'  {line}')
     print()
 if failed:
     print('failures:')

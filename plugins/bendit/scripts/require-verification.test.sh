@@ -473,6 +473,12 @@ case "$untrusted" in *"touch '$RAN'"*) m=shown ;; *) m=missing ;; esac
 chk "... the refusal shows the harness content" "$m" shown
 case "$untrusted" in *"require-verification.py --trust $(cd "$T" && pwd -P)"*) m=named ;; *) m=missing ;; esac
 chk "... and the exact approval command for the person" "$m" named
+case "$untrusted" in "Tell the person this, in these words:
+In plain words: this project has a check, the command that proves the AI's changes work (for example, running the tests). It runs on this computer without restrictions, so a person, not the AI, has to say yes to it once. Open a new Terminal window (not this chat), paste this, and type y:
+  python3 "*) m=plain-first ;; *) m=missing ;; esac
+chk "... the refusal OPENS with one plain paragraph and the one command" "$m" plain-first
+case "$untrusted" in *"do not run it yourself"*) m=kept ;; *) m=missing ;; esac
+chk "... and still tells the agent not to run it" "$m" kept
 chk "CONTROL: nothing was approved by refusing" "$([ -e "$T/cfg/trusted-harnesses.json" ] && echo written || echo none)" none
 
 trust_harness "$T"
@@ -486,6 +492,10 @@ chk "a CHANGED harness is refused again" "$EXPECT_CODE" 2
 chk "... and did NOT run" "$([ -e "$RAN" ] && echo ran || echo not-run)" not-run
 case "$EXPECT_STDERR" in *"changed since"*) m=said ;; *) m=missing ;; esac
 chk "... saying it changed since it was approved" "$m" said
+case "$EXPECT_STDERR" in "Tell the person this, in these words:
+In plain words: this project's check (the command that proves the AI's changes work) changed since you approved it, so a person, not the AI, has to say yes to it again. Open a new Terminal window (not this chat), paste this, and type y:
+  python3 "*) m=plain-first ;; *) m=missing ;; esac
+chk "... and opens with the plain 'changed' paragraph" "$m" plain-first
 
 # The approval is for THIS repo: the same bytes elsewhere are not approved.
 TR2="$T/trust-other"; mkdir -p "$TR2/src" "$TR2/.claude"; git -C "$TR2" init -q 2>/dev/null
@@ -548,6 +558,12 @@ chk "... and it really ran" "$([ -e "$RAN" ] && echo ran || echo not-run)" ran
 # An approval list that cannot be read approves nothing: fail closed.
 mark "$T/src/trust4.ts"; printf '{not json' > "$T/cfg/trusted-harnesses.json"
 want "a corrupt approval list approves nothing -> refused" 2
+stop "corrupt approval list, message" >/dev/null
+case "$EXPECT_STDERR" in "Tell the person this, in these words:
+In plain words: bendit could not read the list of checks you have approved on this computer, so it cannot tell whether this project's check was approved. Fix or delete that file ("*"). Deleting it also removes your approvals for every other project on this computer, so each one asks again. Then open a new Terminal window (not this chat), paste this, and type y:
+  python3 "*) m=plain-first ;; *) m=missing ;; esac
+chk "... and opens with the plain 'unreadable list' paragraph" "$m" plain-first
+has "... and says deleting the list removes approvals for every project" "removes your approvals for every other project"
 chk "--trust will not overwrite a corrupt approval list" "$(ptytrust y "$T")" 2
 rm -rf "$D" "$T/cfg"; rm -f "$HARNESS" "$RAN" "$T/pty.out"
 

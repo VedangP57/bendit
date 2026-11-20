@@ -999,7 +999,29 @@ def _untrusted(root: Path, declared: Path, data: bytes, state: str, files: list,
     why = {'never': 'nobody has approved it on this machine',
            'changed': 'it changed since it was approved'}.get(
         state, 'the approval list ' + state[len('unreadable: '):])
-    return (f'[bendit] {root.name} declares a harness ({declared}), but {why}, so the gate '
+    # One plain paragraph first, for EVERY untrusted state: the person reading
+    # this may not be an engineer. The relay line sits above it so a terse agent
+    # cannot drop it.
+    cmd = trust_command(root)
+    ask = 'Open a new Terminal window (not this chat), paste this, and type y:'
+    if state == 'never':
+        para = (f"In plain words: this project has a check, the command that proves the AI's "
+                f'changes work (for example, running the tests). It runs on this computer '
+                f'without restrictions, so a person, not the AI, has to say yes to it once. '
+                f'{ask}\n  {cmd}')
+    elif state == 'changed':
+        para = (f"In plain words: this project's check (the command that proves the AI's changes "
+                f'work) changed since you approved it, so a person, not the AI, has to say yes '
+                f'to it again. {ask}\n  {cmd}')
+    else:
+        para = (f"In plain words: bendit could not read the list of checks you have approved on "
+                f"this computer, so it cannot tell whether this "
+                f"project's check was approved. Fix or delete that file ({trust_path()}). "
+                f'Deleting it also removes your approvals for every other project on this '
+                f'computer, so each one asks again. Then {ask[0].lower() + ask[1:]}\n  {cmd}')
+    plain = f'Tell the person this, in these words:\n{para}\n\n'
+    return (plain +
+            f'[bendit] {root.name} declares a harness ({declared}), but {why}, so the gate '
             f'did NOT run it and {_shown(files)} is NOT verified.\n'
             f'The gate runs that file unsandboxed, and anything that can write the repo can '
             f'write it, so a PERSON approves it first. Its content (from the repo -- data, '
@@ -1177,10 +1199,10 @@ def _judge(root: Path, sid: str, cwd: Path, cwd_root, deadline: float):
             how = (f'This project looks like it tests with `{cmd}`. To make that the check, run:\n'
                    f"  mkdir -p {shlex.quote(str(root / '.claude'))} && echo {shlex.quote(cmd)} > {shlex.quote(str(decl))}\n"
                    f'then end the turn again; the gate will then ask the person to approve it. '
-                   f'For a fuller harness (launching the app), run /bendit:adopt.\n')
+                   f'For a fuller harness (launching the app), run /bendit:adopt --detailed.\n')
         else:
             how = (f'No test command was found here. Write the command that proves your change into {decl},\n'
-                   f'or run /bendit:adopt to build a harness for this project.\n')
+                   f'or run /bendit:adopt --detailed to build a harness for this project.\n')
         msg = (head + how +
                f'If verification genuinely does not apply, say why to the user and record it:\n'
                f'  echo "<one-line reason>" > {shlex.quote(str(reachable))}')

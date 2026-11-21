@@ -4,6 +4,17 @@ All notable changes. Dates are UTC.
 
 ## [Unreleased]
 
+### Changed
+- README rebuilt around one command, one question and one approval line: what
+  a refusal looks like first, then the quick start, limits, evidence and undo.
+  Installer flags, the full enforced-and-advice table, the Stop gate, the
+  ladder and measuring a rule moved to `docs/reference.md`.
+- The npm and PyPI package descriptions name `/bendit:adopt` (they said
+  `/adopt`, which Claude Code does not recognise).
+- Hooks are documented as making no network calls except the session brief's
+  probes of hosts and ports the project lists (the README said "no network
+  calls" outright).
+
 ## [0.4.1] - 2026-11-20
 
 ### Changed
@@ -145,10 +156,12 @@ Nothing below has an eval result yet: every new piece is *not yet measured*.
   counts only Google Chrome: Chromium cannot be driven.
 
 ### Not yet seen in a live session
-- The installer has not been run from GitHub or the registries: the repo is
-  private, so the curl URL, `npx bendit` and `pipx run bendit` do not work for
-  anyone yet. It was run from a local clone (`BENDIT_SOURCE`) with no
-  terminal, on a Next.js-shaped, a Python and a Go throwaway project.
+- The installer has not been run from GitHub or the registries: at this
+  release the repo was private, so the curl URL, `npx bendit` and
+  `pipx run bendit` did not work for anyone yet. It was run from a local clone
+  (`BENDIT_SOURCE`) with no terminal, on a Next.js-shaped, a Python and a Go
+  throwaway project. (Since then the repo is public and bendit is published on
+  npm and PyPI.)
 - `/bendit:adopt`'s interactive flow has not been driven end to end by a person: its
   headless parts (the detect.md §8 commands, the `features.py` chain,
   `prove.sh`) were run by hand on those three projects.

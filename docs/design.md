@@ -69,7 +69,9 @@ gate in this kit fails closed and refuses to report success on empty input.
 ## Constraints
 
 - Python 3.9+ standard library only for hooks. Bash 3.2-compatible shell.
-- No network calls in hooks. Hook timeouts in seconds, each script must finish well
+- No network calls in hooks, with one exception: the session brief's DNS/TCP
+  liveness probes of the hosts and ports a project's `brief` config lists
+  (none by default). Hook timeouts in seconds, each script must finish well
   inside its `hooks.json` timeout.
 - Skill listing budget: total name+description of all skills and commands
   <= 2800 chars (scripts/skill-budget.py enforces it).
@@ -80,7 +82,7 @@ gate in this kit fails closed and refuses to report success on empty input.
 
 ```
 bendit/
-  README.md                         public intro, quickstart, evidence, ladder
+  README.md                         public intro, quickstart, evidence, limits
   install.sh                        one-command installer: check, ask, fetch to cache, hand over to /bendit:adopt
   packages/npm, packages/pypi       `npx bendit`, `pipx run bendit` wrappers (packages/sync.sh copies install.sh)
   LICENSE                           MIT, "Bendit contributors"
@@ -88,6 +90,7 @@ bendit/
   .github/workflows/ci.yml, ci.sh   stages: shell imports privacy validate test, over every plugins/*/
   docs/design.md                    this file
   docs/ladder.md                    the method + generic failure classes F1..F12
+  docs/reference.md                 installer, every guard, Stop gate, features, evals, state
   plugins/bendit/
     .claude-plugin/plugin.json      userConfig below
     hooks/hooks.json

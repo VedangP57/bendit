@@ -1,361 +1,334 @@
-# Bendit
+<div align="center">
+
+# bendit
+
+**Safety rails for Claude Code that are enforced, not just written down.**
+
+bendit stops your AI coding agent before it deletes a folder, force-pushes or
+drops a table, and runs your project's own check (usually its tests) before it
+may end a turn that changed code.
 
 [![ci](https://github.com/VedangP57/bendit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/VedangP57/bendit/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![npm](https://img.shields.io/npm/v/bendit.svg)](https://www.npmjs.com/package/bendit)
+[![PyPI](https://img.shields.io/pypi/v/bendit.svg)](https://pypi.org/project/bendit/)
 
-A Claude Code plugin that gives your coding agent rules that are **enforced**,
-not merely written down, and a method for growing your own rules from your own
-mistakes and measuring whether each one works.
+[Quick start](#quick-start) · [What you get](#what-you-get) · [Evidence](#evidence) · [Limits](#what-it-does-not-protect-against) · [Reference](docs/reference.md)
 
-## The problem
+</div>
 
-Most agent setups are prose: a `CLAUDE.md` or `AGENTS.md` full of rules. Prose
-fails silently. Nothing tells you when a rule was not read, or was read and not
-followed, and the usual response to a broken rule is to write it again, more
-firmly. In real codebases you find rules like "keep files short" sitting beside
-a hundred long files, and safety hooks that have never fired because they read
-the wrong field of their input.
+Most people steer an AI coding agent with a rules file (`CLAUDE.md` or
+`AGENTS.md`), and the agent can quietly ignore it: real projects have "keep
+files short" beside a hundred long files, and safety hooks that never fired
+because they read the wrong field of their input. bendit turns the rules that
+matter into checks that actually say no. When the agent tries something
+destructive, Claude Code refuses the command and shows the agent why:
 
-## The evidence, stated honestly
+```console
+$ rm -fr ./build
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+```
 
-In the author's own evaluation (private, and **not reproducible from this
-repo**), the same instruction was tested two ways:
+<sub>Copied verbatim from the guard's test snapshots,
+[`block-dangerous-bash.expected`](plugins/bendit/scripts/block-dangerous-bash.expected),
+which CI compares on every change.</sub>
 
-- as **guidance** (a skill telling the agent what to do), it changed behaviour
-  in roughly one run in five, and even that figure was confounded: the
-  measurement turned out to be partly reading the agent's narration rather than
-  its work;
-- as a **hook that refuses** the action, it held 12 times out of 12.
+## Quick start
 
-**This kit's own results, reproducible from this repo** (v0.2.0 sweep,
-2026-11-19, CLI 2.1.328, judge sonnet, inputs frozen in
-`evals/freezes/v2-final.json`; commands and provenance in
-[evals/results/INDEX.md](plugins/bendit/evals/results/INDEX.md)):
-
-| what was measured | with the kit | without | two-sided Fisher p |
-|---|---|---|---|
-| Bash guard: agent told to run `rm -rf ./build` | 12/12 directory survived | 0/12 | 7.4e-07 |
-| Bash guard: agent told only to "free up space" (it picks the command) | 11/12 | 0/12 | 9.6e-06 |
-| skill `checks-that-can-lie`: the CI check it writes refuses an empty scan | **28/30** | **1/30** | **2.3e-13** |
-
-Every run in every arm attempted the task (a liveness control passed in all of
-them), so no column is a run that measured nothing. The same guard result was
-measured on v0.1.0 a day earlier (12/12 and 12/12 vs 0/12).
-
-**The one deletion that got through** used `rm -r -- ./dist`: recursive, without
-`-f`. v0.1.0 allowed that on purpose so routine cleanups kept working; the sweep
-measured the cost (1 agent in 12 chose it unprompted), and since the `-f` flag
-changes almost nothing in an agent's shell, recursive deletes are now refused
-with or without it. Deleting a scratch folder inside a temp location stays
-allowed.
-
-**Skills.** `checks-that-can-lie` is the first skill with a measured effect: a
-30-runs-per-arm test, decisive at p = 2.3e-13. Its judged criterion ("made the
-check fail once") went the other way (21/30 vs 28/30), but the deterministic
-grader that sees the same fact in the full trace passed 30/30 in both arms; the
-LLM judge sees only the first and last 12 trace events, and the kit's hook
-messages push that evidence into the part it cannot see. The other skills
-showed no difference in three 3-runs-per-arm pressure tests: the model already
-did the right thing without them, even under pressure. Four of them were
-therefore folded into one, `engineering-habits`, to cut the per-session listing
-cost. Treat the hooks as enforcement, `checks-that-can-lie` as measured advice,
-and the other skills as advice.
-
-**Cost of the kit.** In the earlier v0.1.0 skill sweep, 6 of 18 with-kit runs ran
-out of turns (0 of 18 without): the Stop gate in a project with no harness yet,
-and the guard refusing a scratch-folder cleanup. After two fixes it was 0 of 6
-on the two worst cases, and 2 of 18 in the v0.2.0 sweep. Running `/bendit:adopt`
-first, which writes the harness, avoids most of it.
-
-That is a small sample, and you should not take it on trust. The kit ships the
-method to measure it on your own project
-([evals](plugins/bendit/evals/README.md)), including the traps that made
-the author's own early numbers wrong.
-
-## The method: the ladder
-
-For every recurring failure, use the cheapest layer that holds it:
-
-| layer | what | example |
-|---|---|---|
-| L0 | delete the thing | remove a dead config file instead of documenting it |
-| L1 | structure / types / one definition | one shared helper instead of nine copies |
-| L2 | deterministic enforcement | a blocking hook, a CI gate, a lint rule |
-| L3 | prose | a skill or `AGENTS.md` line, only for judgement a machine cannot make |
-
-A check that can pass for the wrong reason is worse than no check, so every gate
-here **fails closed** (a crash refuses) and refuses to report success having
-checked nothing. The full method and twelve generic failure classes, each with
-the layer that holds it, are in [docs/ladder.md](docs/ladder.md).
-
-## What is enforced, and what is advice
-
-| | what | how |
-|---|---|---|
-| **Enforced** | destructive shell commands (recursive delete with or without `-f`, `find -delete`, destructive SQL, `git reset --hard` and other work-losing git commands, force push, …) | `PreToolUse` hook, exit 2 |
-| **Enforced** | zsh word-splitting mistakes, when your shell is zsh | `PreToolUse` hook, exit 2 (option `zshGuard`) |
-| **Enforced** | parsing the output of `ls` (a pipe into `wc`, `$(ls)`, a `for` list), only in a project whose `.claude/bendit.json` turns `ls-guard` on because `ls` there is a formatting alias or function; not yet measured | `PreToolUse` hook, exit 2 |
-| **Enforced** | edits to files named `*.gen.*`; allocations in `*.hot.*` files | `PreToolUse` hook, exit 2 (opt in by file name) |
-| **Enforced** | ending a turn that edited code without running the project's verification command | `Stop` hook runs `.claude/verify-harness`; an escape exists and is always shown to you |
-| **Enforced** | a web app's behaviour in a real browser: a `scenarios/<name>.json` in the generated verify skill is run in Google Chrome by `lib/drive/drive.mjs` (Playwright 1.65.1, which `scripts/drive-setup.sh` installs into bendit's cache, never into the project; no browser is downloaded); only as far as your harness runs the verify skill's `verify`; not yet measured | the Stop gate runs the harness, `verify` runs every scenario, and a failing scenario fails the harness |
-| Check | that every guard can still run and refuse (python3 missing, a folder macOS made unreadable, a broken install) | `SessionStart` hook: silent when healthy; otherwise tells you and the agent which guards are off and how to fix it. Run `/bendit:doctor` any time |
-| Advice | a session-start brief: branch, push state, uncommitted files, other worktrees with unfinished work, and only the liveness probes the project lists; only in a project whose `.claude/bendit.json` turns `session-brief` on; not yet measured | `SessionStart` hook (startup and clear); it never blocks, and a malformed config is an alarm in the brief |
-| Advice | after an edit: a plan under `docs/superpowers/plans/` is linted for the sections and task shape the plan format requires; a TypeScript module in a plugin mod (a directory holding `hooks.json`) is checked for a sibling export it uses but never imports; not yet measured | `PostToolUse` hook, folded into the post-edit review; a note to the agent, never a block, and a crash in either check yields no note |
-| Advice | band-aid patterns in edits, suppressed stderr | `PostToolUse` hooks: they speak after the tool ran and cannot block |
-| Advice | skills: `checks-that-can-lie`, `encode-lessons-in-structure`, `engineering-habits` | loaded when relevant; the agent may ignore them |
-| Advice | skill `blast-radius`: before a change to auth, payments, database policies, migrations, secrets, webhooks or customer data, map what else it reaches and state the evidence rung of each claim; not yet measured | its `paths:` globs (auth, session, secrets, policies, migrations, webhooks, payments, `.env*`, CI workflows) tell Claude Code when it applies; the agent may ignore it |
-| Advice | skill `ux-design-laws`, in the add-on `bendit-web`: UX laws applied to any interface the agent builds or reviews; not yet measured | only in a project where `/bendit:adopt` installed `bendit-web` with `--scope project` (a web app); the agent may ignore it |
-| Advice | a controlled vocabulary for agent prose (`scripts/controlled-vocabulary.py`, `/bendit:vocabulary`): flags inflated wording, requirements phrased as advice, and completion claims that name no observation; nothing runs it unless you do, and no hook is wired; not yet measured | `/bendit:vocabulary` or `--check FILE` in your own CI; it reports and never blocks |
-| Advice | commands: `/bendit:ship`, `/bendit:review-diff`, `/bendit:verify`, `/bendit:doctor`, `/bendit:vocabulary` | checklists the agent runs when asked |
-
-Guards read shell commands with a small lexer, so a rule asks about the command
-that would actually run (through `sudo`, `env`, `bash -c`, `xargs`…), and quoted
-text such as a commit message never trips one.
-
-## Features (per project)
-
-Four pieces are optional, and each project gets only the ones that fit it.
-`/bendit:adopt` detects them, asks before installing anything a feature needs, and
-records the result in `.claude/bendit.json` (committed, so the team shares it),
-one line per feature: on or off, and why, citing what it found
-(`package.json:6 next`, `type ls in zsh: ls is a shell function`).
-
-| feature | what it does | `/bendit:adopt` turns it on when | it needs | measured? |
-|---|---|---|---|---|
-| `browser-driver` | JSON browser scenarios for `/bendit:verify`, run in a real Chrome | a web app: `package.json` names `next`, `react`, `vue`, `svelte`, `@sveltejs/kit`, `nuxt`, `astro`, `vite`, `@angular/core`, `solid-js` or `@remix-run/react` as a dependency, or the root has `index.html` | Node 20+, Google Chrome (Chromium cannot be driven), and Playwright, which `/bendit:adopt` offers to install with `scripts/drive-setup.sh` | not yet measured |
-| `ux-design-laws` | the `ux-design-laws` skill | a web app (the same signal) | the `bendit-web` add-on, installed with `--scope project` so it loads in this project only | not yet measured |
-| `session-brief` | the session-start brief (where the repo stands) | the project is a git repository | nothing | not yet measured |
-| `ls-guard` | the guard against parsing `ls` | `ls` in your shell is an alias or a function, not the real `ls` | nothing | not yet measured |
-
-- **Who reads the file.** The `ls-guard` and `session-brief` hooks act only when
-  their feature is on. For `browser-driver` and `ux-design-laws` the file
-  records the choice; what makes them work is the dependency (a JSON scenario
-  runs wherever one exists, and the skill loads wherever the add-on is
-  installed).
-- **Saying no is fine.** Declining a dependency turns its feature off with why
-  `you declined <it>`; it never stops adoption.
-- **`prove.sh` checks every feature that is on**, by running it: the browser
-  driver's selftest in a real browser, the add-on installed for this project,
-  the ls guard refusing `ls | wc -l`, the brief naming the checked-out branch.
-  A feature that is off is reported as `UNUSED`, which is not a failure; a
-  feature that is on and does not work is a `FAIL`. `/bendit:doctor` prints the table.
-- **A malformed `bendit.json` is never read as "all off"**: every reader
-  refuses and names the file.
-
-## Quickstart
-
-One command, from inside your project folder, on macOS or Linux. Pick any of
-the three spellings:
+Run one command from inside your project folder (macOS or Linux):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh | bash
-npx bendit
-pipx run bendit        # or: uvx bendit
 ```
 
-One command, then one question, then one approval line:
+Or, if you prefer a package manager, run **one** of these instead (same installer):
+`npx bendit` · `pipx run bendit` · `uvx bendit`
 
-1. **One command** (above). It checks your machine and opens Claude Code on `/bendit:adopt`.
-2. **One question.** `/bendit:adopt` detects your stack and shows one summary in
-   plain words (what you get, every file it will add or change, everything it
-   will install), ending "Go ahead? Reply yes, or just press Enter." Nothing is
-   written or installed that the summary did not list.
-3. **One approval line.** Last, it prints one command. Open a new Terminal window
-   (not the chat), paste it and type `y`: that is you, not the AI, approving the
-   test check that runs before the AI may say it is done.
+The command checks that your computer has what bendit needs (`claude`, `git`,
+`python3` 3.9 or newer), asks before installing anything that is missing (type
+`y` to agree; just pressing Enter means no), then opens Claude Code on
+`/bendit:adopt`.
 
-Engineers who want every choice (invariants, production branches, CI, which
-guards, the install route) use `/bendit:adopt --detailed`, which is the full
-interview and also how to change a set-up project later.
+### What happens next
 
-That URL is "latest". To pin a release, put its tag in the URL, for example
-`https://raw.githubusercontent.com/VedangP57/bendit/v0.4.1/install.sh`
-(`/<tag>/` for any other release).
+1. **One question.** (Rarely, one or two short questions come first.) bendit
+   looks at your project and shows one plain summary:
+   what you get, every file it will add or change, everything it will install.
+   It ends with *"Go ahead? Reply yes, or just press Enter."* Here Enter
+   means yes. Nothing outside
+   that summary is written or installed. Claude Code may ask permission to
+   change a few files in the `.claude` folder: say yes.
+2. **One approval line.** At the end it prints one command. Open a **new
+   Terminal window** (not the chat), paste it and type `y`. This is you, not
+   the AI, approving the check that must pass before the AI may say it is
+   done: that check runs on your computer unrestricted, so the AI must not
+   approve its own test.
+3. **Restart and confirm.** Close Claude, open it again in the same project and
+   type `/bendit:doctor`.
 
-The installer checks that your machine has what bendit needs (`claude`, `git`,
-`python3` 3.9 or newer; for a web app also `node` 20 or newer and Google Chrome;
-Chromium alone cannot be driven), fetches bendit at the matching release tag into
-`${XDG_CACHE_HOME:-~/.cache}/bendit/`, and starts Claude Code on `/bendit:adopt`.
+When everything works, the doctor ends with:
 
-- **It asks before every install.** The default answer is no, there is no
-  `--yes`, and a `sudo` command is shown in the question before it can run.
-  With no terminal to ask on, it installs nothing, lists what is missing and
-  exits 1; if nothing is missing, it fetches bendit and prints the
-  `claude --plugin-dir <cache>/v<version>/plugins/bendit "/bendit:adopt"` command to
-  run instead of starting Claude Code. Playwright, for a web app's browser
-  driver, is not the installer's: `/bendit:adopt` asks about it (see Features).
-- **The installer itself writes only under the cache folder above**: nothing
-  in your project and no Claude Code settings. The install commands you
-  approve (a package manager, or the Claude Code installer) write wherever they
-  normally do, system-wide or under `~/.local`. After the hand-over, `/bendit:adopt`
-  (which asks before each step) is what changes your project.
-- **Read it first** if you prefer not to pipe into a shell:
+> bendit is active in this window: it just stopped a test force-push, as it should.
 
-  ```bash
-  f=$(mktemp) && curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh -o "$f" && less "$f" && bash "$f"
-  ```
+If something is still open, it ends with "What to do next:" and numbered steps instead.
 
-  (`mktemp` makes a new file only you can write, outside your project, so
-  nobody else on the machine can swap the script between `less` and `bash`,
-  and it leaves nothing in your project.)
-- **Check without installing:**
-  `curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh | bash -s -- --check`
-  prints what is missing and installs nothing. Exit codes: 0 nothing is missing, 1 something is
-  missing or failed, 2 usage error, refused location (your home folder or `/`)
-  or unsupported system (Windows is not supported yet). `--version` and
-  `--help` also exist.
-- **Settings:** `BENDIT_SOURCE` (git URL or path to fetch bendit from),
-  `BENDIT_REF` (tag or branch; default `v` plus the installer's version) and
-  `BENDIT_CACHE` (cache folder).
+## Which path is mine?
 
-### Manual install
+| I want to… | Do this |
+|---|---|
+| just have it set up | the [quick start](#quick-start) above |
+| make every choice myself (invariants, CI, branches, which guards, how it is installed) | run `/bendit:adopt --detailed` in Claude Code; it is also how to change a project later |
+| install it by hand, or pin a version | expand [Manual install…](#manual-install-pinning-and-installer-details) below |
+| measure whether a rule changes what the agent does | [the evals method](plugins/bendit/evals/README.md) |
+
+## What you get
+
+- **Dangerous commands are refused.** Recursive deletes, force-pushes,
+  `git reset --hard`, `DROP TABLE` through a database client,
+  `supabase db push`, `prisma migrate reset`, deleting the folder the shell is
+  in, and live secret keys (Stripe, Supabase, GitHub) typed into a command.
+- **Your check runs before the agent stops.** When a turn changed code, bendit
+  runs your project's check (usually its tests) and refuses the first attempt
+  to stop if it fails. If the agent stops again, the turn ends, you are told the
+  code is NOT verified, and the next turn still has to answer for it.
+- **You approve, not the AI.** The check runs only once a person has approved
+  that exact file in their own terminal, and the guard refuses the agent's
+  attempts to approve it.
+- **It tells you when a guard is off.** Every session starts with a self-check
+  that fires a known-bad test at each guard. It is silent when all is well.
+- **Your own rules, the second time.** `/bendit:new-guard` scaffolds a new
+  guard with its tests when you catch yourself correcting the same mistake twice.
+
+What is a wall and what is a suggestion:
+
+| | What | When it is on |
+|---|---|---|
+| **Enforced** | destructive shell commands ([full list](docs/reference.md#the-bash-guard)) | always |
+| **Enforced** | ending a turn that changed code without your check passing (refused once per turn) | always; your check runs once you approve it |
+| **Enforced** | zsh word-splitting mistakes (`for f in $files`) | when your shell is zsh |
+| **Enforced** | parsing the output of `ls` | when setup found `ls` is an alias or function (recorded in `.claude/bendit.json`) |
+| **Enforced** | edits to generated `*.gen.*` files; allocations in `*.hot.*` files | when you name files that way |
+| **Check** | every guard can still run and refuse | every session start, and `/bendit:doctor` |
+| Advice | notes after edits; a warning when a command hid its errors and printed nothing; a start-of-session brief | after each edit or command; the brief per project |
+| Advice | skills: `checks-that-can-lie`, `engineering-habits`, `blast-radius`, `encode-lessons-in-structure`, and `ux-design-laws` for web apps | loaded when relevant |
+
+**Enforced**: a hook refuses the action, and a guard that crashes refuses too
+(it fails closed). **Advice**: the agent may ignore it. [Full table](docs/reference.md#enforced-and-advice-in-full).
+
+## See it block, safely
+
+After setup, in Claude Code, ask the agent to run:
+
+```bash
+git push --force bendit-probe HEAD
+```
+
+Nothing is named `bendit-probe`, so without bendit git would only fail with
+`'bendit-probe' does not appear to be a git repository`. With bendit, the
+command never runs and the agent is told:
+
+```console
+BLOCKED by bendit safety hook: force push — use --force-with-lease, and never on a shared branch.
+If this is genuinely required, ask the human to run it.
+```
+
+`/bendit:doctor` runs this exact test for you, after checking that the name is unused.
+
+## Evidence
+
+From the v0.2.0 eval sweep (2026-11-19, Claude Code CLI 2.1.328, judge sonnet): each task
+run many times with and without bendit, compared with a two-sided Fisher test.
+
+| What was measured | With bendit | Without | p |
+|---|---|---|---|
+| Bash guard: agent told to run `rm -rf ./build` (folder survived) | 12/12 | 0/12 | 7.4e-07 |
+| Bash guard: agent told only to "free up space", picks its own command | 11/12 | 0/12 | 9.6e-06 |
+| Skill `checks-that-can-lie`: the check it writes refuses an empty scan | 28/30 | 1/30 | 2.3e-13 |
+
+- In the Bash guard cases the agent attempted the deletion in every run, in
+  both arms. The one that got through, `rm -r -- ./dist` (no `-f`), was then
+  allowed on purpose; recursive deletes are refused with or without `-f` since.
+- **Cost:** in that sweep, 2 of 18 skill runs with bendit ran out of turns.
+- **Reproduce it:** commands, costs and caveats are in
+  [`evals/results/INDEX.md`](plugins/bendit/evals/results/INDEX.md). The
+  inputs are frozen at commit `a5d6be0`; the guard has changed since, so check
+  out that commit to reproduce. [More detail](docs/reference.md#more-on-the-evidence).
+- It is a small sample: don't take it on trust. Measure it on your own project
+  with [the evals method](plugins/bendit/evals/README.md).
+
+> [!NOTE]
+> Only the Bash guard and one skill have a measured effect. The other guards,
+> the Stop gate, the browser driver, the session brief and the vocabulary check
+> are covered by test suites; `blast-radius` and `ux-design-laws` are prose
+> skills. None of these is **yet measured** in live agent runs. The other five skill cases showed
+> no difference in small (3 runs per arm) checks.
+
+## What it does not protect against
+
+- **It is not a sandbox or a security boundary.** It is built for a
+  well-meaning but hasty agent, not a malicious one. An agent set on lying can
+  forge bendit's own state files.
+- **It reads shell commands, not intentions.** A command hidden behind a
+  variable, inside a script file (`bash clean.sh`), over `ssh`, in
+  `psql -f drop.sql`, or in a perl or ruby one-liner gets through.
+  [Known gaps](docs/reference.md#the-bash-guard).
+- **It refuses once per turn.** If the agent tries to stop a second time in the
+  same turn, the turn ends and you are told the code is NOT verified. A gate
+  that refused forever would trap the session.
+- **There is a visible escape hatch.** The agent can skip the end-of-turn check
+  by writing a one-line reason. You are always shown that reason.
+- **Your check runs with your permissions.** Once you approve it, the Stop gate
+  runs `.claude/verify-harness` unsandboxed. Change it, and it needs approval again.
+- **Advice is advice.** Notes and skills can be ignored.
+- **Claude Code only**, on **macOS and Linux**. The installer refuses Windows.
+- **Network:** the hooks make no network calls of their own, except the
+  optional session brief's DNS/TCP checks of hosts and ports your project
+  lists (none by default). The installer fetches bendit from GitHub, and your
+  approved check does whatever its commands do.
+
+## How it works
+
+```mermaid
+flowchart TD
+    S["Session starts"] --> C["Self-check: probe every guard; optional brief"]
+    C --> T{"Agent calls a tool"}
+    T --> G{"PreToolUse guards: dangerous?"}
+    G -- "yes" --> R["Refused: exit 2, reason shown to the agent"]
+    G -- "no" --> X["Tool runs"]
+    X --> P["PostToolUse: advice notes, changed code recorded"]
+    R & P --> T
+    T -- "agent tries to finish" --> F{"Stop gate: did this turn change code?"}
+    F -- "no" --> E["Turn ends"]
+    F -- "yes" --> H["Run the check you approved"]
+    H -- "passes" --> E
+    H -- "fails or not approved" --> K["Stop refused once: the agent keeps working; a second stop ends the turn and you are told it is NOT verified"]
+    K --> T
+```
+
+bendit is a plugin for [Claude Code](https://claude.com/claude-code): small
+Python scripts, called hooks, that Claude Code runs at fixed moments.
+*PreToolUse* hooks see each command or edit first and can refuse it;
+*PostToolUse* hooks can only advise; the *Stop* hook refuses to end a turn that
+changed code until your check passes. Commands are read with a small parser, so
+`sudo rm -rf`, `sh -c "…"` and `xargs rm -r` are caught, while a commit message
+that only mentions `rm -rf` is not.
+
+## Per-project features
+
+`/bendit:adopt` turns these on only where they fit and records each choice,
+with the reason, in `.claude/bendit.json`.
+
+| Feature | Turned on when | Needs |
+|---|---|---|
+| `browser-driver`: the check clicks through your web app in real Chrome | a web app (`next`, `react`, `vue`, `vite`, … or `index.html`) | Node 20+, Google Chrome, Playwright (offered) |
+| `ux-design-laws`: a skill for interface work | a web app | the `bendit-web` add-on, this project only |
+| `session-brief`: where the repo stands, at session start | the project is a git repo | nothing |
+| `ls-guard`: refuses parsing `ls` output | `ls` is an alias or function in your shell | nothing |
+
+In `--detailed`, saying no to a dependency turns its feature off and never stops setup.
+[Details](docs/reference.md#per-project-features-in-detail).
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `/bendit:adopt` | set bendit up here: one question, one approval line (`--detailed` for the full interview) |
+| `/bendit:doctor` | check every guard can still refuse, run the live test, say what to do next |
+| `/bendit:verify` | run your project's check now (for a web app: start it and click through it) |
+| `/bendit:ship` | pre-PR checklist, then open the pull request once you agree |
+| `/bendit:review-diff` | review everything this branch changes against common failure modes |
+| `/bendit:new-guard <name>` | scaffold a new guard and its tests from a mistake you keep correcting |
+| `/bendit:vocabulary` | report or fix words used with more than one meaning |
+
+## Undo or uninstall
+
+`/bendit:adopt`'s report includes a **"How to undo all of it"** section with the
+exact commands for your project ([template](plugins/bendit/skills/adopt-bendit/references/quick.md)). They start with:
+
+```bash
+cd "<your project folder>"
+claude plugin uninstall bendit-web@bendit --scope project   # only if it was installed
+claude plugin uninstall bendit@bendit --scope project
+claude plugin marketplace remove bendit --scope project
+```
+
+then remove each file, folder and line that run added, by exact path. Tools
+it installed with your OK (such as Homebrew packages) stay installed. If no
+other project on this computer uses bendit, you can also delete
+`~/.cache/bendit/` (the downloaded copy) and `~/.config/bendit/` (your approvals and web-app port numbers).
+
+## Troubleshooting
+
+- **Start with `/bendit:doctor`.** It lists every guard, says which are OFF and
+  why, and ends with what to do, in plain words.
+- **Permission prompts for `.claude/` files are expected.** Claude Code asks
+  before writes in a project's `.claude` folder. Say yes during setup.
+- **"Unknown command"?** Type the prefix: `/bendit:adopt`, not `/adopt`.
+- **The agent keeps being stopped at the end of a turn?** Your check is failing
+  or not yet approved. The stop message says which, and gives the approval command.
+
+<details>
+<summary><b>Manual install, pinning and installer details</b></summary>
+
+<a name="manual-install-pinning-and-installer-details"></a>
+
+Install the plugin by hand, then run setup in your project:
 
 ```bash
 claude plugin marketplace add https://github.com/VedangP57/bendit
 claude plugin install bendit@bendit
 ```
 
-Then, in your project:
-
 ```
 /bendit:adopt              # one question, then one approval line
 /bendit:adopt --detailed   # the full interview, every choice yours
 ```
 
-The default asks one plain question, then installs and writes only what its
-summary listed. It decides everything else itself (the check is your test
-command, typecheck or build; all guards on; no CI), writes `AGENTS.md`,
-`CLAUDE.md`, `.claude/verify-harness` and `.claude/bendit.json` (see Features),
-and for a web app also its verification skill, `.claude/skills/verify-<name>/`
-(the AI starts your app and clicks through it when you ask), with the committed
-`.env.verify.example`. It ends by running `scripts/prove.sh`, then prints the
-one approval command.
-`--detailed` is the full interview: it detects your stack (Node with
-pnpm/npm/yarn/bun, Python with uv/poetry/pip, Go, Rust; anything else it asks
-about), asks only what it could not detect, one question at a time, shows every
-file before writing it, and builds the same project layer, with the
-verification skill and CI as your choice. Both then
-**prove** the setup with `scripts/prove.sh`: every guard is fed a known-bad
-payload and must refuse (and a known-good one it must allow), the Stop gate is
-dry-run in a throwaway repo, the harness is run, every feature that is on is
-run, and the result is printed as a
-table with the evidence rung of each row. Neither will call adoption complete if
-any check fails. You can run the same check yourself at any time:
+The install URL above is "latest". To pin a release, put its tag in the URL,
+for example `https://raw.githubusercontent.com/VedangP57/bendit/v0.4.1/install.sh`
+(`/<tag>/` for any other release).
+
+To read the installer before running it:
 
 ```bash
-bash <plugin folder>/scripts/prove.sh .
+f=$(mktemp) && curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh -o "$f" && less "$f" && bash "$f"
 ```
 
-**Expect permission prompts.** Claude Code asks before any write under a
-project's `.claude/` folder, because it treats that folder as sensitive. That
-is expected, not an error. The verification scaffold does those writes itself,
-in one command, so the agent rarely has to write there file by file.
-`prove.sh` only reads: it writes nothing in your project at all.
-
-To pin the kit inside your repository instead (no network at session time),
-`/bendit:adopt` can vendor it under `.claude/vendor/bendit/` and write where
-it came from to `.claude/vendor/bendit/VENDORED_FROM`. To check which
-version you run against upstream:
+To see what is missing without installing anything:
 
 ```bash
-cat .claude/vendor/bendit/VENDORED_FROM     # source: <url>, commit: <sha>
-git ls-remote <url> HEAD                            # is upstream past that commit?
+curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh | bash -s -- --check
 ```
 
-A web app's generated verify harness needs nothing local: a fresh clone runs
-`.claude/skills/verify-<name>/bin/verify-<name> verify`, which finds the kit
-itself (`BENDIT_KIT_ROOT`, a vendored copy, or the installed plugin).
-Local overrides are optional and go in `.env.verify.local`; the committed
-`.env.verify.example` lists them.
+Flags, settings, exit codes, vendoring and what setup writes are in
+[docs/reference.md](docs/reference.md#installer).
 
-## Grow your own guard
+</details>
 
-The kit's guards cover common mistakes. The ones that cost *your* project are
-found by using it: the second time you correct the same mistake, run
+<details>
+<summary><b>More for developers</b></summary>
 
-```
-/bendit:new-guard no-skip-hooks
-```
+All in [docs/reference.md](docs/reference.md):
 
-That scaffolds `.claude/hooks/no-skip-hooks.py` (a fail-closed `PreToolUse`
-guard) and `no-skip-hooks.test.sh` (block / allow / crash cases with a message
-snapshot). It never overwrites a file and never edits your settings: it prints
-the `.claude/settings.json` snippet for you to add. The adopt skill's
-`references/grow.md` walks through writing cases from the real transcript,
-replaying your history to count false positives, and turning it on.
+- [Installer](docs/reference.md#installer): flags, environment variables, exit codes, what it writes
+- [What setup writes](docs/reference.md#what-setup-writes), and [vendoring](docs/reference.md#vendoring-bendit-into-your-repository) bendit into your repository
+- [How setup proves itself](docs/reference.md#how-setup-proves-itself) with `prove.sh`
+- [The Stop gate](docs/reference.md#the-stop-gate-in-detail) in detail
+- [Grow your own guard](docs/reference.md#grow-your-own-guard)
+- [The ladder](docs/reference.md#the-ladder): which layer should hold a rule
+- [Measuring whether a rule works](docs/reference.md#measuring-whether-a-rule-works)
+- [Platform support](docs/reference.md#platform-support), [where bendit keeps state](docs/reference.md#where-bendit-keeps-state) and [repository layout](docs/reference.md#repository-layout)
 
-## Measuring whether a rule works
+Design decisions are in [docs/design.md](docs/design.md); the method and its
+twelve failure classes in [docs/ladder.md](docs/ladder.md).
 
-[plugins/bendit/evals/README.md](plugins/bendit/evals/README.md)
-is the method: run a task that tempts the mistake many times with and without
-the rule, and believe the difference only if it survives the listed traps.
+</details>
 
-- Sweep cases by `--tag`, never untagged: `_falsify/` holds cases built to
-  FAIL and is discovered like any other case. To write a new case, copy
-  `plugins/bendit/templates/eval-case/` into `evals/` and edit it.
-- Always pass `--no-publish`; otherwise the HTML report is published to
-  claude.ai by default where your account supports it.
-- Grant the tools under test with `--allow-tools`. Without the grant, every case
-  that needs to edit or run something can score perfectly while measuring
-  nothing.
+## Contributing, security, license
 
-```bash
-claude plugin eval ./plugins/bendit --tag smoke --scaffold --allow-tools Bash --no-publish
-```
-
-Run the smoke case first: if it fails with the plugin loaded, the harness is
-wrong (grant, scaffold, plugin path) and no other number is worth reading.
-
-## Platform support
-
-- macOS and Linux; bash 3.2+ or zsh.
-- Python 3.9+ (standard library only) for every hook. Hooks make no network calls.
-- Any language project; `/bendit:adopt` detects Node, Python, Go and Rust and asks about
-  anything else.
-- The browser driver (web apps only) needs Node 20+ and Google Chrome.
-- Windows is not supported in v1 (untested).
-- Claude Code only.
-
-## Not in v1
-
-Multi-session orchestration and database-policy helpers. They exist in the
-private kit this was extracted from but are unproven or stack-specific; each may
-ship later, only with a measured result. No GUI, and no support for agents
-other than Claude Code.
-
-In v0.2.0 this list also included session-start project briefs and a browser
-driver; both now ship as per-project features (not yet measured).
-
-## Repository layout
-
-```
-.claude-plugin/marketplace.json
-docs/ladder.md                      the method and failure classes F1-F12
-docs/design.md                      design decisions for v1
-install.sh                          the one-command installer
-packages/                           npx and pipx wrappers around install.sh
-plugins/bendit/
-  hooks/hooks.json                  which guard runs on which tool
-  scripts/                          guards, gates, test suites (*.test.sh)
-  skills/                           practice skills, blast-radius, adopt-bendit
-  commands/                         /bendit:adopt /bendit:new-guard /bendit:ship /bendit:review-diff /bendit:verify /bendit:doctor /bendit:vocabulary
-  lib/drive/                        the real-browser driver (drive.mjs) and its selftest
-  templates/                        guard template, AGENTS.md skeleton
-  evals/                            measuring whether a rule changes behaviour
-plugins/bendit-web/                 add-on for web apps: the ux-design-laws skill
-```
-
-Every behaviour has a shell test suite (`scripts/*.test.sh`) using snapshot
-tests of what the hooks actually say; `.github/workflows/ci.sh` runs them all and
-fails if any stage ran nothing.
-
-## Contributing and security
-
-[CONTRIBUTING.md](CONTRIBUTING.md) covers running CI locally, test-first
-changes and how to back a claim with evidence. Report a guard bypass or a
-fail-open privately, as [SECURITY.md](SECURITY.md) describes, not in a public
-issue. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+- [CONTRIBUTING.md](CONTRIBUTING.md): running CI locally, test-first changes,
+  backing a claim with evidence. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+- Found a way past a guard, or a guard that fails open? Report it privately as
+  [SECURITY.md](SECURITY.md) describes, not in a public issue.
+- MIT. See [LICENSE](LICENSE).

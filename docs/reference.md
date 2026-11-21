@@ -202,8 +202,8 @@ Every hook runs as `python3 <plugin>/scripts/<name>.py` with a 10-second timeout
 stderr; Claude Code then refuses the call and shows the reason to the model. A
 crash also exits 2, so a broken guard refuses rather than waves things through.
 
-Plugin options: `integrationBranch` (the branch `/bendit:review-diff` compares
-against; empty means detect) and `zshGuard` (default on).
+Plugin options: `integrationBranch` (the branch `/bendit:ship` and
+`/bendit:review-diff` compare against; empty means detect) and `zshGuard` (default on).
 
 ## The Bash guard
 
@@ -215,7 +215,8 @@ It refuses:
 - recursive deletes, with or without `-f`: `rm -rf ./build`, `rm -r dist`,
   `cd /tmp && rm -rf node_modules`, node and python one-liners
   (`fs.rmSync` recursive, `shutil.rmtree`), `rimraf`, `find -delete`. Only a
-  folder inside `/tmp` or `$TMPDIR` may be deleted;
+  folder inside `/tmp` or `$TMPDIR` (including macOS's `/var/folders/…/T/`)
+  may be deleted;
 - destructive SQL through a database client: `DROP`, `TRUNCATE`,
   `ALTER TABLE … DROP`, `DELETE` with no `WHERE`;
 - `supabase db push` and `supabase db reset`; `prisma migrate reset` and
@@ -247,8 +248,8 @@ perl and ruby one-liners, and forging bendit's own state files.
 
 The test suite feeds it more than 360 commands and snapshots every message
 ([`block-dangerous-bash.expected`](../plugins/bendit/scripts/block-dangerous-bash.expected)).
-An adversarial review of v0.2.0 found 64 bypasses; 11 were blocked before
-that release and 49 after.
+An adversarial review of v0.2.0 tried 64 bypasses: 11 of the 64 were blocked
+before the fixes, 49 of the 64 after.
 
 ## The Stop gate in detail
 
@@ -393,8 +394,8 @@ claude plugin eval ./plugins/bendit --tag smoke --scaffold --allow-tools Bash --
 Run the smoke case first: if it fails with the plugin loaded, the harness is
 wrong (grant, scaffold, plugin path) and no other number is worth reading.
 
-These flags were read from `claude plugin eval --help` on CLI 2.1.326; check
-your CLI's own help.
+These flags come from CLI 2.1.326, the version of the first sweep
+([INDEX.md](../plugins/bendit/evals/results/INDEX.md)); check your CLI's own help.
 
 ## More on the evidence
 
@@ -405,6 +406,7 @@ total cost $34.71). The guard and the Stop gate changed after the sweep, so
 `eval-freeze.py verify v2-final` on a later tree lists them as CHANGED:
 reproduce at `a5d6be0`. Raw run folders are not committed.
 
+- **The v0.2.0 sweep** ran on 2026-11-19.
 - **The same guard on v0.1.0** (2026-11-17): 12/12 and 12/12 against 0/12.
 - **Liveness.** In the guard cases, the agent attempted the deletion in 12 of
   12 runs in every arm, so no arm is a run that measured nothing.
@@ -474,9 +476,10 @@ Per-user state never lives in the plugin folder.
 | `.claude/.bendit-state/` in your project | which files changed, verified stamps, skip notes (git-ignored) |
 | `~/.cache/bendit/v<version>/` | the copy the installer fetched |
 | `~/.cache/bendit/drive/<version>/` | Playwright, if you accepted it |
-| `~/.cache/bendit/verify-sessions/`, `live-sessions/` | per-session index, and markers that let `/bendit:doctor` say whether bendit is live in this window (removed after 30 days) |
+| `~/.cache/bendit/verify-sessions/`, `live-sessions/` | per-session index, and markers that let `/bendit:doctor` say whether bendit is live in this window (live markers removed after 30 days; stale verify entries after 7) |
 | `~/.config/bendit/trusted-harnesses.json` | your check approvals |
 | `~/.config/bendit/ports.json` | each web project's port |
+| `.git/bendit-ports.json` in your project | which port each worktree holds |
 
 Paths follow `XDG_CACHE_HOME` and `XDG_CONFIG_HOME`; other overrides:
 `BENDIT_CACHE`, `BENDIT_CONFIG_DIR`, `BENDIT_VERIFY_INDEX`, `BENDIT_LIVE_DIR`,

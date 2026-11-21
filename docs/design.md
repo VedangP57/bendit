@@ -87,7 +87,7 @@ bendit/
   packages/npm, packages/pypi       `npx bendit`, `pipx run bendit` wrappers (packages/sync.sh copies install.sh)
   LICENSE                           MIT, "Bendit contributors"
   .claude-plugin/marketplace.json
-  .github/workflows/ci.yml, ci.sh   stages: shell imports privacy validate test, over every plugins/*/
+  .github/workflows/ci.yml, ci.sh   stages: shell imports privacy validate, over every plugins/*/
   docs/design.md                    this file
   docs/ladder.md                    the method + generic failure classes F1..F12
   docs/reference.md                 installer, every guard, Stop gate, features, evals, state

@@ -5,8 +5,8 @@
 **Safety rails for Claude Code that are enforced, not just written down.**
 
 bendit stops your AI coding agent before it deletes a folder, force-pushes or
-drops a table, and won't let it call a code change done until your project's
-own check passes.
+drops a table, and runs your project's own check (usually its tests) before it
+may end a turn that changed code.
 
 [![ci](https://github.com/VedangP57/bendit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/VedangP57/bendit/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -18,7 +18,9 @@ own check passes.
 </div>
 
 Most people steer an AI coding agent with a rules file (`CLAUDE.md` or
-`AGENTS.md`), and the agent can quietly ignore it. bendit turns the rules that
+`AGENTS.md`), and the agent can quietly ignore it: real projects have "keep
+files short" beside a hundred long files, and safety hooks that never fired
+because they read the wrong field of their input. bendit turns the rules that
 matter into checks that actually say no. When the agent tries something
 destructive, Claude Code refuses the command and shows the agent why:
 
@@ -38,20 +40,23 @@ Run one command from inside your project folder (macOS or Linux):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh | bash
-# or, the same installer through a package manager:
-npx bendit
-pipx run bendit        # or: uvx bendit
 ```
 
+Or, if you prefer a package manager, run **one** of these instead (same installer):
+`npx bendit` · `pipx run bendit` · `uvx bendit`
+
 The command checks that your computer has what bendit needs (`claude`, `git`,
-`python3` 3.9 or newer), asks before installing anything that is missing (the
-default answer is no), then opens Claude Code on `/bendit:adopt`.
+`python3` 3.9 or newer), asks before installing anything that is missing (type
+`y` to agree; just pressing Enter means no), then opens Claude Code on
+`/bendit:adopt`.
 
 ### What happens next
 
-1. **One question.** bendit looks at your project and shows one plain summary:
+1. **One question.** (Rarely, one or two short questions come first.) bendit
+   looks at your project and shows one plain summary:
    what you get, every file it will add or change, everything it will install.
-   It ends with *"Go ahead? Reply yes, or just press Enter."* Nothing outside
+   It ends with *"Go ahead? Reply yes, or just press Enter."* Here Enter
+   means yes. Nothing outside
    that summary is written or installed. Claude Code may ask permission to
    change a few files in the `.claude` folder: say yes.
 2. **One approval line.** At the end it prints one command. Open a **new
@@ -73,8 +78,8 @@ If something is still open, it ends with "What to do next:" and numbered steps i
 | I want to… | Do this |
 |---|---|
 | just have it set up | the [quick start](#quick-start) above |
-| make every choice myself (CI, branches, which guards, how it is installed) | run `/bendit:adopt --detailed` in Claude Code; it is also how to change a project later |
-| install it by hand, or pin a version | [manual install](#manual-install-pinning-and-installer-details) below |
+| make every choice myself (invariants, CI, branches, which guards, how it is installed) | run `/bendit:adopt --detailed` in Claude Code; it is also how to change a project later |
+| install it by hand, or pin a version | expand [Manual install…](#manual-install-pinning-and-installer-details) below |
 | measure whether a rule changes what the agent does | [the evals method](plugins/bendit/evals/README.md) |
 
 ## What you get
@@ -83,8 +88,10 @@ If something is still open, it ends with "What to do next:" and numbered steps i
   `git reset --hard`, `DROP TABLE` through a database client,
   `supabase db push`, `prisma migrate reset`, deleting the folder the shell is
   in, and live secret keys (Stripe, Supabase, GitHub) typed into a command.
-- **No "done" until your check passes.** When a turn changed code, bendit runs
-  your project's check (usually its tests) before the agent may stop.
+- **Your check runs before the agent stops.** When a turn changed code, bendit
+  runs your project's check (usually its tests) and refuses the first attempt
+  to stop if it fails. If the agent stops again, the turn ends, you are told the
+  code is NOT verified, and the next turn still has to answer for it.
 - **You approve, not the AI.** The check runs only once a person has approved
   that exact file in their own terminal, and the guard refuses the agent's
   attempts to approve it.
@@ -98,9 +105,9 @@ What is a wall and what is a suggestion:
 | | What | When it is on |
 |---|---|---|
 | **Enforced** | destructive shell commands ([full list](docs/reference.md#the-bash-guard)) | always |
-| **Enforced** | ending a turn that changed code without your check passing | once you approve the check |
+| **Enforced** | ending a turn that changed code without your check passing (refused once per turn) | always; your check runs once you approve it |
 | **Enforced** | zsh word-splitting mistakes (`for f in $files`) | when your shell is zsh |
-| **Enforced** | parsing the output of `ls` | when `ls` is an alias or function in your shell |
+| **Enforced** | parsing the output of `ls` | when setup found `ls` is an alias or function (recorded in `.claude/bendit.json`) |
 | **Enforced** | edits to generated `*.gen.*` files; allocations in `*.hot.*` files | when you name files that way |
 | **Check** | every guard can still run and refuse | every session start, and `/bendit:doctor` |
 | Advice | notes after edits; a warning when a command hid its errors and printed nothing; a start-of-session brief | after each edit or command; the brief per project |
@@ -130,7 +137,7 @@ If this is genuinely required, ask the human to run it.
 
 ## Evidence
 
-From the v0.2.0 eval sweep (Claude Code CLI 2.1.328, judge sonnet): each task
+From the v0.2.0 eval sweep (2026-11-19, Claude Code CLI 2.1.328, judge sonnet): each task
 run many times with and without bendit, compared with a two-sided Fisher test.
 
 | What was measured | With bendit | Without | p |
@@ -147,12 +154,14 @@ run many times with and without bendit, compared with a two-sided Fisher test.
   [`evals/results/INDEX.md`](plugins/bendit/evals/results/INDEX.md). The
   inputs are frozen at commit `a5d6be0`; the guard has changed since, so check
   out that commit to reproduce. [More detail](docs/reference.md#more-on-the-evidence).
+- It is a small sample: don't take it on trust. Measure it on your own project
+  with [the evals method](plugins/bendit/evals/README.md).
 
 > [!NOTE]
 > Only the Bash guard and one skill have a measured effect. The other guards,
-> the Stop gate, the browser driver, the session brief, `blast-radius`,
-> `ux-design-laws` and the vocabulary check are covered by test suites but
-> **not yet measured** in live agent runs. The other five skill cases showed
+> the Stop gate, the browser driver, the session brief and the vocabulary check
+> are covered by test suites; `blast-radius` and `ux-design-laws` are prose
+> skills. None of these is **yet measured** in live agent runs. The other five skill cases showed
 > no difference in small (3 runs per arm) checks.
 
 ## What it does not protect against
@@ -164,6 +173,9 @@ run many times with and without bendit, compared with a two-sided Fisher test.
   variable, inside a script file (`bash clean.sh`), over `ssh`, in
   `psql -f drop.sql`, or in a perl or ruby one-liner gets through.
   [Known gaps](docs/reference.md#the-bash-guard).
+- **It refuses once per turn.** If the agent tries to stop a second time in the
+  same turn, the turn ends and you are told the code is NOT verified. A gate
+  that refused forever would trap the session.
 - **There is a visible escape hatch.** The agent can skip the end-of-turn check
   by writing a one-line reason. You are always shown that reason.
 - **Your check runs with your permissions.** Once you approve it, the Stop gate
@@ -190,7 +202,7 @@ flowchart TD
     F -- "no" --> E["Turn ends"]
     F -- "yes" --> H["Run the check you approved"]
     H -- "passes" --> E
-    H -- "fails or not approved" --> K["Stop refused: the agent keeps working"]
+    H -- "fails or not approved" --> K["Stop refused once: the agent keeps working; a second stop ends the turn and you are told it is NOT verified"]
     K --> T
 ```
 
@@ -214,7 +226,7 @@ with the reason, in `.claude/bendit.json`.
 | `session-brief`: where the repo stands, at session start | the project is a git repo | nothing |
 | `ls-guard`: refuses parsing `ls` output | `ls` is an alias or function in your shell | nothing |
 
-Saying no to a dependency turns its feature off and never stops setup.
+In `--detailed`, saying no to a dependency turns its feature off and never stops setup.
 [Details](docs/reference.md#per-project-features-in-detail).
 
 ## Commands
@@ -231,10 +243,11 @@ Saying no to a dependency turns its feature off and never stops setup.
 
 ## Undo or uninstall
 
-`/bendit:adopt` ends its report with **"How to undo all of it"**, the exact
-commands for your project ([template](plugins/bendit/skills/adopt-bendit/references/quick.md)). They start with:
+`/bendit:adopt`'s report includes a **"How to undo all of it"** section with the
+exact commands for your project ([template](plugins/bendit/skills/adopt-bendit/references/quick.md)). They start with:
 
 ```bash
+cd "<your project folder>"
 claude plugin uninstall bendit-web@bendit --scope project   # only if it was installed
 claude plugin uninstall bendit@bendit --scope project
 claude plugin marketplace remove bendit --scope project
@@ -243,7 +256,7 @@ claude plugin marketplace remove bendit --scope project
 then remove each file, folder and line that run added, by exact path. Tools
 it installed with your OK (such as Homebrew packages) stay installed. If no
 other project on this computer uses bendit, you can also delete
-`~/.cache/bendit/` (the downloaded copy) and `~/.config/bendit/` (your approvals).
+`~/.cache/bendit/` (the downloaded copy) and `~/.config/bendit/` (your approvals and web-app port numbers).
 
 ## Troubleshooting
 

@@ -6,7 +6,7 @@ All notable changes. Dates are UTC.
 
 ### Changed
 - README rebuilt around one command, one question and one approval line: what
-  a refusal looks like first, then the quick start, limits, evidence and undo.
+  a refusal looks like first, then the quick start, evidence, limits and undo.
   Installer flags, the full enforced-and-advice table, the Stop gate, the
   ladder and measuring a rule moved to `docs/reference.md`.
 - The npm and PyPI package descriptions name `/bendit:adopt` (they said

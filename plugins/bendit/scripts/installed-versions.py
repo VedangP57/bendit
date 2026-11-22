@@ -10,12 +10,15 @@ checkout fixed it, so a worktree seems to load the main checkout's project
 install (seen once, not proven). Nothing said the two checkouts disagreed.
 
 WHAT. Every checkout of the repo at --root (default: the current folder), from
-`git worktree list --porcelain`, the main checkout first. For each, the bendit
-and bendit-web versions installed for that exact path at project scope, read
-from Claude Code's record of installs (--plugins-file, default
+`git worktree list --porcelain`, the main checkout first. For each, every
+bendit and bendit-web version installed for that path at PROJECT scope (user
+and local scope are not checked), read from Claude Code's record of installs
+(--plugins-file, default
 ${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/installed_plugins.json), or "none".
 Each is compared with the version of the bendit running this script (bendit
-and bendit-web are released together, under one version).
+and bendit-web are released together, under one version). A recorded path is
+the same folder when it is the same file on disk (so a path recorded in other
+capitals on macOS still matches), else when its resolved path is equal.
 
 It reads that file directly and never runs `claude plugin list`, which can
 hang in a folder Claude Code has not seen yet. It changes nothing.
@@ -24,11 +27,14 @@ OUTPUT. `running: bendit <version>`, then one line per checkout. A checkout
 whose version differs is said in plain words, and every checkout behind the
 newest version seen (running or recorded) gets the exact command that updates
 it, run from that checkout: `cd <path> && claude plugin update <id> --scope
-project`. A checkout with nothing installed is "none": not a mismatch.
+project`. "none" everywhere is not a mismatch; "none" in the MAIN checkout
+while another checkout has an install is one (a worktree loads the main
+checkout's install), with the command that installs it there.
 
 EXIT. 0 every recorded version matches the running one; 1 at least one
-differs; 2 something could not be read (the record of installs, the running
-version, git): never reported as "all fine".
+differs, or the main checkout has none while another has one; 2 something
+could not be read (the record of installs, the running version, git): never
+reported as "all fine".
 """
 import json
 import os
@@ -38,10 +44,9 @@ import subprocess
 import sys
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import features  # noqa: E402  (the one reader of the running version)
 
 PLUGINS = ('bendit', 'bendit-web')
+SCOPE_NOTE = 'Only project-scope installs are checked (user- and local-scope installs are not).'
 
 
 class CannotRead(Exception):
@@ -55,6 +60,25 @@ def default_plugins_file():
 
 def real(p):
     return os.path.realpath(os.path.abspath(p))
+
+
+def same_path(a, b):
+    """Are <a> and <b> the same folder? The same file on disk when both exist
+    (case-insensitive filesystems fold capitals there), else equal resolved paths."""
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return real(a) == real(b)
+
+
+def running_version():
+    """The running bendit's version, from features.py (the one reader of it)."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    try:
+        import features
+        return features.plugin_version()
+    except Exception as e:  # noqa: BLE001 -- unreadable is CannotRead, never a mismatch
+        raise CannotRead('the running version could not be read: %s: %s' % (type(e).__name__, e))
 
 
 def checkouts(root):
@@ -95,8 +119,9 @@ def checkouts(root):
 
 
 def load_installs(path):
-    """{(plugin name, real project path): [(plugin id, version)]} for project
-    scope. Any surprise in the file is CannotRead, never an empty answer."""
+    """[{name, id, project, version, install}] for every PROJECT-scope bendit or
+    bendit-web entry. Any surprise in the file is CannotRead, never an empty
+    answer."""
     try:
         with open(path, encoding='utf-8') as f:
             data = json.load(f)
@@ -105,7 +130,7 @@ def load_installs(path):
     plugins = data.get('plugins') if isinstance(data, dict) else None
     if not isinstance(plugins, dict):
         raise CannotRead('%s: no "plugins" object in it' % path)
-    found = {}
+    found = []
     for pid, entries in plugins.items():
         name = str(pid).split('@')[0]
         if name not in PLUGINS:
@@ -120,29 +145,33 @@ def load_installs(path):
             proj, ver = e.get('projectPath'), e.get('version')
             if not isinstance(proj, str) or not isinstance(ver, str) or not ver:
                 raise CannotRead('%s: an entry of %r has no projectPath or version string' % (path, pid))
-            found.setdefault((name, real(proj)), []).append((pid, ver))
+            inst = e.get('installPath')
+            found.append({'name': name, 'id': str(pid), 'project': proj, 'version': ver,
+                          'install': inst if isinstance(inst, str) else None})
     return found
 
 
+def installs_for(installs, folder, name=None):
+    """The project-scope entries recorded for <folder> (optionally one plugin)."""
+    return [e for e in installs if (name is None or e['name'] == name) and same_path(e['project'], folder)]
+
+
 def vkey(v):
-    """A sortable key for a dotted version; None when it is not one."""
+    """A sortable key for a dotted version; () when it is not one."""
     m = re.match(r'^(\d+(?:\.\d+)*)', v)
-    return tuple(int(x) for x in m.group(1).split('.')) if m else None
+    return tuple(int(x) for x in m.group(1).split('.')) if m else ()
 
 
 def compare(a, b):
-    """'older', 'newer' or 'different' (a against b), when a != b."""
+    """'older than', 'newer than' or 'different from' (a against b), when a != b."""
     ka, kb = vkey(a), vkey(b)
-    if ka is None or kb is None or ka == kb:
-        return 'different'
-    return 'older' if ka < kb else 'newer'
+    if not ka or not kb or ka == kb:
+        return 'different from'
+    return 'older than' if ka < kb else 'newer than'
 
 
 def report(root, plugins_file):
-    try:
-        running = features.plugin_version()
-    except features.FeaturesError as e:
-        raise CannotRead(str(e))
+    running = running_version()
     here = real(root)
     try:
         top = subprocess.run(['git', '-C', here, 'rev-parse', '--show-toplevel'], capture_output=True,
@@ -153,29 +182,34 @@ def report(root, plugins_file):
     installs = load_installs(plugins_file)
     rows = []
     for path, is_main in checkouts(root):
-        row = {'path': path, 'main': is_main, 'here': path == here}
+        row = {'path': path, 'main': is_main, 'here': same_path(path, here)}
         for name in PLUGINS:
-            got = installs.get((name, path), [])
-            row[name] = got[0][1] if got else None
-            row[name + ' id'] = got[0][0] if got else name + '@bendit'
+            row[name] = [(e['id'], e['version']) for e in installs_for(installs, path, name)]
         rows.append(row)
     # The newest version anywhere: a checkout behind it gets its update command.
-    seen = [running] + [r[n] for r in rows for n in PLUGINS if r[n]]
-    newest = max(seen, key=lambda v: vkey(v) or ())
+    seen = [running] + [v for r in rows for n in PLUGINS for _, v in r[n]]
+    newest = max(seen, key=vkey)
     mismatch = False
     for r in rows:
         r['notes'], r['update'] = [], []
+        q = shlex.quote(r['path'])
         for name in PLUGINS:
-            v = r[name]
-            if v is None:
+            if not r[name]:
+                # A worktree loads the main checkout's install: none there, while
+                # another checkout has one, is the incident itself.
+                others = [pid for o in rows if o is not r for pid, _ in o[name]]
+                if r['main'] and others:
+                    mismatch = True
+                    r['notes'].append('%s is not installed here, but another checkout has it, and a worktree '
+                                      'loads the main checkout\'s install' % name)
+                    r['update'].append('cd %s && claude plugin install %s --scope project' % (q, others[0]))
                 continue
-            if v != running:
-                mismatch = True
-                how = {'older': 'older than', 'newer': 'newer than'}.get(compare(v, running), 'different from')
-                r['notes'].append('%s %s is %s the running %s' % (name, v, how, running))
-            if v != newest and (vkey(v) or ()) < (vkey(newest) or ()):
-                r['update'].append('cd %s && claude plugin update %s --scope project'
-                                   % (shlex.quote(r['path']), r[name + ' id']))
+            for pid, v in r[name]:
+                if v != running:
+                    mismatch = True
+                    r['notes'].append('%s %s (%s) is %s the running %s' % (name, v, pid, compare(v, running), running))
+                if v != newest and vkey(v) < vkey(newest):
+                    r['update'].append('cd %s && claude plugin update %s --scope project' % (q, pid))
     return running, rows, mismatch
 
 
@@ -184,15 +218,16 @@ def text(running, rows, mismatch):
     for r in rows:
         tags = [t for t, on in (('main checkout', r['main']), ('this folder', r['here'])) if on]
         label = r['path'] + ''.join(' (%s)' % t for t in tags)
-        vers = ', '.join('%s %s' % (n, r[n] or 'none') for n in PLUGINS)
+        vers = ', '.join('%s %s' % (n, '/'.join(v for _, v in r[n]) or 'none') for n in PLUGINS)
         state = '; '.join(r['notes']) if r['notes'] else (
-            'matches' if any(r[n] for n in PLUGINS) else 'bendit is not installed for this path')
+            'matches' if any(r[n] for n in PLUGINS) else 'no project-scope install recorded for this path')
         out.append('%s: %s -- %s' % (label, vers, state))
         for cmd in r['update']:
-            out.append('  to update it: %s' % cmd)
+            out.append('  to fix it: %s' % cmd)
     if mismatch:
         out.append('Checkouts of one repo can load each other\'s install (a worktree has been seen loading the '
                    'main checkout\'s), so every checkout should have the same version.')
+    out.append(SCOPE_NOTE)
     return '\n'.join(out)
 
 
@@ -222,8 +257,10 @@ def main(argv):
         return 2
     if as_json:
         print(json.dumps({'running': running, 'ok': not mismatch, 'checkouts': [
-            {'path': r['path'], 'main': r['main'], 'here': r['here'], 'bendit': r['bendit'],
-             'bendit-web': r['bendit-web'], 'notes': r['notes'], 'update': r['update']} for r in rows]}))
+            {'path': r['path'], 'main': r['main'], 'here': r['here'],
+             'bendit': '/'.join(v for _, v in r['bendit']) or None,
+             'bendit-web': '/'.join(v for _, v in r['bendit-web']) or None,
+             'notes': r['notes'], 'update': r['update']} for r in rows]}))
     else:
         print(text(running, rows, mismatch))
     return 1 if mismatch else 0

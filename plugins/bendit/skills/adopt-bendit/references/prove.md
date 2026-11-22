@@ -67,7 +67,8 @@ look alike; the first hook to refuse is the one you see.
 
 | what came back | result |
 |---|---|
-| a refusal whose message names bendit (`BLOCKED by bendit ...`, `[bendit] ...`) | **PASS**, rung 5 |
+| a refusal whose message names bendit (`BLOCKED by bendit ...`, `[bendit] ...`), and `python3 "$KIT/scripts/selfcheck.py" --session` says `copy: installed` | **PASS**, rung 5 |
+| a refusal naming bendit, but `--session` says `copy: installer copy` or `copy: other copy` | **passed in the setup copy, not this project's install**: not a PASS for the install. The hand-over ends with "Close Claude and open it again in this project, then type /bendit:doctor." |
 | git's own "does not appear to be a git repository" error | **FAIL**: the guard is not wired. Check `claude plugin list` and that this session started after the install |
 | a refusal from a different kit or hook (its message names another plugin) | **inconclusive: another guard answered first**. Not a pass and not a fail: bendit's hook may be wired and simply never got the call. Report it as that, with the message you saw |
 | this session started before the install (`python3 "$KIT/scripts/selfcheck.py" --session` says `window: not live`) | **pending a new session**: say so, do not mark it either way |

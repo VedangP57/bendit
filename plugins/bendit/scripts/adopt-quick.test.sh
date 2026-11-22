@@ -64,7 +64,14 @@ hasnt "the person is never asked to type a force push" "run: git push" "$Q_TXT"
 has "step 9 reads the copy: line" '`copy:` line' "$Q_TXT"
 has "  ...step 2 is left out only for the installed copy, refused by bendit" \
     'A refusal by bendit with `copy: installed` means this window already runs the bendit installed for this project: then last step 2 is left out.' "$Q_TXT"
-has "  ...the installer's copy keeps step 2" '`copy: installer copy`, step 2 stays' "$Q_TXT"
+has "  ...the installer's copy, or any other copy, keeps step 2" '`copy: installer copy` or `copy: other copy`, step 2 stays' "$Q_TXT"
+echo
+echo "DETAILED: PROVE.MD FOLLOWS THE SAME REOPEN RULE"
+P_TXT="$(cat "$KIT/skills/adopt-bendit/references/prove.md")"
+has "PASS needs the installed copy" 'and `python3 "$KIT/scripts/selfcheck.py" --session` says `copy: installed` | **PASS**, rung 5 |' "$P_TXT"
+has "  ...any other copy is not a PASS, and the reopen step stays" '`copy: installer copy` or `copy: other copy` | **passed in the setup copy, not this project' "$P_TXT"
+has "  ...SKILL.md step 5 says it too" 'It is a PASS only when' "$(cat "$KIT/skills/adopt-bendit/SKILL.md")"
+hasnt "  ...the old row (any bendit refusal is PASS) is gone" '`[bendit] ...`) | **PASS**, rung 5 |' "$P_TXT"
 hasnt "  ...the old rule (any refusal drops step 2) is gone" 'A refusal by bendit means this window is
    already protected' "$Q_TXT"
 has "the report's 'everything passed' needs the installed copy too" 'refused by bendit in this window with `copy: installed`' "$Q_TXT"

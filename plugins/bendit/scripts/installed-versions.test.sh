@@ -108,12 +108,58 @@ echo
 echo "NO INSTALL"
 plugins "$T/none.json" - - -
 run --root "$MAIN" --plugins-file "$T/none.json"
-chk "nothing recorded for either path: exit 0 (none is not a mismatch)" "$RC" 0
+chk "nothing recorded for either path: exit 0 (none everywhere is not a mismatch)" "$RC" 0
 has "  ...says none, never a version" "bendit none" "$OUT"
+has "  ...says only project scope was looked at" "no project-scope install recorded for this path" "$OUT"
+has "  ...and says so once, plainly" "Only project-scope installs are checked" "$OUT"
+# The incident's first-time shape: setup in a worktree installs for the
+# worktree's path only, and a worktree loads the MAIN checkout's install.
 plugins "$T/half.json" - "$V"
-run --root "$MAIN" --plugins-file "$T/half.json"
-chk "worktree installed, main not: exit 0" "$RC" 0
+run --root "$WT" --plugins-file "$T/half.json"
+chk "worktree installed, main checkout none: a mismatch, exit 1" "$RC" 1
 has "  ...main says none" "bendit none" "$OUT"
+has "  ...and gets the command that installs it there" \
+    "cd $MAIN && claude plugin install bendit@bendit --scope project" "$OUT"
+plugins "$T/half2.json" "$V" -
+run --root "$MAIN" --plugins-file "$T/half2.json"
+chk "main installed, worktree none: exit 0 (the worktree loads main's)" "$RC" 0
+
+echo
+echo "SEVERAL ENTRIES FOR ONE PATH: EVERY ONE COUNTS"
+"$PY" - "$MAIN" "$WT" "$V" "$OLD" "$T/dup.json" <<'PY'
+import json, sys
+main, wt, v, old, out = sys.argv[1:6]
+json.dump({'version': 2, 'plugins': {
+    'bendit@bendit': [{'scope': 'project', 'projectPath': main, 'version': v},
+                      {'scope': 'project', 'projectPath': wt, 'version': v}],
+    'bendit@bendit-vendor': [{'scope': 'project', 'projectPath': main, 'version': old}]}}, open(out, 'w'))
+PY
+run --root "$MAIN" --plugins-file "$T/dup.json"
+chk "a second, older entry for the same path: exit 1" "$RC" 1
+has "  ...names it" "bendit $OLD (bendit@bendit-vendor)" "$OUT"
+
+echo
+echo "A PATH RECORDED IN OTHER CAPITALS (case-insensitive filesystems: macOS)"
+CS="$T/Caps"; mkdir -p "$CS"; git -C "$CS" init -q
+git -C "$CS" -c user.name=t -c user.email=nobody commit -q --allow-empty -m init
+LOWER="$T/caps"
+"$PY" -c 'import json,sys; json.dump({"version":2,"plugins":{"bendit@bendit":[{"scope":"project","projectPath":sys.argv[1],"version":sys.argv[2]}]}}, open(sys.argv[3],"w"))' \
+  "$LOWER" "$OLD" "$T/caps.json"
+if [ -d "$LOWER" ]; then
+  run --root "$CS" --plugins-file "$T/caps.json"
+  chk "recorded as .../caps, the folder is .../Caps: the same folder, exit 1 (older)" "$RC" 1
+  has "  ...its version is read, never none" "bendit $OLD" "$OUT"
+else
+  chk "case-sensitive filesystem: .../caps is another folder (skipped)" y y
+fi
+
+echo
+echo "ITS OWN CODE FAILING IS 'COULD NOT CHECK' (2), NEVER A MISMATCH (1)"
+mkdir -p "$T/lonely"; cp "$S" "$T/lonely/"
+run --root "$MAIN" --plugins-file "$T/match.json"
+OUT="$("$PY" "$T/lonely/installed-versions.py" --root "$MAIN" --plugins-file "$T/match.json" 2>&1)"; RC=$?
+chk "features.py missing next to it: exit 2" "$RC" 2
+has "  ...says it could not check" "could not check" "$OUT"
 
 echo
 echo "COULD NOT READ: EXIT 2, NEVER 'ALL FINE'"

@@ -102,7 +102,9 @@ pin "$DR" 'one `version` row: the `running: bendit <version>` line'
 pin "$DR" 'another checkout of this repo will load a different bendit'
 pin "$DR" 'give each update command exactly as printed'
 pin "$DR" 'Exit 2 means the versions could not be read'
-pin "$DR" '> bendit is running in this window, but it is the setup copy, not the one installed for this project.'
+pin "$DR" '> bendit is running in this window, but not the copy installed for this project.'
+pin "$DR" 'anything other than `installed`'
+pin "$DR" 'Only project-scope installs are checked'
 hasnt "$DR" 'claude plugin list'
 
 echo; echo "DOCS: AN INSTALL RUNBOOK AN AGENT CAN RESUME, CREDITS, NEW COMMANDS"

@@ -454,9 +454,38 @@ cp_line() {  # cp_line <plugin root> [env assignments...] -- the copy: line --se
   (cd "$LP" && env "$@" CLAUDE_PLUGIN_ROOT="$root" CLAUDE_CODE_SESSION_ID=win-started-here \
      "$PY" "$KIT/scripts/selfcheck.py" --session 2>&1) | grep '^copy:'
 }
-H="$T/cphome"; mkdir -p "$H/.claude/plugins/cache/bendit/bendit/1.0.0" "$H/.cache/bendit/v1.0.0/plugins/bendit"
-has "installed by Claude Code (under ~/.claude/plugins/cache): copy: installed" "copy: installed" \
-    "$(cp_line "$H/.claude/plugins/cache/bendit/bendit/1.0.0" HOME="$H")"
+RV="$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$KIT/.claude-plugin/plugin.json")"
+# record <plugins dir> <scope> <project path> <version> <installPath> -- a
+# one-entry installed_plugins.json, in the shape Claude Code writes.
+record() {
+  mkdir -p "$1"
+  "$PY" -c 'import json,sys
+d, scope, proj, v, inst = sys.argv[1:6]
+e = {"scope": scope, "version": v, "installPath": inst}
+if scope != "user": e["projectPath"] = proj
+json.dump({"version": 2, "plugins": {"bendit@bendit": [e]}}, open(d + "/installed_plugins.json", "w"))' "$@"
+}
+H="$T/cphome"; C="$H/.claude/plugins/cache/bendit/bendit"
+mkdir -p "$C/$RV" "$C/0.0.1" "$H/.cache/bendit/v1.0.0/plugins/bendit"
+record "$H/.claude/plugins" project "$LP" "$RV" "$C/$RV"
+has "this project's recorded install, at the running version: copy: installed" "copy: installed" \
+    "$(cp_line "$C/$RV" HOME="$H")"
+has "  ...names the running version" "bendit $RV" "$(cp_line "$C/$RV" HOME="$H")"
+# Review P5: a cache folder this project does not record is not "installed".
+has "another version's cache folder (P5): copy: other copy" "copy: other copy" \
+    "$(cp_line "$C/0.0.1" HOME="$H")"
+has "  ...says what this project records" "records bendit $RV" "$(cp_line "$C/0.0.1" HOME="$H")"
+has "  ...and says to reopen Claude" "open it again" "$(cp_line "$C/0.0.1" HOME="$H")"
+record "$H/.claude/plugins" project "$LP" 0.0.1 "$C/$RV"
+has "the recorded path, but the record's version is not the running one: other copy" "copy: other copy" \
+    "$(cp_line "$C/$RV" HOME="$H")"
+record "$H/.claude/plugins" project "$T/elsewhere" "$RV" "$C/$RV"
+has "another project's install: other copy" "copy: other copy" "$(cp_line "$C/$RV" HOME="$H")"
+record "$H/.claude/plugins" user - "$RV" "$C/$RV"
+has "a user-scope install: other copy" "copy: other copy" "$(cp_line "$C/$RV" HOME="$H")"
+printf '{"version": 2, "plugins": ' > "$H/.claude/plugins/installed_plugins.json"
+has "the record unreadable: other copy, never installed" "copy: other copy" "$(cp_line "$C/$RV" HOME="$H")"
+record "$H/.claude/plugins" project "$LP" "$RV" "$C/$RV"
 has "the installer's download (~/.cache/bendit/): copy: installer copy" "copy: installer copy" \
     "$(cp_line "$H/.cache/bendit/v1.0.0/plugins/bendit" HOME="$H")"
 has "  ...and says what that means: reopen Claude" "open it again" \
@@ -472,12 +501,11 @@ has "a folder that only starts with the cache's name is not in it" "copy: instal
     "$(cp_line "$H/.claude/plugins/cache-other/bendit" HOME="$H")"
 ln -s "$H" "$T/cphome-link"
 has "the cache reached through a symlinked home: still installed" "copy: installed" \
-    "$(cp_line "$H/.claude/plugins/cache/bendit/bendit/1.0.0" HOME="$T/cphome-link")"
-mkdir -p "$T/cfg/plugins/cache/bendit/bendit/1.0.0"
+    "$(cp_line "$C/$RV" HOME="$T/cphome-link")"
+mkdir -p "$T/cfg/plugins/cache/bendit/bendit/$RV"
+record "$T/cfg/plugins" project "$LP" "$RV" "$T/cfg/plugins/cache/bendit/bendit/$RV"
 has "CLAUDE_CONFIG_DIR moves Claude's folder: installed there" "copy: installed" \
-    "$(cp_line "$T/cfg/plugins/cache/bendit/bendit/1.0.0" HOME="$H" CLAUDE_CONFIG_DIR="$T/cfg")"
-has "  ...names the running version" "bendit $("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$KIT/.claude-plugin/plugin.json")" \
-    "$(cp_line "$H/.claude/plugins/cache/bendit/bendit/1.0.0" HOME="$H")"
+    "$(cp_line "$T/cfg/plugins/cache/bendit/bendit/$RV" HOME="$H" CLAUDE_CONFIG_DIR="$T/cfg")"
 startup "win-copy" startup
 win "win-copy"
 chk "the copy: line never changes --session's exit (still 0 when live)" "$WIN_RC" 0

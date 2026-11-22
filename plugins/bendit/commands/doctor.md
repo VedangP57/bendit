@@ -42,17 +42,21 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/installed-versions.py" --root .
    the marker bendit's start-up check leaves, named after this window's
    session id (`CLAUDE_CODE_SESSION_ID`, which Claude Code gives the Bash tool;
    the start-up check gets the same id in its `session_id`).
-   Its `copy:` line says which bendit is running: `installed` (the one
-   Claude Code installed, which a reopened window runs too) or `installer
-   copy` (the installer's own download, or another folder: a reopened window
-   runs the installed one instead, which may be another version).
+   Its `copy:` line says which bendit is running: `installed` (the copy
+   Claude Code recorded for this project at project scope, at the running
+   version: a reopened window runs it too), `installer copy` (the installer's
+   own download, or a folder outside Claude's plugin folder) or `other copy`
+   (another copy in Claude's plugin folder: a user-scope one, another
+   project's, another version). For the last two, a reopened window runs this
+   project's install instead, which may be another version.
 5. **installed-versions** prints `running: bendit <version>`, then which
    bendit and bendit-web version every checkout of this repo (the main one and
    each `git worktree`) has installed for its folder, or `none`. Exit 1 means
    another checkout of this repo will load a different bendit (a worktree has
    been seen loading the main checkout's install): report it as a warning, and
    give each update command exactly as printed. Exit 2 means the versions could not be read: say
-   so, never call it fine. It never changes anything; never run an update
+   so, never call it fine. Only project-scope installs are checked: say so
+   with its result (a user- or local-scope bendit is not looked at). It never changes anything; never run an update
    command yourself here.
 
 **The live test.** Always run the live test, whatever the window line says,
@@ -122,9 +126,10 @@ is one status block from the list below, then, when anything is still open,
 Never say bendit is active while a guard is OFF. Status blocks, the first that
 applies:
 
-- The live test was refused by bendit, but the `copy:` line says `installer copy`:
+- The live test was refused by bendit, but the `copy:` line says anything other than `installed`
+  (`installer copy`, `other copy`):
 
-  > bendit is running in this window, but it is the setup copy, not the one installed for this project.
+  > bendit is running in this window, but not the copy installed for this project.
   > Close Claude and open it again in this project, then type /bendit:doctor.
 
 - The live test was refused by bendit, and no guard is OFF:

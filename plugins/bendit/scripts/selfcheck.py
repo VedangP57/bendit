@@ -44,12 +44,13 @@ older than 30 days are removed. No id, or no marker: never "live"; a marker
 folder that cannot be written is named ("can't write <folder>"). A second line,
 `live test: run|skip`, says whether `git push --force bendit-probe HEAD` is
 harmless here: only while no git remote, file or folder is named bendit-probe.
-Between those two, `copy: installed|installer copy (...)` says whether the bendit
-running is the one Claude Code installed (under ${CLAUDE_CONFIG_DIR:-~/.claude}
-/plugins/cache/) or another copy: the installer's download (under
+Between those two, `copy: installed|installer copy|other copy (...)` says
+whether the bendit running is the one Claude Code recorded for THIS project at
+project scope (installPath the same folder, same version) -- the only copy a
+reopened window is known to run -- or the installer's download (under
 ${BENDIT_CACHE:-${XDG_CACHE_HOME:-~/.cache}/bendit}/, loaded with --plugin-dir
-as bendit@inline) or any other folder. Only the installed one is what a
-reopened window runs.
+as bendit@inline) or any folder outside Claude's plugin cache (`installer
+copy`), or some other copy in that cache (`other copy`).
 
 Exit (table mode): 0 every hook answered, 1 something is OFF or unchecked.
 """
@@ -400,32 +401,69 @@ def _under(path, folder):
     return path == folder or path.startswith(folder.rstrip(os.sep) + os.sep)
 
 
+def _this_project():
+    """The project folder this window is about: $CLAUDE_PROJECT_DIR, else the
+    git toplevel of the current folder, else the current folder."""
+    env = os.environ.get('CLAUDE_PROJECT_DIR', '')
+    if env and os.path.isdir(env):
+        return env
+    try:
+        p = subprocess.run(['git', 'rev-parse', '--show-toplevel'], capture_output=True, text=True,
+                           timeout=10, stdin=subprocess.DEVNULL)
+        if p.returncode == 0 and p.stdout.strip():
+            return p.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return os.getcwd()
+
+
 def copy_line():
-    """Which copy of bendit is running: the one Claude Code installed (its
-    plugin cache), or the installer's own download, which `bendit` starts with
-    `claude --plugin-dir` (it loads as bendit@inline). Only the installed one
-    is what a reopened window runs; a refusal from the installer's copy proves
-    nothing about it."""
+    """Which copy of bendit is running. `installed` ONLY when it is the very
+    copy Claude Code recorded for THIS project at project scope (the entry's
+    installPath is the same folder as the running root) and that entry's
+    version is the running version: that is what a reopened window runs.
+    Anything else keeps "reopen Claude": `installer copy` (the installer's
+    download, which `bendit` starts with `claude --plugin-dir`, loading as
+    bendit@inline, or any folder outside Claude's plugin cache) or `other copy`
+    (in Claude's plugin cache, but not this project's recorded install: a
+    user-scope copy, another project's, another version, or the record could
+    not be read)."""
     root = os.environ.get('CLAUDE_PLUGIN_ROOT') or KIT
     home = os.path.expanduser('~')
     claude_dir = os.environ.get('CLAUDE_CONFIG_DIR') or os.path.join(home, '.claude')
     installed = os.path.join(claude_dir, 'plugins', 'cache')
     installer = os.environ.get('BENDIT_CACHE') or os.path.join(
         os.environ.get('XDG_CACHE_HOME') or os.path.join(home, '.cache'), 'bendit')
+    reopen = ('this window is not running the bendit installed for this project; '
+              'close Claude and open it again to run that one')
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import features
-        version = 'bendit ' + features.plugin_version()
+        running = features.plugin_version()
+        version = 'bendit ' + running
     except Exception as e:  # noqa: BLE001 -- the line still says which copy
-        version = f'bendit, version unreadable ({type(e).__name__})'
+        running, version = None, f'bendit, version unreadable ({type(e).__name__})'
     if _under(root, installer):
-        return (f"copy: installer copy ({version}, the installer's download at {root}) -- this window is not "
-                'running the bendit installed for this project; close Claude and open it again to run that one')
+        return f"copy: installer copy ({version}, the installer's download at {root}) -- {reopen}"
     if not _under(root, installed):
-        return (f'copy: installer copy ({version}, loaded from {root}, not from Claude\'s plugin folder) -- '
-                'this window is not running the bendit installed for this project; close Claude and open it '
-                'again to run that one')
-    return f'copy: installed ({version}, {root})'
+        return f"copy: installer copy ({version}, loaded from {root}, not from Claude's plugin folder) -- {reopen}"
+    project = _this_project()
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            '_installed_versions', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'installed-versions.py'))
+        iv = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(iv)
+        mine = iv.installs_for(iv.load_installs(iv.default_plugins_file()), project, 'bendit')
+    except Exception as e:  # noqa: BLE001 -- unreadable: never "installed"
+        return (f'copy: other copy ({version}, {root}; which bendit this project records could not be read: '
+                f'{type(e).__name__}) -- {reopen}')
+    for e in mine:
+        if e['install'] and running and e['version'] == running and iv.same_path(e['install'], root):
+            return f'copy: installed ({version}, {root})'
+    recorded = ', '.join(sorted({e['version'] for e in mine})) or 'none'
+    return (f'copy: other copy ({version}, {root}; this project ({project}) records bendit {recorded} at '
+            f'project scope) -- {reopen}')
 
 
 def session_report():

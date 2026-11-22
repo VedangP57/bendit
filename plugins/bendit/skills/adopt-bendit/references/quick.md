@@ -151,7 +151,7 @@ What I'll do on this computer
   • <the switch sentence, verbatim: "Your other project, <name>, uses its own copy of bendit. bendit on
     this computer will now point at the public version on GitHub; <name> may switch back to its own copy
     the next time you open Claude there. Nothing in <name>'s files changes.">
-  • Update bendit for this project to <running version>, the version setting it up (it has <older version>).
+  • Update bendit for this project to its latest release (it has <older version>).
                                                                            (only when §1 found an older one here)
   • The design-advice part (bendit's web add-on).                          (web apps)
   • Pick a web address number for your app that none of your other projects use, and remember it
@@ -291,14 +291,15 @@ report (§6) with NOT COMPLETE, the failing command, its output, and the fix.
 9. **Prove it.** `bash "$KIT/scripts/prove.sh" "$ROOT"`, then
    `python3 "$KIT/scripts/selfcheck.py" --session` (is bendit running in this
    Claude window? `window: live`, `not live` or `unknown`; a `copy:` line,
-   `installed` or `installer copy`, saying which bendit that is; and a
+   `installed`, `installer copy` or `other copy`, saying which bendit that is; and a
    `live test:` line). Always run the live force-push check, exactly as prove.md says,
    whatever the window line says, unless the `live test:` line says `skip`
    (something here is named `bendit-probe`; the report says so plainly, and
    the live check is "skipped"). Read the `copy:` line before deciding. A refusal by bendit with `copy: installed` means this window already runs the bendit installed for this project: then last step 2 is left out.
-   A refusal with `copy: installer copy`, step 2 stays: the bendit that refused is the installer's
-   own download (`bendit@inline`), and a reopened Claude runs the installed
-   one, which may be another version. Anything else: step 2
+   A refusal with `copy: installer copy` or `copy: other copy`, step 2 stays: the bendit that
+   refused is not this project's recorded install (the installer's own
+   download, `bendit@inline`, or another copy in Claude's plugin folder), and a
+   reopened Claude runs the installed one, which may be another version. Anything else: step 2
    stays, and the window line only explains why (`not live`: this window was
    opened before bendit was set up). prove.sh's "approved by you" row fails
    until the person does last step 1 in §6, and the live check may wait for a
@@ -396,7 +397,8 @@ What I did (for the record; no action needed)
   Commands run:  <every command, in order, with its exit status>
   prove.sh:      <its table, as printed>
   Live check:    <PASS / FAIL / inconclusive / waits until you reopen Claude>, copy: <installed / installer copy>
-  Versions:      <installed-versions' lines, as printed: each checkout and its bendit version>
+  Versions:      <installed-versions' lines, as printed: each checkout and its bendit version;
+                 only project-scope installs are checked>
   Also noted:    <.git/info/exclude: the lines added; the port, in ~/.config/bendit/ports.json (web apps)>
   Found, not changed: <dead configuration, other tools' privacy notices>
 

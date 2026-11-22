@@ -366,6 +366,28 @@ reg "$TMP/treg3" 100 "$TR:3700"
 before=$(fsum "$TMP/treg3/ports.json")
 check "a temp root already in the registry keeps its block" "3700" "$(NT env BENDIT_CONFIG_DIR="$TMP/treg3" "$PY" "$PORTS" add "$TR" 2>/dev/null)"
 check "  ...and the registry is not rewritten" "$before" "$(fsum "$TMP/treg3/ports.json")"
+# (5) macOS: the per-user temp folder under /var/folders counts with TMPDIR
+# unset (a hook or launchd job often has none).
+if [ "$(uname)" = Darwin ]; then
+  UT="$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null)"
+  if [ -n "$UT" ]; then
+    VR="$(mktemp -d "${UT%/}/bendit-ports-vf.XXXXXX")"; VR="$(cd "$VR" && pwd -P)"
+    git -C "$VR" init -q .
+    NT env -u TMPDIR -u TMP -u TEMP BENDIT_CONFIG_DIR="$TMP/treg5" "$PY" "$PORTS" ensure "$VR" >/dev/null 2>&1
+    check "macOS, TMPDIR unset: a repo in the per-user temp folder is not registered" "absent" "$(fsum "$TMP/treg5/ports.json")"
+    rm -rf "$VR"
+  else bad "macOS: getconf DARWIN_USER_TEMP_DIR answers" "empty"; fi
+  # Without getconf's answer, /var/folders itself is still a root.
+  got=$(env -u TMPDIR -u TMP -u TEMP -u BENDIT_PORTS_REGISTER_TEMP "$PY" -c '
+import sys; sys.path.insert(0, sys.argv[1]); import ports
+ports._darwin_user_temp = lambda: None
+print(ports.is_temp("/var/folders/zz/abc/T/repo"), ports.is_temp("/Users/someone/repo"))' "$D" 2>&1)
+  check "macOS, no TMPDIR and no getconf: /var/folders is still temp, a home folder is not" "True False" "$got"
+fi
+# (6) the opt-in is ignored without an explicit test registry: a stray export
+# must never write a temp key into the real (default-location) registry.
+NT env BENDIT_PORTS_REGISTER_TEMP=1 XDG_CONFIG_HOME="$TMP/xdgopt" "$PY" "$PORTS" ensure "$TR" >/dev/null 2>&1
+check "BENDIT_PORTS_REGISTER_TEMP=1 with no BENDIT_CONFIG_DIR registers nothing" "absent" "$(fsum "$TMP/xdgopt/bendit/ports.json")"
 # CONTROL: the same scaffold, opted in, DOES write -- so the checks above can
 # see a write when there is one.
 TR4="$TMP2/tmp-app4"; webrepo "$TR4"

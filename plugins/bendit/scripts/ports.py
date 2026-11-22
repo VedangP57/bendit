@@ -30,8 +30,18 @@ its block would stay in the registry for good. `add` and `ensure` give such a
 root the port it WOULD get -- its block if it is already registered, else the
 next free one -- for this run only, say so on stderr, and write nothing: not
 the registry, not even an empty one, not its lock. (Its worktree assignments
-still go in its own .git, which is as temporary as it is.) Tests whose
-scratch repos must register set BENDIT_PORTS_REGISTER_TEMP=1.
+still go in its own .git, which is as temporary as it is.) On macOS the
+per-user temp folder under /var/folders counts even when TMPDIR is unset (a
+hook or a launchd job often runs without it).
+
+Because nothing is recorded, two UNREGISTERED temp repos verified at the same
+time against one registry can be offered the same block. They never share
+it: the second verify finds the first app on that port and refuses
+("something is already on :PORT"). Re-run it once the first has finished.
+
+Tests whose scratch repos must register set BENDIT_PORTS_REGISTER_TEMP=1. It
+is honoured only together with BENDIT_CONFIG_DIR, so a stray export cannot
+write temp keys into the real registry.
 
 Commands:
   port <repo-path>   print the port for that checkout      (exit 2 if unknown)
@@ -76,8 +86,14 @@ def _temp_roots() -> list[str]:
     Not tempfile.gettempdir(): with nothing writable it answers the cwd, and
     then every repo would count as temporary."""
     roots = []
-    for r in (os.environ.get('TMPDIR'), os.environ.get('TMP'),
-              os.environ.get('TEMP'), '/tmp', '/var/tmp'):
+    candidates = [os.environ.get('TMPDIR'), os.environ.get('TMP'),
+                  os.environ.get('TEMP'), '/tmp', '/var/tmp']
+    if sys.platform == 'darwin':
+        # TMPDIR is a /var/folders/<xx>/<hash>/T path that only a login shell
+        # sets. Without it, ask the OS; and /var/folders itself holds only
+        # per-user temp and cache folders, never a project.
+        candidates += [_darwin_user_temp(), '/var/folders']
+    for r in candidates:
         if not r:
             continue
         r = os.path.realpath(r)
@@ -87,10 +103,23 @@ def _temp_roots() -> list[str]:
     return roots
 
 
+def _darwin_user_temp() -> str | None:
+    """macOS's per-user temp folder, or None when it cannot be asked."""
+    try:
+        r = subprocess.run(['getconf', 'DARWIN_USER_TEMP_DIR'],
+                           capture_output=True, text=True, timeout=2)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    out = r.stdout.strip()
+    return out if r.returncode == 0 and out.startswith('/') else None
+
+
 def is_temp(key: str) -> bool:
     """True when this main checkout lives under a system temp folder, so it
     must not be written to the registry."""
-    if os.environ.get('BENDIT_PORTS_REGISTER_TEMP') == '1':
+    # The opt-in needs an explicit (test) registry: never the real one.
+    if (os.environ.get('BENDIT_PORTS_REGISTER_TEMP') == '1'
+            and os.environ.get('BENDIT_CONFIG_DIR')):
         return False
     k = os.path.realpath(key)
     return any(k == r or k.startswith(r + os.path.sep) for r in _temp_roots())

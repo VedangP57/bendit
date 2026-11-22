@@ -1,12 +1,13 @@
 ---
-description: Find corrections you keep repeating in this project's past sessions, and propose guards
+description: Find corrections you keep repeating in this project's past sessions (or, with --git, its commits), and propose guards
 allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/suggest-guards.py *)
 ---
 
 Arguments: `$ARGUMENTS`
 
 Run this from the repo the user is in. If the arguments hold `--min N`, use
-that N instead of 2. Read the full output before saying anything:
+that N instead of 2. If they hold `--git`, add `--git`. Read the full output
+before saying anything:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/suggest-guards.py" --min 2
@@ -15,12 +16,20 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/suggest-guards.py" --min 2
 It reads this project's own Claude Code transcripts, and no other project's:
 it keeps only lines whose `cwd` is this project, even when another project
 shares the folder name.
-It finds the messages where the person corrected the agent ("no,", "don't",
-"I told you", "wrong"...) and groups them by the tool and command they
-corrected. Each cluster shows a count, the tool and command, and one example
-with secrets redacted. The script is read-only.
+It finds the messages where the person corrected the agent's last action,
+said in the first sentence ("no,", "don't", "stop", "undo that", "I told
+you", "not what I asked"). Questions, answers, approvals and new requests are
+not corrections. It groups them by the tool and command they corrected. Each
+cluster shows a count, the tool and command, and one example with secrets
+redacted. The script is read-only.
 
-- `No past sessions found for this project` is not a failure. Say so and stop.
+With `--git` it also reads this repo's last 2,000 commits (one read-only
+`git log`): commits whose subject starts with fix or revert, and commits that
+touch a file again within an hour. These rows say `source: git` and name the
+file. They are candidates: many fix commits to one file can be normal work.
+
+- `No past sessions found for this project` is not a failure. Say so, and
+  stop unless `--git` rows follow.
 - `No correction repeats` means nothing came up twice. Say so and stop: a
   one-off is an incident, not a pattern.
 - Report skipped lines or files as the numbers given.
@@ -28,8 +37,8 @@ with secrets redacted. The script is read-only.
 For each cluster, propose the cheapest layer that would hold it. Use the
 ladder in `references/grow.md` of the `adopt-bendit` skill:
 
-| # | pattern | count | layer | proposal |
-|---|---|---|---|---|
+| # | source | pattern | count | layer | proposal |
+|---|---|---|---|---|---|
 
 - **delete** (L0): remove the thing that invites the mistake.
 - **structure** (L1): a type, a shared helper or a file layout.
@@ -38,11 +47,17 @@ ladder in `references/grow.md` of the `adopt-bendit` skill:
 - **prose** (L3): judgement no machine can make. One line in `AGENTS.md`.
 
 A cluster can be noise: a correction that happened to follow the same
-command. Say so instead of proposing anything for it. Quote only the example
-the script printed; never open the transcripts to read more.
+command, or a file that simply gets a lot of work. Say so instead of
+proposing anything for it. Quote only the example the script printed;
+never open the transcripts to read more, and never read more commits or
+diffs.
 
-Then ask once which rows to build. Only on a yes, run `/bendit:new-guard <name>`
-for each guard row the person picked, and say what the other picked rows need.
-Write nothing otherwise: no file, no setting, no note.
+Propose git rows the same way as session rows.
+Then ask once which rows to build. Each accepted row is its own change: one
+PR per row.
+Only on a yes, run `/bendit:new-guard <name>` for each guard row the person
+picked, and say what the other picked rows need. Write nothing otherwise: no
+file, no setting, no note.
 
-Adapted from the `ruminate` idea in poteto's brainmaxxing.
+Adapted from the `ruminate` idea in poteto's brainmaxxing, and from the
+`correct` skill in poteto's pstack.

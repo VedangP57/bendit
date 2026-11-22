@@ -235,7 +235,7 @@ guard is pinned by its test suite (`plugins/bendit/scripts/*.test.sh`).
 | Advice | skill `ux-design-laws`, in the add-on `bendit-web`: 20 UX laws (Hick, Fitts, Jakob, Miller, Doherty and more) applied to any interface the agent builds or reviews; not yet measured | only in a project where `/bendit:adopt` installed `bendit-web` with `--scope project` (a web app); the agent may ignore it |
 | Advice | a controlled vocabulary for agent prose (`scripts/controlled-vocabulary.py`, `/bendit:vocabulary`): flags inflated wording, requirements phrased as advice, and completion claims that name no observation; its `slop` category flags phrasing that reads as machine-written (puffery, promotional words, vague attribution, chatbot phrases, em dashes), adapted from the unslop list in poteto's noodle; no hook is wired; not yet measured | `/bendit:vocabulary` or `--check FILE` in your own CI; it reports and never blocks. `slop` findings never fail `--check` and `--fix` never edits them |
 | Advice | the refusal log, `.claude/.bendit-state/fires.jsonl`, and `/bendit:guard-report` (see [What fires](#what-fires-the-refusal-log)) | each guard appends a line after it refuses; the report only reads |
-| Advice | `/bendit:suggest-guards`: repeated corrections in this project's past sessions, each with a proposed layer (see [Grow your own guard](#grow-your-own-guard)); not yet measured | read-only; it writes nothing unless you pick rows to build |
+| Advice | `/bendit:suggest-guards`: repeated corrections in this project's past sessions (and, with `--git`, its fix and revert commits), each with a proposed layer (see [Grow your own guard](#grow-your-own-guard)); not yet measured | read-only; it writes nothing unless you pick rows to build |
 | Advice | commands: `/bendit:ship`, `/bendit:review-diff` (each finding sorted into Act on, Consider, Noted or Dismissed, then a lead judgment that accepts or rejects each with a reason and names every check that ran), `/bendit:verify`, `/bendit:doctor`, `/bendit:vocabulary`, `/bendit:guard-report`, `/bendit:suggest-guards` | checklists the agent runs when asked |
 
 Every hook runs as `python3 <plugin>/scripts/<name>.py` with a 10-second timeout
@@ -419,13 +419,22 @@ idea in poteto's brainmaxxing). Its script, `scripts/suggest-guards.py`,
 reads this project's Claude Code transcripts under `~/.claude/projects/`, and
 only lines whose `cwd` is this project, so a different project that maps to
 the same folder name is left out. It finds the messages where you corrected
-the agent ("no,", "don't", "I told you", "wrong", and similar), pairs each
-with the tool call before it, and groups repeats. Each cluster has a count,
+the agent's last action, said in its first sentence ("no,", "don't", "stop",
+"undo that", "I told you", "not what I asked"; a question, an answer to the
+agent's question, an approval or a new request is not one), pairs each with
+the tool call before it, and groups repeats. Labels are whole words. Each cluster has a count,
 the tool and command, and one example, with secrets redacted before anything
 else happens. A correction seen once is left out (`--min 2`). The command then
 proposes the cheapest layer for each cluster (delete, structure, guard or
 prose, from [the ladder](#the-ladder)), asks once which rows to build, and
-runs `/bendit:new-guard` only for the guard rows you pick. The script writes
+runs `/bendit:new-guard` only for the guard rows you pick, one PR per row.
+
+`--git` adds this repo's own history (adapted from the `correct` skill in
+poteto's pstack): one read-only `git log` of the last 2,000 commits. A commit
+is a candidate when its subject starts with fix or revert, or when it touches
+a file again within an hour of the last commit to it. Candidates group by
+file (a file and its test fixed by the same commits are one row), marked
+`source: git`, with one redacted subject as the example. The script writes
 nothing. What it prints, already redacted, is read by the agent like any other
 command output.
 

@@ -299,10 +299,136 @@ hasnt "  the command canary never appears"       "$OUT" "CMDCANARY"
 printf '%s' "$OUT" >"$J"
 chk "  the short corrections still cluster under rm" "$(q '[(c["command"], c["count"]) for c in d["clusters"]]')" "[('rm', 2)]"
 
+echo; echo "ONLY REAL CORRECTIONS: QUESTIONS, ANSWERS, APPROVALS AND NEW REQUESTS ARE NOT"
+# Every message in this fixture once matched a marker word ("no", "don't",
+# "again", "instead", "wrong", "never", "stop") somewhere in it.
+N="$T/plain"; NS="$PD/$(slug "$N")"; mkdir -p "$N" "$NS"; place not-corrections.jsonl "$N" "$NS"
+run --root "$N" --projects-dir "$PD" --min 1 --json
+chk "exit 0"                                     "$CODE" 0
+printf '%s' "$OUT" >"$J"
+chk "  no correction found in 13 ordinary messages" "$(q 'd["corrections"]')" 0
+chk "  and no cluster"                           "$(q 'len(d["clusters"])')" 0
+
+echo; echo "REAL CORRECTIONS, EACH PAIRED WITH THE TOOL CALL BEFORE IT"
+C="$T/corr"; CS="$PD/$(slug "$C")"; mkdir -p "$C" "$CS"; place corrections.jsonl "$C" "$CS"
+run --root "$C" --projects-dir "$PD" --min 1 --json
+chk "exit 0"                                     "$CODE" 0
+printf '%s' "$OUT" >"$J"
+chk "  six corrections (no / stop / undo / not what I asked / I told you / please don't)" "$(q 'd["corrections"]')" 6
+chk "  each aimed at the call before it"         "$(q 'sorted((c["tool"], c["command"], c["count"]) for c in d["clusters"])')" \
+    "[('Bash', 'git push', 2), ('Bash', 'npm publish', 1), ('Bash', 'rm', 1), ('Edit', '*.ts', 2)]"
+chk "  every session row says source: session"   "$(q 'sorted({c["source"] for c in d["clusters"]})')" "['session']"
+
+echo; echo "LABELS ARE WHOLE WORDS, NEVER STEMS"
+P1="$(q '[c["pattern"] for c in d["clusters"] if c["command"] == "git push"][0]')"
+has   "  the git push label says 'anything'"     "$P1" "anything"
+hasnt "  and never the stem 'anyth'"             "$(q 'd["clusters"]' | sed 's/anything//g')" "anyth"
+P2="$(q '[c["pattern"] for c in d["clusters"] if c["command"] == "*.ts"][0]')"
+has   "  'page' and 'pages' still join one cluster, labelled with a whole word" "$P2" "login"
+case "$P2" in *"pag,"*|*"pag"|*"pag "*) bad "  no 'pag' stem" "$P2";; *) ok "  no 'pag' stem";; esac
+
+echo; echo "--git: THIS REPO'S HISTORY, READ-ONLY, BOUNDED"
+G="$T/gitrepo"; mkdir -p "$G"; REALGIT="$(command -v git)"
+"$REALGIT" -C "$G" init -q && "$REALGIT" -C "$G" symbolic-ref HEAD refs/heads/main
+# 5 000 commits through fast-import (seconds, not minutes). Oldest first:
+# two fix commits to src/old.py that lie past the 2 000-commit bound, 4 986
+# filler commits a day apart, then the recent ones the test is about.
+"$PY" - "$STRIPE" <<'PY' | "$REALGIT" -C "$G" fast-import --quiet
+import sys
+stripe = sys.argv[1]
+n = 0
+t = 946684800          # 2000-01-01
+out = sys.stdout
+def commit(msg, files, ts):
+    global n
+    n += 1
+    m = msg.encode()
+    out.write('commit refs/heads/main\nmark :%d\ncommitter T <> %d +0000\ndata %d\n' % (n, ts, len(m)))
+    out.write(msg + '\n')
+    if n > 1:
+        out.write('from :%d\n' % (n - 1))
+    for f in files:
+        body = ('%s %d\n' % (f, n)).encode()
+        out.write('M 100644 inline %s\ndata %d\n%s\n' % (f, len(body), body.decode()))
+day = 86400
+commit('fix: old bug in the parser', ['src/old.py'], t); t += day
+commit('fix: old bug in the parser again', ['src/old.py'], t); t += day
+for i in range(4986):
+    commit('feat: step %d' % i, ['notes/n%d.txt' % (i % 100)], t); t += day
+commit('fix: empty cart crashes checkout', ['src/cart.py'], t); t += day
+commit('fix(cart): empty cart total, key ' + stripe, ['src/cart.py'], t); t += day
+commit('Fix cart rounding on empty cart', ['src/cart.py', 'tests/cart_test.py'], t); t += day
+commit('Revert "feat: new checkout"', ['src/checkout.py'], t); t += day
+commit('fix: refund rounding', ['src/pay.py', 'tests/pay_test.py'], t); t += day
+commit('fix: refund twice', ['tests/pay_test.py', 'src/pay.py'], t); t += day
+commit('feat: add the banner', ['src/ui.py'], t); t += 600
+commit('tweak the banner colour', ['src/ui.py'], t); t += 600
+commit('adjust the banner spacing', ['src/ui.py'], t); t += day
+commit('docs: usage', ['docs/use.md'], t); t += day
+commit('docs: more usage', ['docs/use.md'], t); t += day
+commit('feat: step last', ['notes/n0.txt'], t); t += day
+assert n == 5000, n
+PY
+chk "  (the scratch repo has 5 000 commits)"     "$("$REALGIT" -C "$G" rev-list --count main)" 5000
+# A git shim on PATH: it records every call and refuses any subcommand
+# but log, show and rev-parse.
+SHIM="$T/shim"; mkdir -p "$SHIM"; : >"$T/gitcalls"; : >"$T/gitrefused"
+cat >"$SHIM/git" <<SH
+#!/bin/sh
+sub=""; skip=0
+for a in "\$@"; do
+  if [ \$skip = 1 ]; then skip=0; continue; fi
+  case "\$a" in -C|-c) skip=1;; -*) ;; *) sub="\$a"; break;; esac
+done
+echo "\$sub" >>"$T/gitcalls"
+case "\$sub" in log|show|rev-parse) exec "$REALGIT" "\$@";; esac
+echo "\$*" >>"$T/gitrefused"; echo "shim: refused git \$sub" >&2; exit 97
+SH
+chmod +x "$SHIM/git"
+grun() { OUT="$(PATH="$SHIM:$PATH" "$PY" "$S" "$@" 2>"$T/err")"; CODE=$?; ERR="$(cat "$T/err")"; }
+grun --root "$G" --projects-dir "$PD" --min 2
+chk "without --git, git is never run"            "$(wc -l <"$T/gitcalls" | tr -d ' ')" 0
+t0=$("$PY" -c 'import time;print(time.time())')
+grun --root "$G" --projects-dir "$PD" --min 2 --git --json
+el=$("$PY" -c 'import sys,time;print("%.1f" % (time.time() - float(sys.argv[1])))' "$t0")
+chk "exit 0, under 5 s on 5 000 commits (took ${el}s)" "$CODE $("$PY" -c 'import sys; print(float(sys.argv[1]) < 5)' "$el")" "0 True"
+chk "  nothing on stderr"                        "$ERR" ""
+has "  git ran"                                  "$(cat "$T/gitcalls")" "log"
+chk "  and only read-only subcommands"           "$(cat "$T/gitrefused")" ""
+printf '%s' "$OUT" >"$J"
+chk "  no sessions here, but the git rows still show" "$(q 'd["sessions"]')" 0
+chk "  the fix commits to one file cluster, and the quick follow-ups" \
+    "$(q 'sorted((c["source"], c["file"], c["count"]) for c in d["clusters"])')" \
+    "[('git', 'src/cart.py', 3), ('git', 'src/pay.py', 2), ('git', 'src/ui.py', 2)]"
+chk "  a file and its test, fixed by the same commits, are one row" \
+    "$(q '[c["files"] for c in d["clusters"] if c["file"] == "src/pay.py"]')" "[['src/pay.py', 'tests/pay_test.py']]"
+chk "  only the last 2 000 commits are read"     "$(q 'd["commits_read"]')" 2000
+hasnt "  nothing past the bound (src/old.py)"    "$OUT" "old.py"
+hasnt "  two docs commits a day apart are not a pattern" "$OUT" "use.md"
+hasnt "  the commit subject's key is redacted"   "$OUT" "$STRIPE"
+chk "  no part of the key past its first 4 characters" "$(printf '%s' "$OUT" >"$T/g.out"; leaks "$T/g.out" "$STRIPE")" ""
+has  "  the label is whole words from the subjects" "$(q '[c["pattern"] for c in d["clusters"] if c["file"] == "src/cart.py"][0]')" "cart, empty"
+chk "  every example is at most 160 characters"  "$(q 'all(len(c["example"]) <= 160 for c in d["clusters"])')" True
+grun --root "$G" --projects-dir "$PD" --min 1 --git --json
+printf '%s' "$OUT" >"$J"
+has "  at --min 1 the Revert shows"              "$(q '[c["file"] for c in d["clusters"]]')" "src/checkout.py"
+grun --root "$G" --projects-dir "$PD" --min 2 --git
+chk "text mode: exit 0"                          "$CODE" 0
+has "  marks the source"                         "$OUT" "source: git"
+has "  names the file"                           "$OUT" "src/cart.py"
+chk "  still only read-only subcommands"         "$(cat "$T/gitrefused")" ""
+# Sessions and git together, in one table.
+grun --root "$C" --projects-dir "$PD" --min 1 --git --json
+chk "a folder that is not a git repo: exit 0"    "$CODE" 0
+printf '%s' "$OUT" >"$J"
+chk "  the session rows still show"              "$(q 'len(d["clusters"])')" 4
+chk "  and it says there is no git history"      "$(q 'd["git"]')" "no git history"
+
 echo; echo "IT NEVER WRITES"
 before="$(cd "$T" && /usr/bin/find . -print | sort | cksum)"
 run --root "$P" --projects-dir "$PD"
 run --root "$P" --projects-dir "$PD" --json
+PATH="$SHIM:$PATH" "$PY" "$S" --root "$G" --projects-dir "$PD" --git >/dev/null 2>&1
 after="$(cd "$T" && /usr/bin/find . -print | sort | cksum)"
 chk "no file created or removed under the fixtures (err capture aside)" "$before" "$after"
 

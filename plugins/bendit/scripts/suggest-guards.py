@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Find the corrections you keep repeating, in THIS project's past sessions.
 
-    suggest-guards.py [--root DIR] [--projects-dir DIR] [--min 2] [--json]
+    suggest-guards.py [--root DIR] [--projects-dir DIR] [--min 2] [--json] [--git]
 
 Adapted from the `ruminate` idea in poteto's brainmaxxing (mine old
 transcripts for repeated corrections, keep patterns, drop incidents). Here it
@@ -32,10 +32,14 @@ without being held in memory, and so is a line that does not parse as a JSON
 object for any reason (nesting too deep included).
 
 WHAT COUNTS AS A CORRECTION. A message the person typed (not tool output, not
-a subagent's prompt, not a meta line, not a /command wrapper) that says so:
-"no,", "don't", "stop", "never", "again", "I told you", "not what I asked",
-"wrong", "instead". It is paired with the last tool call the agent made
-before it, if any.
+a subagent's prompt, not a meta line, not a /command wrapper) that says so in
+its FIRST sentence: it opens with a negation or an order to stop or undo
+("no,", "don't", "stop", "undo", "wrong"; not "no problem", "never mind"), or
+that sentence says "I told you", "not what I asked", "I said not to".
+A question is not a correction, nor is a bare "no" answering a question the
+agent just asked, nor "don't" or "again" later in a request ("run the tests
+again"). It is paired with the last tool call the agent made before it, if
+any.
 
 REDACTED FIRST. Every piece of text taken from a transcript -- the person's
 words, the agent's command, a file path -- goes through fire_log.redact (the
@@ -52,10 +56,18 @@ HOW IT CLUSTERS. By the tool and command corrected -- for Bash, the first word
 of the command (and the subcommand of git, npm, pnpm and the like, so it reads
 `git push`), skipping `cd x &&` and VAR=value; for a file tool, the file's
 extension -- then, within that, corrections sharing a keyword join one
-cluster (two shared keywords when no tool call came before).
+cluster (two shared keywords when no tool call came before). Keywords match
+by a crude stem (page, pages) but a label prints the whole word.
 
-WHAT IT PRINTS. Each cluster seen at least --min times: a pattern label, the
-count, the tool and command, and ONE example of the person's words, folded and
+--git ALSO READS THIS REPO'S HISTORY. One read-only `git log` of the last
+2 000 commits (subject, time and files changed). A commit is a candidate when
+its subject starts with fix or revert, or when it touches a file again within
+an hour of the last commit to it. Candidates group by file; each subject and
+path is redacted before anything else, and only one example subject is
+printed. Rows say `source: git` (transcript rows say `source: session`).
+
+WHAT IT PRINTS. Each cluster seen at least --min times: its source, a pattern
+label, the count, the tool and command (or the file), and ONE example of the person's words, folded and
 cut to 160 characters. Nothing else from any transcript is printed. It never
 writes anything (not even bytecode for its helper). Exit 0 on success, 2 on a
 usage error, 1 on an internal error, whose message names only the error type.
@@ -67,7 +79,9 @@ import argparse  # noqa: E402
 import json  # noqa: E402
 import os  # noqa: E402
 import re  # noqa: E402
+import shutil  # noqa: E402
 import stat  # noqa: E402
+import subprocess  # noqa: E402
 from collections import Counter  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -85,11 +99,27 @@ CMD_CAP = 4096
 EXAMPLE_MAX = 160
 NO_SESSIONS = 'No past sessions found for this project'
 
-MARKERS = re.compile(
-    r"(?:^\s*no\b[\s,.!]|\bdon'?t\b|\bdo not\b|\bstop\b|\bnever\b|\bagain\b|"
-    r"\bi told you\b|\bnot what i asked\b|\bwrong\b|\binstead\b)", re.I)
-MARKER_WORDS = {'no', 'don', 'dont', "don't", 'do', 'not', 'stop', 'never', 'again',
-                'told', 'asked', 'wrong', 'instead'}
+# A correction says so in its FIRST sentence. Either it OPENS with a
+# negation or an order to stop or undo ("no,", "don't", "stop", "undo",
+# "wrong") -- not "no problem", "never mind" -- or the sentence holds "I told
+# you", "not what I asked", "I said ...", "undo that". A word like "don't" or
+# "again" later in a sentence is how people ask for things ("run the tests
+# again", "add X but don't touch Y"), so it does not count.
+_OPENS = re.compile(
+    r"^(?:(?:please|ugh|argh|hey|oh|wait|ok|okay)[\s,.!]+)*"
+    r"(?:no\b(?!\s+(?:problem|worries|rush|thanks|thank|issue|doubt|prob)\b)"
+    r"|nope\b|nah\b|stop\b|don'?t\b|do not\b|dont\b|never\b(?!\s+mind\b)"
+    r"|undo\b|revert\b|wrong\b|not that\b|that'?s (?:wrong|not right|not it)\b)", re.I)
+_ANYWHERE = re.compile(
+    r"\b(?:i (?:already )?told you|not what i (?:asked|said|wanted)|i (?:said|asked) (?:not|never|no|to)\b"
+    r"|i asked you not|undo (?:that|this|it|those)|revert (?:that|this|it|those)"
+    r"|you (?:shouldn'?t|should not) have)\b", re.I)
+# A plain no/nope answering the agent's own question is an answer.
+_BARE_NO = re.compile(r"^(?:no|nope|nah)\b", re.I)
+_SENTENCE_END = re.compile(r'[.!?;\n](?=\s|$)|\n')
+MARKER_WORDS = {'no', 'nope', 'nah', 'don', 'dont', "don't", 'do', 'not', 'stop', 'never',
+                'again', 'told', 'asked', 'said', 'wrong', 'instead', 'undo', 'revert',
+                'please', 'that', "that's", 'wait'}
 STOPWORDS = set('''
 a about above after all also am an and any are as at be been before being but
 by can could did does doing done for from had has have having he her here hers
@@ -211,6 +241,14 @@ def last_tool_call(obj):
     return found
 
 
+def asks(obj):
+    """For an assistant line with text: do its last words ask the person a
+    question? None for a line with no text (thinking only, say)."""
+    texts = [p.get('text') for p in message_parts(obj) or []
+             if p.get('type') == 'text' and isinstance(p.get('text'), str) and p['text'].strip()]
+    return texts[-1].rstrip().endswith('?') if texts else None
+
+
 def command_of(tool):
     """What was corrected, as (tool name, command) -- command '' if none.
     Every part is taken from redacted text and must look like a plain name,
@@ -240,6 +278,26 @@ def command_of(tool):
     return (name, '')
 
 
+def first_sentence(text: str) -> str:
+    m = _SENTENCE_END.search(text)
+    return (text[:m.end()] if m else text).strip()
+
+
+def is_correction(text: str, after_question: bool) -> bool:
+    """Does this (redacted) message correct the agent's last action? Only
+    its first sentence counts; a question is not a correction unless it says
+    "I told you" or the like; and a bare "no" right after the agent asked a
+    question is an answer, not a correction."""
+    first = first_sentence(text)
+    if _ANYWHERE.search(first):
+        return True
+    if first.endswith('?'):
+        return False
+    if not _OPENS.search(first):
+        return False
+    return not (after_question and _BARE_NO.match(first))
+
+
 def stem(word: str) -> str:
     for suffix, keep in (('ing', 4), ('ed', 4), ('es', 4), ('s', 3)):
         if word.endswith(suffix) and len(word) - len(suffix) >= keep and not word.endswith('ss'):
@@ -251,7 +309,7 @@ _RAW_TOKEN = re.compile(r'[A-Za-z0-9/+=._-]{16,}')
 
 
 def keywords(text: str):
-    """Content words of already-redacted text. Each whitespace-separated
+    """Content words of already-redacted text, as {stem: whole word}. Each whitespace-separated
     chunk is judged WHOLE first: if it looks like a token (16+ characters of
     letters, digits and /+=._- with a digit) or redact() would change it,
     none of its pieces is used -- splitting a key on `/` must not turn it
@@ -263,13 +321,14 @@ def keywords(text: str):
         if (_RAW_TOKEN.fullmatch(bare) and re.search(r'\d', bare)) or redact(bare) != bare:
             continue
         words.extend(re.findall(r"[A-Za-z][A-Za-z0-9'_-]+", chunk))
-    out = set()
+    out = {}
     for w in words:
         if len(w) > 24 or looks_like_token(w):
             continue
-        w = w.lower()
+        w = w.lower().strip("'_-")
         if len(w) >= 3 and w not in STOPWORDS and w not in MARKER_WORDS:
-            out.add(stem(w))
+            # Matched by stem (page, pages), shown as the whole word.
+            out.setdefault(stem(w), w)
     return out
 
 
@@ -311,6 +370,7 @@ def collect(folder: str, roots, stats: Counter):
             continue
         mine = False
         tool = None
+        asked = False
         try:
             for obj in read_lines(fd, stats):
                 if not under(obj.get('cwd'), roots):
@@ -322,13 +382,19 @@ def collect(folder: str, roots, stats: Counter):
                     call = last_tool_call(obj)
                     if call:
                         tool = call
+                        asked = False
+                        continue
+                    if obj.get('type') == 'assistant':
+                        q = None if obj.get('isSidechain') else asks(obj)
+                        asked = asked if q is None else q
                         continue
                     text = typed_text(obj)
                     if text is None:
                         continue
-                    if len(text) <= TEXT_CAP and MARKERS.search(text):
+                    if len(text) <= TEXT_CAP and is_correction(text, asked):
                         corrections.append((command_of(tool), keywords(text), text))
                     tool = None   # a new turn: the next correction is about what follows
+                    asked = False
                 except Exception:
                     stats['malformed'] += 1
         except Exception:
@@ -339,36 +405,157 @@ def collect(folder: str, roots, stats: Counter):
 
 
 def cluster(corrections):
-    clusters = []   # each: {'key', 'words', 'kw' (Counter), 'items'}
+    clusters = []   # each: {'key', 'words', 'kw' (Counter of stems), 'surface', 'items'}
     for key, kw, text in corrections:
+        stems = set(kw)
         need = 2 if key[0] == '-' else 1
         home = None
         for c in clusters:
             if c['key'] != key:
                 continue
-            if key[0] != '-' and (not kw or not c['words']):
+            if key[0] != '-' and (not stems or not c['words']):
                 home = c
                 break
-            if len(kw & c['words']) >= need:
+            if len(stems & c['words']) >= need:
                 home = c
                 break
         if home is None:
-            home = {'key': key, 'words': set(), 'kw': Counter(), 'items': []}
+            home = {'key': key, 'words': set(), 'kw': Counter(), 'surface': {}, 'items': []}
             clusters.append(home)
-        home['words'] |= kw
-        home['kw'].update(kw)
+        home['words'] |= stems
+        home['kw'].update(stems)
+        for st, word in kw.items():
+            home['surface'].setdefault(st, Counter())[word] += 1
         home['items'].append(text)
     return clusters
 
 
+def shared_words(c):
+    """Up to four words seen at least twice in the cluster, most often first,
+    each printed as the whole word people wrote most (never a stem)."""
+    stems = [w for w, n in sorted(c['kw'].items(), key=lambda x: (-x[1], x[0])) if n >= 2][:4]
+    return [sorted(c['surface'][st].items(), key=lambda x: (-x[1], len(x[0]), x[0]))[0][0]
+            for st in stems]
+
+
 def describe(c):
     tool, command = c['key']
-    shared = [w for w, n in sorted(c['kw'].items(), key=lambda x: (-x[1], x[0])) if n >= 2][:4]
+    shared = shared_words(c)
     label = ' '.join(x for x in (tool if tool != '-' else 'no tool call', command) if x)
     pattern = label + (': ' + ', '.join(shared) if shared else '')
-    return {'pattern': safe(pattern), 'count': len(c['items']),
-            'tool': safe(tool) if tool != '-' else '', 'command': safe(command),
+    return {'source': 'session', 'pattern': safe(pattern), 'count': len(c['items']),
+            'tool': safe(tool) if tool != '-' else '', 'command': safe(command), 'file': '',
             'example': safe(example_of(c['items'][0]))}
+
+
+# ---- --git: this repo's own history --------------------------------------
+# Adapted from pstack's `correct` skill (poteto): read recent commits and
+# reverts, group the mistakes into classes, and a class counts once it has
+# happened twice. A candidate commit is one whose subject starts with fix or
+# revert, or one that touches a file again within GIT_WINDOW of the last
+# commit to it (a quick follow-up: the first try was not right). Candidates
+# are grouped by the file they touch.
+GIT_MAX = 2000            # commits read, newest first
+GIT_TIMEOUT = 20          # seconds
+GIT_WINDOW = 3600         # seconds
+FIX_FILES_MAX = 10        # a fix touching more files is a sweep, not one mistake
+FOLLOWUP_FILES_MAX = 3    # a follow-up touches a few files, or it is new work
+_FIX_SUBJECT = re.compile(r'^(?:fix(?:es|ed)?|revert(?:s|ed)?)\b', re.I)
+_CONVENTIONAL = re.compile(r'^\s*(?:revert\s*"?\s*)?(?:[A-Za-z]+(?:\([^)]*\))?!?:\s*)?', re.I)
+GIT_WORDS = {'fix', 'fixes', 'fixed', 'revert', 'reverts', 'reverted', 'feat'}
+
+
+def git_log(root):
+    """[(time, subject, [files])] for the last GIT_MAX commits of the repo
+    `root` is in, oldest first; or a reason string. Runs ONE read-only
+    command, `git log`, with no pager, no signature check and no optional
+    locks."""
+    git = shutil.which('git')
+    if not git:
+        return 'git not found'
+    env = dict(os.environ, GIT_OPTIONAL_LOCKS='0', GIT_TERMINAL_PROMPT='0', LC_ALL='C')
+    cmd = [git, '-C', root, '--no-pager', '-c', 'log.showSignature=false',
+           '-c', 'core.quotePath=true', 'log', '-n', str(GIT_MAX), '--no-color',
+           '--no-renames', '--name-only', '--format=%x1e%ct%x1f%s']
+    try:
+        p = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                           stderr=subprocess.DEVNULL, env=env, timeout=GIT_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return 'git timed out'
+    except OSError:
+        return 'git not found'
+    if p.returncode != 0:
+        return 'no git history'
+    commits = []
+    for rec in p.stdout.decode('utf-8', 'replace').split('\x1e')[1:]:
+        head, _, rest = rec.partition('\n')
+        ts, _, subject = head.partition('\x1f')
+        try:
+            ts = int(ts)
+        except ValueError:
+            continue
+        files = [f for f in rest.split('\n') if f]
+        commits.append((ts, subject, files))
+    commits.reverse()
+    return commits
+
+
+def git_candidates(commits):
+    """(commit number, file, keywords, subject) for each candidate commit and
+    file it touches. The subject and path are cut and REDACTED before
+    anything else."""
+    last = {}
+    out = []
+    for n, (ts, subject, files) in enumerate(commits):
+        subject = redact(subject[:CMD_CAP])
+        files = [redact(f[:CMD_CAP]) for f in files]
+        hit = set()
+        if _FIX_SUBJECT.match(subject) and len(files) <= FIX_FILES_MAX:
+            hit.update(files)
+        if len(files) <= FOLLOWUP_FILES_MAX:
+            hit.update(f for f in files if f in last and 0 <= ts - last[f] <= GIT_WINDOW)
+        for f in files:
+            last[f] = ts
+        if hit:
+            words = {st: w for st, w in keywords(_CONVENTIONAL.sub('', subject)).items()
+                     if w not in GIT_WORDS}
+            for f in sorted(hit):
+                out.append((n, f, words, subject))
+    return out
+
+
+def _main_file(path: str):
+    """Sort key: the code a fix was about before its test or expected output."""
+    base = os.path.basename(path).lower()
+    return ('test' in base or base.endswith('.expected'), len(path), path)
+
+
+def git_rows(candidates):
+    """One row per set of files that the same candidate commits touched: a
+    fix to a script and its test is one pattern, not two."""
+    commits_of, subject_of = {}, {}
+    for n, f, kw, subject in candidates:
+        commits_of.setdefault(f, set()).add(n)
+        subject_of[n] = (kw, subject)
+    groups = {}
+    for f, ns in commits_of.items():
+        groups.setdefault(frozenset(ns), []).append(f)
+    rows = []
+    for ns, files in groups.items():
+        files.sort(key=_main_file)
+        c = {'kw': Counter(), 'surface': {}}
+        for n in sorted(ns):
+            kw = subject_of[n][0]
+            c['kw'].update(set(kw))
+            for st, word in kw.items():
+                c['surface'].setdefault(st, Counter())[word] += 1
+        shared = shared_words(c)
+        label = files[0] + (f' (+{len(files) - 1} more)' if len(files) > 1 else '')
+        rows.append({'source': 'git', 'pattern': safe(label + (': ' + ', '.join(shared) if shared else '')),
+                     'count': len(ns), 'tool': '', 'command': '', 'file': safe(files[0]),
+                     'files': [safe(f) for f in files],
+                     'example': safe(example_of(subject_of[min(ns)][1]))})
+    return rows
 
 
 def run(args) -> int:
@@ -379,7 +566,7 @@ def run(args) -> int:
     corrections = []
     if os.path.isdir(folder) and not os.path.islink(folder):
         corrections = collect(folder, roots, stats)
-    if not stats['sessions']:
+    if not stats['sessions'] and not args.git:
         if args.json:
             print(json.dumps({'sessions': 0, 'message': NO_SESSIONS,
                               'skipped_other_project': stats['other_project'], 'clusters': []}))
@@ -390,19 +577,43 @@ def run(args) -> int:
                       'that shares this folder name.')
         return 0
 
-    found = [describe(c) for c in cluster(corrections)]
-    found = sorted((d for d in found if d['count'] >= args.min),
-                   key=lambda d: (-d['count'], d['pattern']))
+    rows = [describe(c) for c in cluster(corrections)]
+    git_state, commits_read, candidates = None, 0, []
+    if args.git:
+        log = git_log(root)
+        if isinstance(log, str):
+            git_state = log
+        else:
+            git_state, commits_read = 'ok', len(log)
+            candidates = git_candidates(log)
+            rows += git_rows(candidates)
+    found = sorted((d for d in rows if d['count'] >= args.min),
+                   key=lambda d: (-d['count'], d['source'] != 'session', d['pattern']))
     if args.json:
-        print(json.dumps({'sessions': stats['sessions'], 'corrections': len(corrections),
-                          'min': args.min, 'skipped_malformed': stats['malformed'],
-                          'skipped_oversized': stats['oversized'],
-                          'skipped_links': stats['links'], 'unreadable': stats['unreadable'],
-                          'skipped_other_project': stats['other_project'],
-                          'clusters': found}, ensure_ascii=False, indent=1))
+        out = {'sessions': stats['sessions'], 'corrections': len(corrections),
+               'min': args.min, 'skipped_malformed': stats['malformed'],
+               'skipped_oversized': stats['oversized'],
+               'skipped_links': stats['links'], 'unreadable': stats['unreadable'],
+               'skipped_other_project': stats['other_project']}
+        if not stats['sessions']:
+            out['message'] = NO_SESSIONS
+        if args.git:
+            out.update({'git': git_state, 'commits_read': commits_read,
+                        'git_candidates': len({c[0] for c in candidates})})
+        out['clusters'] = found
+        print(json.dumps(out, ensure_ascii=False, indent=1))
         return 0
-    print(f"{stats['sessions']} sessions read, {len(corrections)} corrections found, "
-          f"{len(found)} seen at least {args.min} times.")
+    if stats['sessions']:
+        print(f"{stats['sessions']} sessions read, {len(corrections)} corrections found.")
+    else:
+        print(safe(f'{NO_SESSIONS} (looked in {folder}).'))
+    if args.git:
+        if git_state == 'ok':
+            print(f'{commits_read} commits read (the last {GIT_MAX} at most), '
+                  f"{len({c[0] for c in candidates})} fix, revert or quick follow-up commits.")
+        else:
+            print(f'Git history: {git_state}.')
+    print(f'{len(found)} patterns seen at least {args.min} times.')
     skipped = [f'{stats[k]} {label}' for k, label in
                (('malformed', 'malformed lines'), ('oversized', 'lines over 1 MiB'),
                 ('links', 'linked files'), ('unreadable', 'unreadable files'),
@@ -413,8 +624,12 @@ def run(args) -> int:
         print(f'No correction repeats {args.min} or more times.')
     for i, d in enumerate(found, 1):
         print()
-        print(f"[{i}] {d['pattern']}  ({d['count']} times)")
-        print(f"    tool: {d['tool'] or '-'}   command: {d['command'] or '-'}")
+        if d['source'] == 'git':
+            print(f"[{i}] {d['pattern']}  ({d['count']} commits)")
+            print(f"    source: git   file: {d['file']}")
+        else:
+            print(f"[{i}] {d['pattern']}  ({d['count']} times)")
+            print(f"    source: session   tool: {d['tool'] or '-'}   command: {d['command'] or '-'}")
         print(f'    e.g. "{d["example"]}"')
     return 0
 
@@ -428,6 +643,8 @@ def main(argv=None) -> int:
                     help='where Claude Code keeps per-project transcript folders')
     ap.add_argument('--min', type=int, default=2, help='show clusters seen at least this often (default 2)')
     ap.add_argument('--json', action='store_true', help='print JSON')
+    ap.add_argument('--git', action='store_true',
+                    help="also mine this repo's last %d commits (fix, revert and quick follow-up commits)" % GIT_MAX)
     args = ap.parse_args(argv)
     if args.min < 1:
         ap.error('--min must be at least 1')

@@ -297,11 +297,36 @@ print(features.project_root({}) == os.getcwd())
 print(features.load(t + '/none') is not None, features.is_on(t + '/nowhere', 'ls-guard'))
 PYE
 )
-chk "path, FEATURES, project_root precedence, load/is_on" "$api" "/r/.claude/bendit.json ('browser-driver', 'ux-design-laws', 'session-brief', 'ls-guard')
+chk "path, FEATURES, project_root precedence, load/is_on" "$api" "/r/.claude/bendit.json ('browser-driver', 'ux-design-laws', 'session-brief', 'ls-guard', 'primary-checkout-guard')
 /from/payload
 /from/env
 True
 True False"
+
+echo; echo "PRIMARY-CHECKOUT-GUARD AND ITS integrationBranch"
+# The guard's one setting: the integration branch, when origin/HEAD cannot say.
+# It lives on the feature's own entry, is a plain branch name, and survives `set`.
+proj ib
+cap "integration-branch before the feature is set" integration-branch "$T/ib" main
+chk "integration-branch with no primary-checkout-guard entry -> exit 2" "$EXPECT_CODE" "2"
+has "  ...says to set the feature first" "primary-checkout-guard" "$EXPECT_STDERR"
+"$PY" "$F" set "$T/ib" primary-checkout-guard on "chosen in /bendit:adopt --detailed"
+cap "integration-branch develop" integration-branch "$T/ib" develop
+chk "integration-branch exits 0" "$EXPECT_CODE" "0"
+"$PY" "$F" set "$T/ib" primary-checkout-guard on "chosen again"
+got=$("$PY" -c 'import json,sys; e=json.load(open(sys.argv[1]))["features"]["primary-checkout-guard"]; print(e["on"], e["why"], e["integrationBranch"])' "$T/ib/.claude/bendit.json")
+chk "set keeps integrationBranch; on and why updated" "$got" "True chosen again develop"
+cap "integration-branch with a bad name" integration-branch "$T/ib" "-x"
+chk "a name starting with - -> exit 2" "$EXPECT_CODE" "2"; has "  ...names the key" "integrationBranch" "$EXPECT_STDERR"
+chk "  ...file untouched" "$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["features"]["primary-checkout-guard"]["integrationBranch"])' "$T/ib/.claude/bendit.json")" "develop"
+bad "integrationBranch on another feature" '{"version":1,"features":{"ls-guard":{"on":true,"why":"x","integrationBranch":"main"}}}' "integrationBranch"
+bad "integrationBranch empty" '{"version":1,"features":{"primary-checkout-guard":{"on":true,"why":"x","integrationBranch":""}}}' "integrationBranch"
+bad "integrationBranch is a number" '{"version":1,"features":{"primary-checkout-guard":{"on":true,"why":"x","integrationBranch":5}}}' "integrationBranch"
+bad "integrationBranch has a space" '{"version":1,"features":{"primary-checkout-guard":{"on":true,"why":"x","integrationBranch":"a b"}}}' "integrationBranch"
+bad "integrationBranch has .." '{"version":1,"features":{"primary-checkout-guard":{"on":true,"why":"x","integrationBranch":"a..b"}}}' "integrationBranch"
+proj ibok '{"version":1,"features":{"primary-checkout-guard":{"on":false,"why":"x","integrationBranch":"release/2.x"}}}'
+cap "a valid integrationBranch with a slash" get "$T/ibok" primary-checkout-guard
+chk "release/2.x is accepted" "$EXPECT_CODE|$EXPECT_STDOUT" "0|off"
 
 if [ -z "$PY_GIVEN" ]; then
   echo; echo "WHAT IT SAYS (snapshot)"

@@ -1,6 +1,6 @@
 ---
 name: ux-design-laws
-description: Use whenever you design, build, review or revise any user interface (pages, dashboards, layouts, navigation, onboarding, forms, settings, tables, drawers, dialogs, interactive flows). Applies 20 UX laws (Hick, Fitts, Miller, Jakob and more) to minimise confusion and effort, prevent mistakes and get the user to their goal fastest. Also use when asked "make this UI better", "UX review", or "how can this page be improved".
+description: Use whenever you design, build, review or revise any user interface (pages, dashboards, layouts, navigation, onboarding, forms, settings, tables, dialogs). Applies 20 UX laws (Hick, Fitts, Miller, Jakob and more) to cut confusion and effort. Also use when asked "make this UI better" or "UX review".
 ---
 
 # UX Design Instructions

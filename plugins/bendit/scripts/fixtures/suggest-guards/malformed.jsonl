@@ -1,0 +1,6 @@
+{this is not json
+[1, 2, 3]
+{"type": "user", "cwd": "__ROOT__", "message": null}
+{"type": "user", "cwd": "__ROOT__", "message": {"role": "user", "content": 42}}
+{"type": "assistant", "cwd": "__ROOT__", "message": {"role": "assistant", "content": [{"type": "tool_use", "name": "Bash", "input": "not a dict"}]}}
+{"type": "user", "cwd": "__ROOT__", "message": {"role": "user", "content": [null, 7, {"type": "text", "text": null}]}}

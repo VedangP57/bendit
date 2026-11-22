@@ -42,7 +42,23 @@ git ls-files -z --others --exclude-standard | while IFS= read -r -d '' f; do ech
 
 Open the review by stating the base, where it came from, the merge-base and the file counts from the `reviewing:` line.
 
-Give every finding as `file:line`, what is wrong, and the concrete consequence. Say "clean" per section when it is. State the evidence rung for anything you assert (see `engineering-habits`): a review that sounds right is worthless if it was not checked.
+Each finding states its evidence (file:line) and its impact: what is wrong, and the concrete consequence. Say "clean" per section when it is. State the evidence rung for anything you assert (see `engineering-habits`): a review that sounds right is worthless if it was not checked.
+
+Sort every finding into one bucket, under these headings, and leave an empty bucket out:
+
+### Act on
+Wrong now, and fixing it is in scope for this branch: a defect, a broken invariant, a claim the code contradicts.
+
+### Consider
+Plausibly worth changing, but a judgment call or beyond this branch's purpose. Say what it costs to ignore.
+
+### Noted
+True and worth knowing, with no action needed now.
+
+### Dismissed
+Looked at and rejected, with the reason, so the same worry is not raised again.
+
+No findings is a valid result. Say so plainly, name what was checked, and do not pad the review to look thorough.
 
 ---
 
@@ -83,3 +99,11 @@ For every added test: would it still pass if the functions it calls returned `un
 ## Part B: this project
 
 Read `AGENTS.md` and check the diff against every invariant it lists. If it has no invariants section, report that as the finding.
+
+---
+
+## Lead judgment
+
+You are the lead, not a relay. Before reporting, accept or reject each finding, with one reason: a finding from a reviewer or check is a claim, so open the code it cites and confirm it. A finding you cannot confirm goes to Dismissed, or to Noted if it stays plausible.
+
+Name every reviewer or check that ran; never skip one silently. If one was skipped, failed or could not start, say which and why, so a missing check never reads as a clean one.

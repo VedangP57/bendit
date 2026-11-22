@@ -36,6 +36,9 @@
 #                      is missing is generated as usual. An app harness with
 #                      no bin/verify-<name> (an interrupted run) is completed:
 #                      its missing files are written, existing ones kept.
+#                      Without --force nothing that already exists is
+#                      overwritten (SKILL.md and references/ included);
+#                      --force regenerates all of what this writes.
 #                      /bendit:adopt uses it to keep a project's own test
 #                      check, and to resume.
 #   --harness-owner    write nothing; print who owns .claude/verify-harness:
@@ -51,7 +54,7 @@
 #       2 refused: bad arguments, not a git repo, or a harness already exists
 set -euo pipefail
 
-usage() { sed -n '2,46p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,48p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 
 REPO_ARG=""; NAME=""; KIND_OVER=""; DEV_OVER=""; PM_OVER=""; FORCE=""; DRY=""; KEEP=""; OWNER=""
 while [ $# -gt 0 ]; do
@@ -1192,6 +1195,44 @@ confirmed the check still describes it. \`Synced\` is **not** "when it last pass
 Before trusting a row: \`git log --oneline <synced>..HEAD -- <covers>\`. Empty means
 the row is current; otherwise read that code before you believe the check.
 
+## Proof bar
+
+Adapted from poteto's verification-skill-example. "It opens" is not proof.
+
+- For every behaviour a change touches, name the trigger AND the end state: what
+  the user does, and what is true afterwards. A page that loads shows neither.
+- Where the behaviour has a side effect (a saved row, a sent request, a changed
+  status), check one side effect, not only the screen that announces it.
+- evalJs inspects only: read the page's state with it, never click, fill or
+  submit through it. An action it performs proves the script, not the app.
+- A stub counts only at the boundary the real outage would cross. A mock of the
+  thing that actually fails in production proves nothing about that failure.
+- blocked: name the path, the blocker, and the nearest covered path. A path you
+  could not run is reported as not run, never as passing.
+- Wait for the thing you need, not for time: prefer expectVisible over waitMs.
+- Feature map: \`references/features/README.md\` indexes each area (what it does,
+  how to reach it, what proves it, known gaps); \`references/journeys.md\` holds the
+  cases that cross surfaces. Read both before writing a scenario; fill them as
+  you learn the app.
+
+## What this harness cannot drive
+
+Say so, and report such a path as \`blocked\`, rather than faking it:
+
+- OS file drops and the system file picker
+- native dialogs (alert, print, permission prompts, OS notifications)
+- third-party sign-in (OAuth pages, SSO, captchas): use a saved login instead
+- add anything else this app needs that the driver cannot do.
+
+## Gotchas
+
+Seeded from failures that read as passes. Add one each time a check lied.
+
+- To prove something is gone, assert absence on the element that is really absent,
+  not on a neighbour or a parent that is always there.
+- To count items, count by two attributes (role plus name, or text plus a test
+  id): one attribute matches more than you meant and the count still looks right.
+
 ## When a check fails: drift or defect
 
 1. **Update from the code, not from the result.** Open what \`Covers\` names first.
@@ -1207,6 +1248,49 @@ A pass ends in exactly one of \`clean\` / \`changed\` / \`blocked\`. \`blocked\`
 - [ ] Fill the Coverage table, with a \`Synced\` sha per row
 - [ ] Run \`/bendit:verify\` end to end and read the evidence it left
 MDEOF
+  # The feature map and the cross-surface journeys. Written like SKILL.md: an
+  # existing one is never reached without --force (the copy-back below skips
+  # files already there), and --force regenerates it.
+  mkdir -p "$SK/references/features"
+  cat > "$SK/references/features/README.md" <<FMEOF
+# Feature map: $NAME
+
+One H2 block per area of the app, with exactly these four headings, then link
+each area's own file from here. Fill it as you learn the app; an area with no
+proof yet says so under Known gaps.
+
+## Area: (name it)
+
+## What it does
+
+(one or two sentences, in the user's words)
+
+## How to reach it
+
+(the route or the clicks from a fresh login)
+
+## What proves it works
+
+(the scenario that checks it, and the end state it asserts)
+
+## Known gaps
+
+(what no scenario covers yet, and what this harness cannot drive)
+FMEOF
+  cat > "$SK/references/journeys.md" <<JMEOF
+# Journeys: $NAME
+
+Cases that cross surfaces, where each step is correct alone and the whole can
+still break. One block per journey; replace the example.
+
+## Example: a change made on one surface shows up on another (cross-surface)
+
+1. Do the action on the first surface (a form, an admin page, an API call).
+2. Open the second surface (a list, a public page, an email, an export).
+3. Assert the end state there, and one side effect behind it.
+
+Scenario: (name it, or write "none yet" and list it under Known gaps)
+JMEOF
 fi
 if [ -n "$SK_TMP" ]; then
   ( cd "$SK" && find . -type f -print ) | while IFS= read -r f; do

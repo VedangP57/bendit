@@ -6,11 +6,12 @@ off
 === show on a project with no bendit.json
 exit 0
 --- stdout
-feature        | on/off | why
-browser-driver | off    | (not set)
-ux-design-laws | off    | (not set)
-session-brief  | off    | (not set)
-ls-guard       | off    | (not set)
+feature                | on/off | why
+browser-driver         | off    | (not set)
+ux-design-laws         | off    | (not set)
+session-brief          | off    | (not set)
+ls-guard               | off    | (not set)
+primary-checkout-guard | off    | (not set)
 
 === set creates the file
 exit 0
@@ -41,16 +42,17 @@ exit 0
 === show after merges
 exit 0
 --- stdout
-feature        | on/off | why
-browser-driver | off    | (not set)
-ux-design-laws | on     | has UI
-session-brief  | on     | still a git project
-ls-guard       | on     | zsh
+feature                | on/off | why
+browser-driver         | off    | (not set)
+ux-design-laws         | on     | has UI
+session-brief          | on     | still a git project
+ls-guard               | on     | zsh
+primary-checkout-guard | off    | (not set)
 
 === unknown feature
 exit 2
 --- stderr
-features: <tmp>/bad/.claude/bendit.json: unknown feature 'lsguard' (known: browser-driver, ux-design-laws, session-brief, ls-guard)
+features: <tmp>/bad/.claude/bendit.json: unknown feature 'lsguard' (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard)
 
 === on is not a bool
 exit 2
@@ -225,12 +227,12 @@ features: <tmp>/bad/.claude/bendit.json: unknown top-level key 'extra' (only "ve
 === set unknown feature
 exit 2
 --- stderr
-features: unknown feature 'lsguard' (known: browser-driver, ux-design-laws, session-brief, ls-guard)
+features: unknown feature 'lsguard' (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard)
 
 === get unknown feature
 exit 2
 --- stderr
-features: unknown feature 'lsguard' (known: browser-driver, ux-design-laws, session-brief, ls-guard)
+features: unknown feature 'lsguard' (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard)
 
 === set with an empty why
 exit 2
@@ -240,17 +242,17 @@ features: <tmp>/none/.claude/bendit.json: feature 'ls-guard': "why" must be a no
 === set with a bad on|off token
 exit 2
 --- stderr
-usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <root>
+usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <root> | integration-branch <root> <branch>
 
 === no arguments
 exit 2
 --- stderr
-usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <root>
+usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <root> | integration-branch <root> <branch>
 
 === show on a malformed file
 exit 2
 --- stderr
-features: <tmp>/bad/.claude/bendit.json: unknown feature 'lsguard' (known: browser-driver, ux-design-laws, session-brief, ls-guard)
+features: <tmp>/bad/.claude/bendit.json: unknown feature 'lsguard' (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard)
 
 === every brief key, each at an edge of its type
 exit 0
@@ -280,4 +282,48 @@ features: <tmp>/dup/.claude/bendit.json: duplicate key 'ls-guard'
 exit 2
 --- stderr
 features: <tmp>/dup/.claude/bendit.json: duplicate key 'version'
+
+=== integration-branch before the feature is set
+exit 2
+--- stderr
+features: <tmp>/ib/.claude/bendit.json: set primary-checkout-guard first (features.py set <tmp>/ib primary-checkout-guard on|off <why>), then its integrationBranch
+
+=== integration-branch develop
+exit 0
+(silent)
+
+=== integration-branch with a bad name
+exit 2
+--- stderr
+features: <tmp>/ib/.claude/bendit.json: feature 'primary-checkout-guard': 'integrationBranch' must be a branch name (letters, digits, . _ / -), got '-x'
+
+=== integrationBranch on another feature
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'ls-guard': unknown key 'integrationBranch'
+
+=== integrationBranch empty
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'primary-checkout-guard': 'integrationBranch' must be a branch name (letters, digits, . _ / -), got ''
+
+=== integrationBranch is a number
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'primary-checkout-guard': 'integrationBranch' must be a branch name (letters, digits, . _ / -), got 5
+
+=== integrationBranch has a space
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'primary-checkout-guard': 'integrationBranch' must be a branch name (letters, digits, . _ / -), got 'a b'
+
+=== integrationBranch has ..
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: feature 'primary-checkout-guard': 'integrationBranch' must be a branch name (letters, digits, . _ / -), got 'a..b'
+
+=== a valid integrationBranch with a slash
+exit 0
+--- stdout
+off
 

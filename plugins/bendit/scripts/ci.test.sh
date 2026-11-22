@@ -24,20 +24,31 @@ mkplugin() {
     printf -- '---\ndescription: A short command.\n---\nbody\n' > "$d/commands/c.md"
   else
     : > "$d/skills/.gitkeep"
+    # a skeleton add-on still has to be lintable: one hook, its script present
+    mkdir -p "$d/hooks" "$d/scripts"; : > "$d/scripts/h.py"
+    printf '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"python3 \\"${CLAUDE_PLUGIN_ROOT}/scripts/h.py\\""}]}]}}\n' > "$d/hooks/hooks.json"
   fi
 }
 # fixture <dir> -- ci.sh and skill-budget.py in place, two plugins, a stub claude
 fixture() {
   mkdir -p "$1/.github/workflows" "$1/bin" "$1/plugins/bendit/scripts"
   cp "$ROOT/.github/workflows/ci.sh" "$1/.github/workflows/ci.sh"
-  cp "$SD/skill-budget.py" "$1/plugins/bendit/scripts/skill-budget.py"
+  cp "$SD/skill-budget.py" "$SD/plugin-lint.py" "$1/plugins/bendit/scripts/"
   mkplugin "$1" bendit 1
   mkplugin "$1" addon 0
   # The stub logs each call and answers as a passing validate; a plugin whose
   # path contains FAILME fails.
+  # STUB_MEET=<dir>: write <dir>/validate.mark, then wait up to 3s for
+  # <dir>/suite.mark (proves validate ran WHILE a suite did). STUB_HANG=<file>:
+  # write its pid there and hang (proves a stopped ci.sh takes it down).
   cat > "$1/bin/claude" <<'STUB'
 #!/bin/sh
 echo "$*" >> "$STUB_LOG"
+if [ -n "${STUB_HANG:-}" ]; then echo $$ > "$STUB_HANG"; exec sleep 60; fi
+if [ -n "${STUB_MEET:-}" ]; then
+  : > "$STUB_MEET/validate.mark"; i=0
+  while [ ! -e "$STUB_MEET/suite.mark" ]; do i=$((i+1)); [ $i -gt 30 ] && { echo "validate never saw the suite"; exit 1; }; sleep 0.1; done
+fi
 case "$*" in *FAILME*) echo "boom"; exit 1 ;; esac
 echo "Validation passed"
 STUB
@@ -69,6 +80,15 @@ ci "$F" validate
 chk "exit 1" "$CI_RC" 1
 chk "both plugins were still validated" "$(grep -c '^plugin validate' "$F/log")" 2
 has "CI FAILED names the stage" "CI FAILED: validate" "$CI_OUT"
+
+echo
+echo "plugin-lint fails the stage on a missing hook script, and the other plugin is still linted"
+F="$T/lintfail"; fixture "$F"; rm "$F/plugins/addon/scripts/h.py"
+ci "$F" validate
+chk "exit 1" "$CI_RC" 1
+has "names the broken plugin's missing script" "scripts/h.py does not exist" "$CI_OUT"
+has "CI FAILED names the stage" "CI FAILED: validate" "$CI_OUT"
+has "the good plugin was linted too" "plugin-lint: plugins/bendit: ok" "$CI_OUT"
 
 echo
 echo "nothing to validate is a failure, never a pass"
@@ -122,27 +142,78 @@ chk "  ...and that fails the stage" "$CI_RC" 1
 
 echo
 echo "shell: suites that open ports run one at a time, after the pool"
-# The list in ci.sh must name every real suite that binds or serves: two of them
-# at once collided on :3100 (ports.test.sh's precondition failed).
+# Every real suite that binds or serves must be CLASSIFIED in ci.sh, by a
+# person who read it: SERIAL_SUITES (it needs a port it picks itself -- two of
+# them at once collided on :3100) or KERNEL_PORT_SUITES (it binds only port 0,
+# so the kernel hands it a port no other live socket holds).
 SERIAL="$(sed -n 's/^SERIAL_SUITES=(\(.*\))$/\1/p' "$ROOT/.github/workflows/ci.sh")"
+KPORT="$(sed -n 's/^KERNEL_PORT_SUITES=(\(.*\))$/\1/p' "$ROOT/.github/workflows/ci.sh")"
 chk "ci.sh declares the serial lane" "$([ -n "$SERIAL" ] && echo y || echo n)" y
+chk "ci.sh declares the port-0 suites" "$([ -n "$KPORT" ] && echo y || echo n)" y
 # Bracketed so this line does not match itself.
 binders="$(cd "$SD" && grep -lE 'bind[(]|listen[(]|create[S]erver|http[.]server|socket[s]erver' -- *.test.sh | sed 's/\.test\.sh$//' | sort | tr '\n' ' ')"
-missing=""; for b in $binders; do case " $SERIAL " in *" $b "*) ;; *) missing="$missing $b" ;; esac; done
-chk "every suite that binds a port is in the serial lane (binders: $binders)" "$missing" ""
-chk "  ...and the lane is exactly these" "$SERIAL" "drive install-route ports scaffold-verification-skill session-brief verify-readiness"
+missing=""; for b in $binders; do case " $SERIAL $KPORT " in *" $b "*) ;; *) missing="$missing $b" ;; esac; done
+chk "every suite that binds a port is classified (binders: $binders)" "$missing" ""
+chk "  ...the lane is exactly these" "$SERIAL" "ports scaffold-verification-skill verify-readiness"
+chk "  ...the port-0 suites are exactly these" "$KPORT" "drive install-route session-brief"
+both=""; for b in $KPORT; do case " $SERIAL " in *" $b "*) both="$both $b" ;; esac; done
+chk "  ...and no suite is in both" "$both" ""
+# A port-0 suite never names :3100 outside a comment: the lane's ports.test.sh needs it free.
+k3100=""; for b in $KPORT; do grep -vE '^[[:space:]]*#' "$SD/$b.test.sh" | grep -q '3100' && k3100="$k3100 $b"; done
+chk "  ...and no port-0 suite names :3100" "$k3100" ""
 # Behaviour: two lane suites each take a lock dir and fail if it is already
 # held (they overlapped), and each needs the pool suite's done-marker (it ran
 # after the pool). Named after real lane members, so ci.sh puts them there.
 F="$T/lane"; fixture "$F"; S="$F/plugins/bendit/scripts"
-for n in ports verify-readiness; do
+for n in ports scaffold-verification-skill; do
   printf '#!/usr/bin/env bash\n[ -e "%s/pool.done" ] || { echo "%s ran before the pool finished"; exit 1; }\nmkdir "%s/lock" || { echo "%s overlapped another lane suite"; exit 1; }\nsleep 1; rmdir "%s/lock"\n' \
     "$F" "$n" "$F" "$n" "$F" > "$S/$n.test.sh"
 done
 printf '#!/usr/bin/env bash\nsleep 1; : > "%s/pool.done"\n' "$F" > "$S/a.test.sh"
 ci "$F" shell
 chk "lane suites never overlap, and run after the pool" "$CI_RC|$(grep -cE 'overlapped|before the pool' <<<"$CI_OUT")" "0|0"
-has "  ...said in the stage's first line" "2 one at a time (they open ports)" "$CI_OUT"
+has "  ...said in the stage's first line" "2 one at a time (they pick their own ports)" "$CI_OUT"
+# A port-0 suite is a POOL suite: named after a real one, it and an ordinary
+# suite each wait for the other's marker, which only works if they run at once.
+F="$T/kport"; fixture "$F"; S="$F/plugins/bendit/scripts"
+for n in a:drive drive:a; do
+  mine="${n%%:*}"; theirs="${n##*:}"
+  printf '#!/usr/bin/env bash\n: > "%s/%s.mark"\nfor i in $(seq 1 30); do [ -e "%s/%s.mark" ] && exit 0; sleep 0.1; done\necho "%s never saw %s"; exit 1\n' \
+    "$F" "$mine" "$F" "$theirs" "$mine" "$theirs" > "$S/$mine.test.sh"
+done
+ci "$F" shell
+chk "a port-0 suite runs in the pool, alongside the others" "$CI_RC|$(grep -c 'never saw' <<<"$CI_OUT")" "0|0"
+# drive is also started first (POOL_FIRST): started once, counted once.
+has "  ...started first, yet run and counted once" "shell: 2/2 suites passed" "$CI_OUT"
+chk "  ...and printed once" "$(grep -c '^--- bash .*/drive.test.sh$' <<<"$CI_OUT")" 1
+
+echo
+echo "stages run at once, each printed whole, a failure still named"
+# The validate stub waits for a suite's marker, and the suite for the stub's:
+# both pass only if the validate and shell stages run AT THE SAME TIME.
+F="$T/stages"; fixture "$F"; mkdir -p "$F/meet"
+printf '#!/usr/bin/env bash\n: > "%s/meet/suite.mark"\nfor i in $(seq 1 30); do [ -e "%s/meet/validate.mark" ] && { echo SUITE-OUT; exit 0; }; sleep 0.1; done\necho "suite never saw validate"; exit 1\n' \
+  "$F" "$F" > "$F/plugins/bendit/scripts/meet.test.sh"
+STUB_MEET="$F/meet" ci "$F" shell validate
+chk "shell and validate ran at once, and both passed" "$CI_RC|$(grep -c 'never saw' <<<"$CI_OUT")" "0|0"
+has "  ...the final line names both" "CI passed: shell validate" "$CI_OUT"
+chk "  ...each stage's lines sit between its own header and result, in the order asked" \
+  "$(grep -E '^(=== |SUITE-OUT|validate: )' <<<"$CI_OUT")" \
+  "=== shell
+SUITE-OUT
+=== shell: ok
+=== validate
+validate: 2/2 plugins passed; budget measured 1
+=== validate: ok"
+# The same, with validate failing while the shell stage passes.
+F="$T/stagefail"; fixture "$F"; mv "$F/plugins/addon" "$F/plugins/FAILME"
+printf '#!/usr/bin/env bash\necho fine\n' > "$F/plugins/bendit/scripts/ok.test.sh"
+ci "$F" shell imports validate
+chk "a stage failing in the background fails the run" "$CI_RC" 1
+has "  ...named, alone" "CI FAILED: validate" "$CI_OUT"
+has "  ...its result line printed" "=== validate: FAILED" "$CI_OUT"
+has "  ...and the others still report ok" "=== shell: ok" "$CI_OUT"
+has "  ...including one that ran beside it" "=== imports: ok" "$CI_OUT"
 
 echo
 echo "shell: a suite that hangs is killed at its time limit and named"
@@ -172,9 +243,9 @@ stopped() {
   # cannot trap a signal ignored at entry; a terminal's ci.sh has it at default.
   (cd "$f" && TMPDIR="$f/tmp" PATH="$f/bin:$PATH" exec python3 -c \
     'import os, signal, sys; signal.signal(signal.SIGINT, signal.SIG_DFL); os.execvp(sys.argv[1], sys.argv[1:])' \
-    bash .github/workflows/ci.sh shell) >"$f/ci.log" 2>&1 &
+    bash .github/workflows/ci.sh ${STOP_STAGES:-shell}) >"$f/ci.log" 2>&1 &
   pid=$!
-  for i in $(seq 1 100); do [ -s "$f/child.pid" ] && break; sleep 0.1; done
+  for i in $(seq 1 100); do [ -s "$f/child.pid" ] && [ -s "${STOP_ALSO:-$f/child.pid}" ] && break; sleep 0.1; done
   kill "-$2" "$pid"; wait "$pid"; STOP_RC=$?
   cp="$(cat "$f/child.pid")"
   for i in $(seq 1 50); do kill -0 "$cp" 2>/dev/null || break; sleep 0.1; done
@@ -189,6 +260,20 @@ chk "SIGINT (Ctrl-C): ci.sh exits 130" "$STOP_RC" 130
 chk "  ...and the suite's processes are dead" "$STOP_CHILD" dead
 F="$T/kill"; hangfix "$F"; stopped "$F" KILL
 chk "SIGKILL (no trap can run): the suite's processes still die" "$STOP_CHILD" dead
+# With stages running at once, a stage in the background (validate, its
+# `claude` hung) must die with ci.sh too, and leave no temp dir behind.
+for sig in TERM KILL; do
+  F="$T/stage-$sig"; hangfix "$F"
+  STUB_HANG="$F/claude.pid" STOP_ALSO="$F/claude.pid" STOP_STAGES="shell validate" stopped "$F" "$sig"
+  # Without this, an empty pid file reads as "dead" and the next check passes
+  # while measuring nothing.
+  chk "SIG$sig: validate's claude was running beside the suite when it came" "$([ -s "$F/claude.pid" ] && echo y || echo n)" y
+  cl="$(cat "$F/claude.pid" 2>/dev/null)"; cl="${cl:-0}"
+  for i in $(seq 1 50); do kill -0 "$cl" 2>/dev/null || break; sleep 0.1; done
+  chk "SIG$sig with validate running beside shell: the suite's processes die" "$STOP_CHILD" dead
+  chk "  ...and so does validate's hung claude" "$(kill -0 "$cl" 2>/dev/null && echo alive || echo dead)" dead
+done
+chk "  ...and after SIGTERM no temp dir is left" "$(/usr/bin/find "$T/stage-TERM/tmp" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" 0
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$pass" -gt 0 ] && [ "$fail" -eq 0 ]

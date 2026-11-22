@@ -6,6 +6,7 @@ SD="$(cd "$(dirname "$0")" && pwd)"
 S="$SD/install-route.sh"
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 pass=0; fail=0
+AT=@   # built at runtime so no fixture reads as an email address
 chk() { if [ "$2" = "$3" ]; then printf '  ok    %s\n' "$1"; pass=$((pass+1));
         else printf '  FAIL  %s (got [%s], wanted [%s])\n' "$1" "$2" "$3"; fail=$((fail+1)); fi; }
 has() { case "$3" in *"$2"*) chk "$1" y y;; *) chk "$1 (missing '$2' in: $3)" n y;; esac; }
@@ -35,7 +36,7 @@ stubcurl 22 404; out=$(run route $SRC); chk "404 (private repos answer 404) -> v
 stubcurl 28 000; out=$(run route $SRC); chk "timeout -> vendor" "${out%% *}" "vendor"
 stubcurl 0 200
 out=$(run route https://gitlab.com/o/r); chk "non-github https -> vendor" "${out%% *}" "vendor"; has "  says why" "not a public https://github.com" "$out"
-out=$(run route git@github.com:o/r.git); chk "ssh source -> vendor" "${out%% *}" "vendor"
+out=$(run route "git${AT}github.com:o/r.git"); chk "ssh source -> vendor" "${out%% *}" "vendor"
 chk "  ...and curl was not even asked" "$(cat "$T/curl.log")" ""
 # R2: owner and repo are plain names; a query or fragment is not a repo.
 for bad in 'https://github.com/o/r?x=1' 'https://github.com/o/r#frag' 'https://github.com/o?x/r' 'https://github.com/o/r%2F..'; do
@@ -139,6 +140,57 @@ printf '{"bendit":{"source":{"source":"github","repo":"VedangP57/bendit"}}}' > "
 chk "same repo (https, .git) -> safe" "$(bash "$S" conflict https://github.com/VedangP57/bendit.git; echo "rc=$?")" "rc=0"
 out=$(bash "$S" conflict https://github.com/other/fork); chk "different repo -> exit 3" "$?" "3"
 has "  names the repo" "the version on GitHub (VedangP57/bendit)" "$out"
+# The same repo written in another URL form is not a conflict (a git-source
+# registry entry is how Claude Code records an https clone URL).
+printf '{"bendit":{"source":{"source":"git","url":"https://github.com/VedangP57/bendit.git"}}}' > "$T/known.json"
+for f in VedangP57/bendit https://github.com/VedangP57/bendit https://github.com/VedangP57/bendit.git \
+         https://github.com/VedangP57/bendit/ "git${AT}github.com:VedangP57/bendit.git" https://github.com/vedangp57/BENDIT.git; do
+  chk "git entry vs $f -> safe" "$(bash "$S" conflict "$f" >/dev/null; echo "rc=$?")" "rc=0"
+done
+out=$(bash "$S" conflict https://github.com/other/fork); chk "git entry vs a different repo -> exit 3" "$?" "3"
+out=$(bash "$S" conflict "$T/projB"); chk "git entry vs a local path -> exit 3" "$?" "3"
+printf '{"bendit":{"source":{"source":"github","repo":"VedangP57/bendit"}}}' > "$T/known.json"
+chk "github entry vs git@ form -> safe" "$(bash "$S" conflict "git${AT}github.com:vedangp57/bendit.git" >/dev/null; echo "rc=$?")" "rc=0"
+chk "github entry vs bare owner/repo -> safe" "$(bash "$S" conflict VedangP57/bendit >/dev/null; echo "rc=$?")" "rc=0"
+printf '{"bendit":{"source":{"source":"git","url":"git%sgithub.com:VedangP57/bendit.git"}}}' "$AT" > "$T/known.json"
+chk "git@ entry vs https form -> safe" "$(bash "$S" conflict https://github.com/VedangP57/bendit >/dev/null; echo "rc=$?")" "rc=0"
+# Local path vs local path: matched by realpath (a symlink is the same place).
+ln -sfn "$T/projA" "$T/linkA"
+printf '{"bendit":{"source":{"source":"directory","path":"%s"}}}' "$T/linkA" > "$T/known.json"
+chk "directory entry via symlink vs real path -> safe" "$(bash "$S" conflict "$T/projA" >/dev/null; echo "rc=$?")" "rc=0"
+# A URL with credentials in the registry is never echoed.
+printf '{"bendit":{"source":{"source":"git","url":"https://alice:s3cretTOKEN@example.com/x/y.git"}}}' > "$T/known.json"
+out=$(bash "$S" conflict https://github.com/VedangP57/bendit); rc=$?
+chk "git entry with credentials vs github -> exit 3" "$rc" "3"
+case "$out" in *s3cretTOKEN*|*alice*) chk "  ...no credentials in the output" leaked none;; *) chk "  ...no credentials in the output" none none;; esac
+printf '{"bendit":{"source":{"source":"git","url":"https://alice:s3cretTOKEN%sgithub.com/other/fork.git"}}}' "$AT" > "$T/known.json"
+out=$(bash "$S" conflict https://github.com/VedangP57/bendit); rc=$?
+chk "github git entry with credentials, other repo -> exit 3" "$rc" "3"
+case "$out" in *s3cretTOKEN*|*alice*) chk "  ...no credentials in the output" leaked none;; *) chk "  ...no credentials in the output" none none;; esac
+printf '{"bendit":{"source":{"source":"git","url":"https://alice:s3cretTOKEN%sgithub.com/VedangP57/bendit.git"}}}' "$AT" > "$T/known.json"
+out=$(bash "$S" conflict https://github.com/VedangP57/bendit 2>&1); chk "credentials form of the same repo -> safe" "$?" "0"
+case "$out" in *s3cretTOKEN*) chk "  ...no credentials in the output" leaked none;; *) chk "  ...no credentials in the output" none none;; esac
+# Malformed entries fail closed, never "no conflict".
+for bad in '{"bendit":{"source":"https://github.com/VedangP57/bendit"}}' '{"bendit":{"source":{"source":"git"}}}' \
+           '{"bendit":{"source":{"source":"git","url":42}}}' '{"bendit":{"source":{"source":"github","repo":["a"]}}}' '[1,2]'; do
+  printf '%s' "$bad" > "$T/known.json"
+  out=$(bash "$S" conflict https://github.com/VedangP57/bendit); rc=$?
+  chk "malformed registry $bad -> exit 3" "$rc" "3"
+  [ -n "$out" ] || chk "  ...with a plain message" empty message
+done
+# Lookalikes: Kelvin sign (U+212A) and dotless i (U+0131) must not fold to ASCII.
+printf '{"bendit":{"source":{"source":"github","repo":"kelvin/bendit"}}}' > "$T/known.json"
+out=$(bash "$S" conflict "https://github.com/$(printf '\xe2\x84\xaa')elvin/bendit"); chk "Kelvin sign owner is not k -> exit 3" "$?" "3"
+printf '{"bendit":{"source":{"source":"github","repo":"VedangP57/bendit"}}}' > "$T/known.json"
+out=$(bash "$S" conflict "https://g$(printf '\xc4\xb1')thub.com/VedangP57/bendit"); chk "dotless i host is not github.com -> exit 3" "$?" "3"
+out=$(bash "$S" conflict "https://github.com/VedangP57/bend$(printf '\xc4\xb1')t"); chk "dotless i repo -> exit 3" "$?" "3"
+printf '{"bendit":{"source":{"source":"github","repo":"VedangP57/bendit"}}}' > "$T/known.json"
+out=$(bash "$S" conflict $'https://github.com/VedangP57/bendit\n'); chk "trailing newline is not the same source -> exit 3" "$?" "3"
+out=$(bash "$S" conflict $'VedangP57/bendit\n'); chk "bare form with trailing newline stays a path -> exit 3" "$?" "3"
+# Bare owner/repo: one slash, no leading . or /; the current directory is irrelevant.
+mkdir -p "$T/cwd/VedangP57/bendit"
+chk "bare owner/repo is github even if a same-named dir exists" "$(cd "$T/cwd" && bash "$S" conflict VedangP57/bendit >/dev/null; echo "rc=$?")" "rc=0"
+out=$(bash "$S" conflict ./VedangP57/bendit); chk "./owner/repo is a path -> exit 3" "$?" "3"
 printf '{"other-kit":{}}' > "$T/known.json"
 chk "no bendit entry -> safe" "$(bash "$S" conflict "$T/projB"; echo "rc=$?")" "rc=0"
 printf 'not json' > "$T/known.json"

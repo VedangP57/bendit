@@ -106,5 +106,35 @@ if [ "$have_node" = 1 ]; then
   chk "npm pack --dry-run left the working tree unchanged" "$after" "$before"
 fi
 
+echo; echo "HOMEBREW FORMULA"
+TMPL="$ROOT/packages/homebrew/bendit.rb.tmpl"; RENDER="$ROOT/packages/homebrew/render.sh"
+fake="$(printf 'ab%.0s' $(seq 1 32))"
+chk "the release steps name packages/homebrew" "$(grep -q 'packages/homebrew' "$ROOT/CONTRIBUTING.md" && echo yes || echo no)" yes
+if [ -f "$RENDER" ]; then
+  bash "$RENDER" "${v_sh:-?}" "$fake" >"$T/bendit.rb" 2>"$T/e"; render_rc=$?
+else render_rc=127; : >"$T/bendit.rb"; fi
+chk "render.sh exits 0 for a version and a sha256" "$render_rc" 0
+v_rb="$(sed -n 's#^ *url ".*/refs/tags/v\(.*\)\.tar\.gz"$#\1#p' "$T/bendit.rb")"
+chk "the rendered url names install.sh's BENDIT_VERSION" "$v_rb" "${v_sh:-?}"
+chk "the rendered formula carries the sha256" "$(grep -c "sha256 \"$fake\"" "$T/bendit.rb")" 1
+chk "the rendered formula installs install.sh as bendit" "$(grep -c 'bin.install "install.sh" => "bendit"' "$T/bendit.rb")" 1
+chk "the rendered formula's test runs --version" "$(grep -c 'shell_output("#{bin}/bendit --version")' "$T/bendit.rb")" 1
+chk "the rendered formula names /bendit:adopt" "$(grep -c '/bendit:adopt' "$T/bendit.rb")" 1
+chk "the rendered formula says license MIT" "$(grep -c 'license "MIT"' "$T/bendit.rb")" 1
+chk "the rendered formula names the homepage" "$(grep -c 'homepage "https://github.com/VedangP57/bendit"' "$T/bendit.rb")" 1
+chk "no placeholder is left in the rendered formula" "$(grep -c '@@' "$T/bendit.rb")" 0
+if [ -f "$RENDER" ]; then
+  bash "$RENDER" >/dev/null 2>&1; chk "render.sh with no arguments exits 2" "$?" 2
+  bash "$RENDER" "${v_sh:-?}" abc >/dev/null 2>&1; chk "render.sh rejects a short sha256 (exit 2)" "$?" 2
+  bash "$RENDER" "${v_sh:-?}" "$(printf 'zz%.0s' $(seq 1 32))" >/dev/null 2>&1; chk "render.sh rejects a non-hex sha256 (exit 2)" "$?" 2
+  bash "$RENDER" "$(printf '0.4.1\nx')" "$fake" >/dev/null 2>&1; chk "render.sh rejects a newline inside the version (exit 2)" "$?" 2
+  bash "$RENDER" "${v_sh:-?}" "$(printf '%s\nfoo' "$fake")" >/dev/null 2>&1; chk "render.sh rejects a newline inside the sha256 (exit 2)" "$?" 2
+  bash "$RENDER" "1.x" "$fake" >/dev/null 2>&1; chk "render.sh rejects a malformed version (exit 2)" "$?" 2
+else bad "render.sh is missing"; fi
+if [ "$render_rc" != 0 ]; then bad "ruby -c not run: the formula did not render"
+elif type -P ruby >/dev/null; then
+  ruby -c "$T/bendit.rb" >"$T/o" 2>&1; chk "ruby -c accepts the rendered formula" "$?" 0
+else printf '  SKIPPED  ruby -c (ruby is not installed here; this is not a pass)\n'; fi
+
 echo; echo "$pass passed, $fail failed"
 [ "$pass" -gt 0 ] && [ "$fail" -eq 0 ]

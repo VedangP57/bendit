@@ -204,18 +204,19 @@ run many times with and without bendit, compared with a two-sided Fisher test.
 
 ```mermaid
 flowchart TD
-    S["Session starts"] --> C["Self-check: probe every guard; optional brief"]
+    S["Session starts"] --> C["Self-check: every guard is probed, plus an optional brief"]
     C --> T{"Agent calls a tool"}
-    T --> G{"PreToolUse guards: dangerous?"}
-    G -- "yes" --> R["Refused: exit 2, reason shown to the agent"]
-    G -- "no" --> X["Tool runs"]
-    X --> P["PostToolUse: advice notes, changed code recorded"]
-    R & P --> T
-    T -- "agent tries to finish" --> F{"Stop gate: did this turn change code?"}
-    F -- "no" --> E["Turn ends"]
-    F -- "yes" --> H["Run the check you approved"]
-    H -- "passes" --> E
-    H -- "fails or not approved" --> K["Stop refused once: the agent keeps working; a second stop ends the turn and you are told it is NOT verified"]
+    T --> G{"PreToolUse guards: is it dangerous?"}
+    G -->|yes| R["Refused with exit 2, and the reason is shown to the agent"]
+    G -->|no| X["Tool runs"]
+    X --> P["PostToolUse: advice notes, changed code is recorded"]
+    R --> T
+    P --> T
+    T -->|agent tries to finish| F{"Stop gate: did this turn change code?"}
+    F -->|no| E["Turn ends"]
+    F -->|yes| H["Run the check you approved"]
+    H -->|passes| E
+    H -->|fails or not approved| K["Stop refused once, so the agent keeps working. A second stop ends the turn and you are told it is NOT verified"]
     K --> T
 ```
 

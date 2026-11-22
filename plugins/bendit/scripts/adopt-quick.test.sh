@@ -246,7 +246,7 @@ chk "  ...a retry (owner) keeps it" "$(bash "$KIT/scripts/scaffold-verification-
 # its order was scaffold-then-rewrite. Only checked when the commit is reachable.
 OLDMD="$T/old-quick.md"
 if git -C "$KIT" show 9b1dfa2:plugins/bendit/skills/adopt-bendit/references/quick.md > "$OLDMD" 2>/dev/null; then
-  chk "the old quick.md prints no step-6 command block (this row failed on it)" \
+  chk "the old quick.md prints no step-6 command block" \
   "$(sed -n '/^6\. \*\*The test check/,/^7\. \*\*Project files/p' "$OLDMD" | grep -c '^[[:space:]]*```bash')" 0
 fi
 

@@ -88,6 +88,12 @@ ci_jobs() {
 #   scaffold-verification-skill  takes random ports in 20000-40000, checks each
 #                                is free, then serves on it later; its fresh
 #                                registries also hand out the 3100 block
+#   verify-readiness             asks the kernel for a free port (bind 0),
+#                                RELEASES it, and seconds later serves a fixture
+#                                app on it: in that window a pool suite's own
+#                                bind 0 can be handed the same port. It failed
+#                                once that way under load ("...and says the app
+#                                answered 500"); alone it passed 5 of 5.
 #
 # KERNEL_PORT_SUITES bind only port 0, so the kernel picks a port no other live
 # socket holds, and two of them cannot collide. They run in the POOL. None names
@@ -95,14 +101,12 @@ ci_jobs() {
 # checks that).
 #   drive              python -m http.server 0, and Chrome
 #   install-route      http.server on ("127.0.0.1", 0)
-#   session-brief      listeners on (host, 0); one bound-and-closed port 0 must
-#                      read as refused
-#   verify-readiness   asks the kernel for a free port (bind 0), then serves on it
-# (The last two release a kernel-chosen port and use it again, as every program
-# on the machine that asks for an ephemeral port can race them; the lane would
-# not change that.)
-SERIAL_SUITES=(ports scaffold-verification-skill)
-KERNEL_PORT_SUITES=(drive install-route session-brief verify-readiness)
+#   session-brief      listeners on (host, 0), held open while in use; one case
+#                      binds 0, closes it and connects to it at once, in the
+#                      same python process, expecting "refused": its window is
+#                      microseconds, not the seconds verify-readiness held one
+SERIAL_SUITES=(ports scaffold-verification-skill verify-readiness)
+KERNEL_PORT_SUITES=(drive install-route session-brief)
 is_serial() { local n; for n in "${SERIAL_SUITES[@]}"; do [ "$(basename "$1" .test.sh)" = "$n" ] && return 0; done; return 1; }
 
 # The pool STARTS these first: the slowest suites (13-60 s each alone, measured
@@ -110,7 +114,7 @@ is_serial() { local n; for n in "${SERIAL_SUITES[@]}"; do [ "$(basename "$1" .te
 # finishing time while the other slots sat idle. Start order only: output is
 # still printed in suite order, and a name missing here just starts in turn.
 # Slowest first, in this order.
-POOL_FIRST=(prove install session-brief drive block-dangerous-bash require-verification verify-readiness selfcheck block-primary-checkout ci)
+POOL_FIRST=(prove install session-brief drive block-dangerous-bash require-verification selfcheck block-primary-checkout ci)
 is_first() { local n; for n in "${POOL_FIRST[@]}"; do [ "$(basename "$1" .test.sh)" = "$n" ] && return 0; done; return 1; }
 
 # One suite (or one stage run beside shell) per wrapper: its own session (so its

@@ -154,8 +154,8 @@ chk "ci.sh declares the port-0 suites" "$([ -n "$KPORT" ] && echo y || echo n)" 
 binders="$(cd "$SD" && grep -lE 'bind[(]|listen[(]|create[S]erver|http[.]server|socket[s]erver' -- *.test.sh | sed 's/\.test\.sh$//' | sort | tr '\n' ' ')"
 missing=""; for b in $binders; do case " $SERIAL $KPORT " in *" $b "*) ;; *) missing="$missing $b" ;; esac; done
 chk "every suite that binds a port is classified (binders: $binders)" "$missing" ""
-chk "  ...the lane is exactly these" "$SERIAL" "ports scaffold-verification-skill"
-chk "  ...the port-0 suites are exactly these" "$KPORT" "drive install-route session-brief verify-readiness"
+chk "  ...the lane is exactly these" "$SERIAL" "ports scaffold-verification-skill verify-readiness"
+chk "  ...the port-0 suites are exactly these" "$KPORT" "drive install-route session-brief"
 both=""; for b in $KPORT; do case " $SERIAL " in *" $b "*) both="$both $b" ;; esac; done
 chk "  ...and no suite is in both" "$both" ""
 # A port-0 suite never names :3100 outside a comment: the lane's ports.test.sh needs it free.

@@ -542,7 +542,7 @@ json: valid, keys ['context', 'toast']
 context <= 2000 chars: True
 first: Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
 | Session brief — snapshot taken <time>. Where it disagrees with live git or files, trust the live state and say so. Lines marked unknown were not checked successfully; treat them as unknown, not as no.
-| [files] Brief config: unknown (<tmp>/b-plain/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it. The file was written by bendit 9.0.0. If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).); this brief uses the defaults
+| [files] Brief config: unknown (<tmp>/b-plain/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it. If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).); this brief uses the defaults
 | [git] Branch: main — 1 uncommitted file.
 | [git] Push: not on origin (as of the last fetch).
 | [git] Uncommitted: .M base.txt

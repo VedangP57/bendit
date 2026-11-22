@@ -256,13 +256,13 @@ chk "  ...on the privacy row" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^pri
 
 # A file from a newer bendit: its feature written OFF is read past with a note;
 # one written ON fails the readable row (a chosen guard must never silently not run).
-BENDIT_JSON='{"version":1,"writtenBy":"9.0.0","features":{"ls-guard":{"on":false,"why":"plain ls"},"teleport-guard":{"on":false,"why":"later"}}}'
+BENDIT_JSON='{"version":1,"features":{"ls-guard":{"on":false,"why":"plain ls"},"teleport-guard":{"on":false,"why":"later"}}}'
 FN="$T/feat-newer"; repo "$FN" 'exit 0'
 expect_capture "bendit.json from a newer bendit, unknown feature off" bash "$SD/prove.sh" "$FN"
 chk "an unknown feature that is off: prove exits 0" "$EXPECT_CODE" "0"
 chk "  ...the readable row PASSES" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^features: \.claude/bendit\.json readable +\| PASS ')" "1"
 has "  ...with a note naming the feature" "note: ignored feature teleport-guard" "$EXPECT_STDOUT"
-BENDIT_JSON='{"version":1,"writtenBy":"9.0.0","features":{"teleport-guard":{"on":true,"why":"chosen"}}}'
+BENDIT_JSON='{"version":1,"features":{"teleport-guard":{"on":true,"why":"chosen"}}}'
 FO="$T/feat-newer-on"; repo "$FO" 'exit 0'
 expect_capture "bendit.json from a newer bendit, unknown feature ON" bash "$SD/prove.sh" "$FO"
 chk "an unknown feature that is ON: prove fails" "$EXPECT_CODE" "1"

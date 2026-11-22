@@ -1391,7 +1391,7 @@ unused features (not failures):
     UNUSED  not listed in .claude/bendit.json
 
 notes (not failures):
-  note: ignored feature teleport-guard (off; this bendit <running> does not know it; .claude/bendit.json written by bendit 9.0.0)
+  note: ignored feature teleport-guard (off; this bendit <running> does not know it, a newer bendit may have written it)
 
 prove: all 30 checks passed (5 unused)
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real
@@ -1435,7 +1435,7 @@ features: .claude/bendit.json readable                                 | FAIL   
 
 failures:
   features: .claude/bendit.json readable
-    <tmp>/feat-newer-on/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it. The file was written by bendit 9.0.0. If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).
+    <tmp>/feat-newer-on/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it. If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).
 
 prove: 1 of 25 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real

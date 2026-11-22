@@ -209,12 +209,12 @@ chk "an integrationBranch that is not a branch name -> refuse" "$(run "$M/app.py
 # A file from a newer bendit: an unknown feature written OFF is read past; one
 # written ON is a guard this bendit cannot run, so edits are refused.
 NW="$T/newer"; repo "$NW"; mkdir -p "$NW/.claude"
-printf '{"version":1,"writtenBy":"9.0.0","features":{"primary-checkout-guard":{"on":true,"why":"x"},"teleport-guard":{"on":false,"why":"later"}}}' > "$NW/.claude/bendit.json"
+printf '{"version":1,"features":{"primary-checkout-guard":{"on":true,"why":"x"},"teleport-guard":{"on":false,"why":"later"}}}' > "$NW/.claude/bendit.json"
 chk "newer bendit.json, unknown feature off: the guard still refuses on main" "$(run "$NW/app.py" "$NW")" 2
 has "  ...for the checkout, not the file" "worktree add" "$(cat "$T/err")"
-printf '{"version":1,"writtenBy":"9.0.0","features":{"primary-checkout-guard":{"on":false,"why":"x"},"teleport-guard":{"on":false,"why":"later"}}}' > "$NW/.claude/bendit.json"
+printf '{"version":1,"features":{"primary-checkout-guard":{"on":false,"why":"x"},"teleport-guard":{"on":false,"why":"later"}}}' > "$NW/.claude/bendit.json"
 chk "newer bendit.json, unknown feature off, guard off -> allow" "$(run "$NW/app.py" "$NW")" 0
-printf '{"version":1,"writtenBy":"9.0.0","features":{"primary-checkout-guard":{"on":false,"why":"x"},"teleport-guard":{"on":true,"why":"chosen"}}}' > "$NW/.claude/bendit.json"
+printf '{"version":1,"features":{"primary-checkout-guard":{"on":false,"why":"x"},"teleport-guard":{"on":true,"why":"chosen"}}}' > "$NW/.claude/bendit.json"
 chk "newer bendit.json, unknown feature ON -> refuse" "$(run "$NW/app.py" "$NW")" 2
 has "  ...giving the update command" "claude plugin update bendit@bendit --scope project" "$(cat "$T/err")"
 

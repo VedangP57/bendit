@@ -17,13 +17,16 @@ beats .env), and probe_env_vars must name variables whose values are URLs.
 primary-checkout-guard may carry "integrationBranch" (a branch name, see
 _branch_name): the branch its guard protects when origin/HEAD cannot say.
 
-"writtenBy" (optional, top level) is the version of the bendit whose `set`
-last wrote the file. A file from a NEWER bendit may name features this one
-does not know. One that is "on": false changes nothing here, so it is kept
-as written (a later `set` preserves it) and reported by ignored() /
-ignored_note(). One that is on, or whose "on" is not plainly false, is a
-guard someone chose that this bendit cannot run: load() refuses, naming both
-versions and UPDATE_COMMAND. It must never silently not run.
+A file from a NEWER bendit may name features this one does not know. One
+that is "on": false changes nothing here, so it is kept as written (a later
+`set` preserves it) and reported by ignored() / ignored_note(). One that is
+on, or whose "on" is not plainly false, is a guard someone chose that this
+bendit cannot run: load() refuses, naming the running version and
+UPDATE_COMMAND. It must never silently not run.
+
+No new top-level key, ever: bendit.json is committed, and bendit 0.5.0 and
+older refuse any top-level key but "version" and "features", so one would
+break every teammate still on an older bendit.
 
 A malformed file is never read as "everything off": load() raises
 FeaturesError naming the file, and every caller must refuse (fail closed).
@@ -134,22 +137,18 @@ def ignored_note(data):
     names = ignored(data)
     if not names:
         return ''
-    return ('note: ignored %s %s (off; this bendit %s does not know %s; .claude/bendit.json written by bendit %s)'
+    return ('note: ignored %s %s (off; this bendit %s does not know %s, a newer bendit may have written %s)'
             % ('feature' if len(names) == 1 else 'features',
                ', '.join(n if n.isprintable() else repr(n) for n in names), _running_version(),
-               'it' if len(names) == 1 else 'them', data.get('writtenBy') or 'an unrecorded version'))
+               'it' if len(names) == 1 else 'them', 'it' if len(names) == 1 else 'them'))
 
 
 def _validate(data, where):
     if not isinstance(data, dict):
         raise FeaturesError('%s: top level must be an object' % where)
     for k in data:
-        if k not in ('version', 'features', 'writtenBy'):
-            raise FeaturesError('%s: unknown top-level key %r (only "version", "features" and "writtenBy")' % (where, k))
-    if 'writtenBy' in data and not _version_str(data['writtenBy']):
-        got = repr(data['writtenBy'])
-        raise FeaturesError('%s: "writtenBy" must be a bendit version, got %s'
-                            % (where, got if len(got) <= 80 else got[:77] + '...'))
+        if k not in ('version', 'features'):
+            raise FeaturesError('%s: unknown top-level key %r (only "version" and "features")' % (where, k))
     if type(data.get('version')) is not int or data.get('version') != VERSION:
         raise FeaturesError('%s: "version" must be %d, got %r' % (where, VERSION, data.get('version')))
     feats = data.get('features')
@@ -162,11 +161,9 @@ def _validate(data, where):
             if isinstance(entry, dict) and entry.get('on') is False:
                 continue
             raise FeaturesError(
-                '%s: unknown feature %r is not off, and this bendit (%s) cannot run it. The file was '
-                'written by bendit %s. If a newer bendit added it, update bendit in this project: %s. '
-                'If not, the name is wrong (known: %s).'
-                % (where, name, _running_version(), data.get('writtenBy') or '(version not recorded)',
-                   UPDATE_COMMAND, ', '.join(FEATURES)))
+                '%s: unknown feature %r is not off, and this bendit (%s) cannot run it. If a newer '
+                'bendit added it, update bendit in this project: %s. If not, the name is wrong (known: %s).'
+                % (where, name, _running_version(), UPDATE_COMMAND, ', '.join(FEATURES)))
         if not isinstance(entry, dict):
             raise FeaturesError('%s: feature %r must be an object' % (where, name))
         if not isinstance(entry.get('on'), bool):
@@ -245,21 +242,10 @@ def is_on(root, name):
     return bool(entry and entry['on'])
 
 
-def write(root, features, written_by=None):
-    """Atomically write {"version": 1, "writtenBy": ..., "features": features};
-    the old file survives a failure. written_by defaults to the running
-    version, left out when plugin.json cannot say (a probe in a bare copy of
-    scripts/); `set` passes it explicitly, so it always records one."""
+def write(root, features):
+    """Atomically write {"version": 1, "features": features}; the old file survives a failure."""
     p = path(root)
-    if written_by is None:
-        try:
-            written_by = plugin_version()
-        except FeaturesError:
-            written_by = None
-    data = {'version': VERSION, 'features': features}
-    if written_by is not None:
-        data['writtenBy'] = written_by
-    data = _validate(data, p)
+    data = _validate({'version': VERSION, 'features': features}, p)
     try:
         text = json.dumps(data, indent=2, sort_keys=True) + '\n'
     except (TypeError, ValueError, RecursionError) as e:
@@ -333,7 +319,7 @@ def _main(argv):
             entry['on'] = state == 'on'
             entry['why'] = why
             feats[name] = entry
-            write(root, feats, plugin_version())
+            write(root, feats)
         elif cmd == 'integration-branch' and len(argv) == 4:
             root, branch = argv[2], argv[3]
             feats = (load(root) or {'features': {}})['features']

@@ -335,10 +335,10 @@ echo; echo "A FILE WRITTEN BY A NEWER BENDIT"
 # A newer bendit adds features. A feature it wrote OFF changes nothing here, so
 # this bendit reads the file and says what it ignored. A feature written ON is
 # a guard someone chose: it must never silently not run, so that still refuses,
-# naming both versions and the update command.
+# naming the running version and the update command.
 cap "version prints the running plugin version" version
 chk "version -> plugin.json's version, exit 0" "$EXPECT_CODE|$EXPECT_STDOUT" "0|$RUNNING"
-proj newer '{"version":1,"writtenBy":"9.0.0","features":{"ls-guard":{"on":true,"why":"x"},"teleport-guard":{"on":false,"why":"later"}}}'
+proj newer '{"version":1,"features":{"ls-guard":{"on":true,"why":"x"},"teleport-guard":{"on":false,"why":"later"}}}'
 cap "get a known feature beside an unknown one that is off" get "$T/newer" ls-guard
 chk "unknown feature, off -> the read succeeds" "$EXPECT_CODE|$EXPECT_STDOUT" "0|on"
 has "  ...a note names it" "teleport-guard" "$EXPECT_STDERR"
@@ -349,38 +349,51 @@ has "  ...the table still lists ls-guard on" "ls-guard               | on" "$EXP
 has "  ...a note names the ignored feature" "teleport-guard" "$EXPECT_STDOUT"
 cap "set beside an unknown feature that is off" set "$T/newer" ls-guard off "now off"
 chk "set -> exit 0" "$EXPECT_CODE" "0"
-got=$("$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["features"].get("teleport-guard"), d.get("writtenBy"))' "$T/newer/.claude/bendit.json" 2>&1)
-chk "  ...the newer feature is kept, writtenBy is now this bendit" "$got" "{'on': False, 'why': 'later'} $RUNNING"
-proj newer '{"version":1,"writtenBy":"9.0.0","features":{"teleport-guard":{"on":true,"why":"chosen"}}}'
+got=$("$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["features"].get("teleport-guard"), sorted(d))' "$T/newer/.claude/bendit.json" 2>&1)
+chk "  ...the newer feature is kept; no top-level key but version and features" "$got" "{'on': False, 'why': 'later'} ['features', 'version']"
+proj newer '{"version":1,"features":{"teleport-guard":{"on":true,"why":"chosen"}}}'
 cap "get beside an unknown feature that is ON" get "$T/newer" ls-guard
 chk "unknown feature, on -> exit 2" "$EXPECT_CODE" "2"
 has "  ...names the feature" "teleport-guard" "$EXPECT_STDERR"
-has "  ...names the running version" "$RUNNING" "$EXPECT_STDERR"
-has "  ...names writtenBy" "9.0.0" "$EXPECT_STDERR"
+has "  ...names the running version" "this bendit ($RUNNING)" "$EXPECT_STDERR"
 has "  ...gives the update command" "claude plugin update bendit@bendit --scope project" "$EXPECT_STDERR"
 has "  ...names the file" "$T/newer/.claude/bendit.json" "$EXPECT_STDERR"
 chk "  ...nothing on stdout" "$EXPECT_STDOUT" ""
-proj newer '{"version":1,"features":{"teleport-guard":{"on":true,"why":"chosen"}}}'
-cap "unknown feature ON, no writtenBy" get "$T/newer" ls-guard
-chk "unknown feature on, no writtenBy -> exit 2" "$EXPECT_CODE" "2"
-has "  ...still gives the update command" "claude plugin update bendit@bendit --scope project" "$EXPECT_STDERR"
-proj newer
-cap "set records writtenBy" set "$T/newer" ls-guard on "x"
-chk "set writes writtenBy = the running version" "$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1])).get("writtenBy"))' "$T/newer/.claude/bendit.json")" "$RUNNING"
-proj newer '{"version":1,"features":{"ls-guard":{"on":true,"why":"x"}}}'
-cap "a file with no writtenBy (written before 0.5.1)" get "$T/newer" ls-guard
-chk "no writtenBy -> still read" "$EXPECT_CODE|$EXPECT_STDOUT|$EXPECT_STDERR" "0|on|"
 proj newer '{"version":1,"features":{"a\nBLOCKED":{"on":false,"why":"x"}}}'
 cap "an ignored name holding a newline" show "$T/newer"
-chk "  ...is printed as one line, quoted" "$(printf '%s\n' "$EXPECT_STDOUT" | tail -1)" "note: ignored feature 'a\\nBLOCKED' (off; this bendit $RUNNING does not know it; .claude/bendit.json written by bendit an unrecorded version)"
+chk "  ...is printed as one line, quoted" "$(printf '%s\n' "$EXPECT_STDOUT" | tail -1)" "note: ignored feature 'a\\nBLOCKED' (off; this bendit $RUNNING does not know it, a newer bendit may have written it)"
 # Tolerance is for a feature that is clearly off, nothing else.
 bad "an unknown feature with no on" '{"version":1,"features":{"teleport-guard":{"why":"x"}}}' "teleport-guard"
 bad "an unknown feature whose on is not a bool" '{"version":1,"features":{"teleport-guard":{"on":0,"why":"x"}}}' "teleport-guard"
 bad "an unknown feature that is not an object" '{"version":1,"features":{"teleport-guard":false}}' "teleport-guard"
-bad "writtenBy is a number" '{"version":1,"writtenBy":5,"features":{}}' "writtenBy"
-bad "writtenBy is empty" '{"version":1,"writtenBy":"","features":{}}' "writtenBy"
-bad "writtenBy has a newline" '{"version":1,"writtenBy":"1.0\nx","features":{}}' "writtenBy"
-bad "still invalid JSON" '{"version":1,"writtenBy":"9.0.0",' "not valid JSON"
+
+echo; echo "AN OLDER BENDIT STILL READS WHAT THIS ONE WRITES"
+# bendit.json is committed: a teammate on an older bendit reads the file this
+# branch's `set` wrote. 0.5.0 refuses any top-level key but "version" and
+# "features" (0.4.0 refused a whole file over one unknown feature), so this runs
+# 0.5.0's own reader, from the v0.5.0 tag, over a file written with every
+# feature set. CI checks out full history so the tag is there; without it this
+# FAILS, never skips.
+OLD="$T/features-0.5.0.py"
+if git -C "$SD" show v0.5.0:plugins/bendit/scripts/features.py > "$OLD" 2>"$T/git-err"; then
+  proj older
+  "$PY" "$F" set "$T/older" browser-driver on "package.json:5 next" &&
+  "$PY" "$F" set "$T/older" ux-design-laws off "no UI" &&
+  "$PY" "$F" set "$T/older" session-brief on "git project" &&
+  "$PY" "$F" set "$T/older" ls-guard off "plain ls" &&
+  "$PY" "$F" set "$T/older" primary-checkout-guard on "chosen" &&
+  "$PY" "$F" integration-branch "$T/older" main
+  chk "every set and integration-branch exits 0" "$?" "0"
+  old_out=$("$PY" "$OLD" show "$T/older" 2>&1); old_rc=$?
+  chk "0.5.0's reader reads the file this branch wrote (exit 0)" "$old_rc" "0"
+  has "  ...and sees what was set" "primary-checkout-guard | on" "$old_out"
+  # CONTROL: the same old reader refuses an extra top-level key, so the pass
+  # above is not an old reader that accepts anything.
+  proj older '{"version":1,"features":{},"writtenBy":"0.5.1"}'
+  chk "CONTROL: 0.5.0's reader refuses an extra top-level key" "$("$PY" "$OLD" show "$T/older" >/dev/null 2>&1; echo $?)" "2"
+else
+  chk "v0.5.0's features.py is reachable (git show v0.5.0:...; fetch tags)" "n ($(cat "$T/git-err"))" "y"
+fi
 
 if [ -z "$PY_GIVEN" ]; then
   echo; echo "WHAT IT SAYS (snapshot)"

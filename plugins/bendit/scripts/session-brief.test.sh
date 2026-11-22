@@ -597,11 +597,11 @@ contains "  ...saying the defaults are used" "); this brief uses the defaults"
 has "config alarm reaches the toast" "toast: brief: main · 1 uncommitted · bendit.json is malformed"
 # A file from a newer bendit: an unknown feature written OFF is no alarm; one
 # written ON is (features.py refuses it), never a silent default.
-conf "$T/b-plain" 'raw:{"version":1,"writtenBy":"9.0.0","features":{"session-brief":{"on":true,"why":"t"},"teleport-guard":{"on":false,"why":"later"}}}'
+conf "$T/b-plain" 'raw:{"version":1,"features":{"session-brief":{"on":true,"why":"t"},"teleport-guard":{"on":false,"why":"later"}}}'
 brief "config-newer-feature-off" --cwd "$T/b-plain"
 valid "config-newer-feature-off"
 count "a newer bendit's feature, off -> no config alarm" 'Brief config: unknown' 0
-conf "$T/b-plain" 'raw:{"version":1,"writtenBy":"9.0.0","features":{"session-brief":{"on":true,"why":"t"},"teleport-guard":{"on":true,"why":"chosen"}}}'
+conf "$T/b-plain" 'raw:{"version":1,"features":{"session-brief":{"on":true,"why":"t"},"teleport-guard":{"on":true,"why":"chosen"}}}'
 brief "config-newer-feature-on" --cwd "$T/b-plain"
 valid "config-newer-feature-on"
 contains "a newer bendit's feature, ON -> alarm naming it" "unknown feature 'teleport-guard' is not off"

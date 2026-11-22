@@ -25,8 +25,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/selfcheck.py" --session
    `.claude/bendit.json` is unreadable: that is a failure, never "all off".
    A `note: ignored feature …` line under the table means a newer bendit
    wrote a feature this one does not know, and wrote it off: report it as a
-   note, not a failure. An error saying an unknown feature `is not off` names
-   both versions and the update command: report it as a failure and give that
+   note, not a failure. An error saying an unknown feature `is not off` names the
+   running version and the update command: report it as a failure and give that
    command as printed.
 3. **prove.sh** feeds every hook a known-bad and a known-good payload, dry-runs
    the Stop gate in a throwaway repo, and runs this repo's

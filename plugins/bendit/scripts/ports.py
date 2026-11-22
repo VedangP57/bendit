@@ -24,6 +24,15 @@ It is created, empty, on first use. A repo is keyed by the absolute path of its
 MAIN checkout, so two unrelated projects that share a folder name never share
 a block.
 
+A ROOT UNDER THE SYSTEM TEMP FOLDER IS NEVER WRITTEN DOWN ($TMPDIR, /tmp,
+/var/tmp). A scaffold preview or a scratch clone is gone within the hour, and
+its block would stay in the registry for good. `add` and `ensure` give such a
+root the port it WOULD get -- its block if it is already registered, else the
+next free one -- for this run only, say so on stderr, and write nothing: not
+the registry, not even an empty one, not its lock. (Its worktree assignments
+still go in its own .git, which is as temporary as it is.) Tests whose
+scratch repos must register set BENDIT_PORTS_REGISTER_TEMP=1.
+
 Commands:
   port <repo-path>   print the port for that checkout      (exit 2 if unknown)
   add <repo-path>    allocate the repo's block, print it    (idempotent)
@@ -60,6 +69,31 @@ def config_dir() -> Path:
 
 def registry_path() -> Path:
     return config_dir() / 'ports.json'
+
+
+def _temp_roots() -> list[str]:
+    """The system temp folders, resolved (on macOS /tmp is /private/tmp).
+    Not tempfile.gettempdir(): with nothing writable it answers the cwd, and
+    then every repo would count as temporary."""
+    roots = []
+    for r in (os.environ.get('TMPDIR'), os.environ.get('TMP'),
+              os.environ.get('TEMP'), '/tmp', '/var/tmp'):
+        if not r:
+            continue
+        r = os.path.realpath(r)
+        # A TMPDIR of / would make every path temporary.
+        if r != os.path.sep and r not in roots:
+            roots.append(r)
+    return roots
+
+
+def is_temp(key: str) -> bool:
+    """True when this main checkout lives under a system temp folder, so it
+    must not be written to the registry."""
+    if os.environ.get('BENDIT_PORTS_REGISTER_TEMP') == '1':
+        return False
+    k = os.path.realpath(key)
+    return any(k == r or k.startswith(r + os.path.sep) for r in _temp_roots())
 
 
 def die(msg: str) -> None:
@@ -187,10 +221,12 @@ def toplevel(start: str) -> tuple[str, bool]:
     return str(c.parent), (c != g)
 
 
-def port_for(root: str, d: dict | None = None) -> int:
+def port_for(root: str, d: dict | None = None, base: int | None = None) -> int:
+    """`base` is given only for a temp root, whose block is not in `d`."""
     d = d or load()
     key, is_wt = toplevel(root)
-    base = d['repos'].get(key)
+    if base is None:
+        base = d['repos'].get(key)
     if base is None:
         die(f'repo "{key}" is not in the port registry ({registry_path()}), so '
             f'it will not be assigned a port.\n'
@@ -247,8 +283,45 @@ def _assign(store: Path, here: str, base: int, size: int, name: str) -> int:
     return -1  # unreachable: die exits
 
 
+def _next_base(d: dict, p: Path) -> int:
+    size = d['block_size']
+    used = set(d['repos'].values())
+    base = max(used) + size if used else FIRST_BASE
+    while base in used:
+        base += size
+    if base + size - 1 > 65535:
+        die(f'no free block left in {p}: the next one would start at {base}, '
+            f'past the last TCP port. Remove keys for checkouts that are gone '
+            f'(`ports.py audit` lists them).')
+    return base
+
+
+def _peek() -> dict:
+    """The registry WITHOUT creating it or its lock: for a temp root, which
+    may read but never write. A missing registry reads as an empty one."""
+    p = registry_path()
+    if not p.exists():
+        return {'block_size': BLOCK_SIZE, 'repos': {}}
+    return _read(p)
+
+
+def _temp_base(key: str) -> tuple[int, dict]:
+    """A temp root's base for this run: its block if registered, else the
+    next free one. Writes nothing."""
+    d = _peek()
+    if key in d['repos']:
+        return d['repos'][key], d
+    base = _next_base(d, registry_path())
+    print(f'{PREFIX} {key} is under the system temp folder, so it is not '
+          f'registered: port block {base}-{base + d["block_size"] - 1} for '
+          f'this run only. {registry_path()} is unchanged.', file=sys.stderr)
+    return base, d
+
+
 def add(root: str) -> int:
     key, _ = toplevel(root)
+    if is_temp(key):
+        return _temp_base(key)[0]
     p = registry_path()
     _ensure(p)  # takes and drops its own lock: flock is not re-entrant
     with _Locked(p):
@@ -257,15 +330,7 @@ def add(root: str) -> int:
         d = _read(p)
         if key in d['repos']:
             return d['repos'][key]
-        size = d['block_size']
-        used = set(d['repos'].values())
-        base = max(used) + size if used else FIRST_BASE
-        while base in used:
-            base += size
-        if base + size - 1 > 65535:
-            die(f'no free block left in {p}: the next one would start at {base}, '
-                f'past the last TCP port. Remove keys for checkouts that are gone '
-                f'(`ports.py audit` lists them).')
+        base = _next_base(d, p)
         d['repos'][key] = base
         if overlaps(d):
             die('allocating that block would create an overlap; registry left '
@@ -284,6 +349,9 @@ def ensure(root: str) -> int:
     typed by hand. Allocation goes through `add`, under the registry lock, so
     two first runs together still get disjoint blocks."""
     key, _ = toplevel(root)
+    if is_temp(key):
+        base, d = _temp_base(key)
+        return port_for(root, d, base)
     d = load()
     if key not in d['repos']:
         base = add(root)

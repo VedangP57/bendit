@@ -18,6 +18,9 @@ trap cleanup EXIT
 # not a test. XDG_CONFIG_HOME is pointed away too, so a regression that ignores
 # BENDIT_CONFIG_DIR lands in the temp dir, where the check below sees it.
 export BENDIT_CONFIG_DIR="$T/cfg" XDG_CONFIG_HOME="$T/xdg"
+# The fixtures live in a temp folder, which ports.py never registers unless
+# told to (ports.test.sh covers that); these cases read what was registered.
+export BENDIT_PORTS_REGISTER_TEMP=1
 chk() { if [ "$2" = "$3" ]; then printf '  ok    %s\n' "$1"; pass=$((pass+1));
         else printf '  FAIL  %s (got [%s], wanted [%s])\n' "$1" "$2" "$3"; fail=$((fail+1)); fi; }
 has() { case "$3" in *"$2"*) chk "$1" y y;; *) chk "$1 (missing '$2' in: $3)" n y;; esac; }

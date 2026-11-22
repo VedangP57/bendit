@@ -613,11 +613,15 @@ if [ -z "$FORCE" ]; then
 fi
 
 # --- port: allocated from the machine-wide registry, never guessed ----------
-# Only an app needs one. `ports.py add` is idempotent: re-scaffolding never
-# moves a repo's port.
+# Only an app needs one. `ports.py ensure` is what verify.sh asks, so the
+# harness's default is the port verify.sh will pass for THIS checkout: the
+# block base for a main checkout, its own assigned port for a worktree (once
+# `add`, which answers the base, gave a worktree's harness the main checkout's
+# port). Idempotent: re-scaffolding never moves a checkout's port. A repo
+# under the system temp folder gets a port without being registered.
 PORT=""
 if [ "$KIND" = web ]; then
-  PORT="$(python3 "$SCRIPTS/ports.py" add "$REPO")" || { echo "scaffold: could not allocate a port block for $REPO" >&2; exit 2; }
+  PORT="$(python3 "$SCRIPTS/ports.py" ensure "$REPO")" || { echo "scaffold: could not allocate a port for $REPO" >&2; exit 2; }
   case "$PORT" in ''|*[!0-9]*) echo "scaffold: registry returned a non-number: '$PORT'" >&2; exit 2 ;; esac
 fi
 
@@ -669,7 +673,7 @@ if [ "$KIND" = web ] && [ -z "$APP_KEPT" ]; then
 # external services to invalid placeholders so an accidental call fails loudly.
 #
 # PORT is NOT read from this file: it comes from the machine's port registry
-# (bendit's ports.py; this repo's default is $PORT), so two checkouts
+# (bendit's ports.py), which gives each checkout its own, so two checkouts
 # never fight over one port. Set PORT=... in the shell to run by hand elsewhere.
 #
 # App settings, for example:
@@ -718,7 +722,8 @@ if [ "$THEIRS" != "$MINE" ]; then
 fi
 cd "$REPO" || exit 1
 # EXPORTED: a dev server reads PORT from its environment. verify.sh passes the
-# registry's port for this checkout; the default is the main checkout's.
+# registry's port for whichever checkout runs it. The default is only for a
+# run by hand: the port of the checkout this harness was scaffolded in.
 export PORT="${PORT:-@@PORT@@}"
 SELF="verify-@@NAME@@"
 VERIFY_ENV="$REPO/.env.verify.local"
@@ -1106,7 +1111,7 @@ allowed-tools: Bash(\${CLAUDE_SKILL_DIR}/bin/verify-$NAME *)
 
 # verify-$NAME
 
-Empirical verification for \`$NAME\` ($FW, registry port **$PORT**). Evidence, not
+Empirical verification for \`$NAME\` ($FW; port **$PORT** in the checkout it was scaffolded in). Evidence, not
 assertion. The one-command path is \`/bendit:verify\`; the verbs below are for debugging.
 
 ## Launch and doctor
@@ -1114,7 +1119,7 @@ assertion. The one-command path is \`/bendit:verify\`; the verbs below are for d
 \`\`\`bash
 bin/verify-$NAME verify    # everything: up, doctor, every scenario, teardown
 bin/verify-$NAME kit       # which bendit copy \`verify\` uses
-bin/verify-$NAME up        # serves on \$PORT (default $PORT)
+bin/verify-$NAME up        # serves on \$PORT (by hand: default $PORT; verify.sh passes each checkout's own)
 bin/verify-$NAME doctor    # always before trusting a scenario
 \`\`\`
 
@@ -1305,7 +1310,7 @@ fi
 # --- report ------------------------------------------------------------------
 echo "scaffolded: $REPO"
 echo "  harness   : .claude/verify-harness${HARNESS_KEPT:+ (kept as it was: --keep-harness)}"
-[ "$KIND" = web ] && echo "  app       : .claude/skills/verify-$NAME/ (${APP_KEPT:+kept as it was: --keep-harness; }${APP_PARTIAL:+completed: missing pieces generated, existing files kept; }port $PORT)"
+[ "$KIND" = web ] && echo "  app       : .claude/skills/verify-$NAME/ (${APP_KEPT:+kept as it was: --keep-harness; }${APP_PARTIAL:+completed: missing pieces generated, existing files kept; }port $PORT for this checkout)"
 [ "$KIND" = web ] && echo "  overrides : .env.verify.example (commit it; .env.verify.local is optional and local)"
 report
 # A committed example that the repo's own .gitignore swallows (a bare `.env*`

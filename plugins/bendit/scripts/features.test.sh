@@ -18,6 +18,9 @@ has() { case "$3" in *"$2"*) chk "$1" y y;; *) chk "$1 (missing '$2' in: $3)" n 
 . "$SD/expect.sh"
 expect_init "$SD/features.expected"
 expect_scrub_dir "$T" '<tmp>'
+# The running version (plugin.json) changes every release; the snapshot must not.
+RUNNING=$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$SD/../.claude-plugin/plugin.json")
+expect_scrub "$RUNNING" '<running>'
 F="$SD/features.py"
 cap() { local l="$1"; shift; if [ -z "$PY_GIVEN" ]; then expect_capture "$l" "$PY" "$F" "$@"
         else EXPECT_STDOUT=$("$PY" "$F" "$@" 2>"$T/err"); EXPECT_CODE=$?; EXPECT_STDERR=$(cat "$T/err"); fi; }
@@ -327,6 +330,57 @@ bad "integrationBranch has .." '{"version":1,"features":{"primary-checkout-guard
 proj ibok '{"version":1,"features":{"primary-checkout-guard":{"on":false,"why":"x","integrationBranch":"release/2.x"}}}'
 cap "a valid integrationBranch with a slash" get "$T/ibok" primary-checkout-guard
 chk "release/2.x is accepted" "$EXPECT_CODE|$EXPECT_STDOUT" "0|off"
+
+echo; echo "A FILE WRITTEN BY A NEWER BENDIT"
+# A newer bendit adds features. A feature it wrote OFF changes nothing here, so
+# this bendit reads the file and says what it ignored. A feature written ON is
+# a guard someone chose: it must never silently not run, so that still refuses,
+# naming both versions and the update command.
+cap "version prints the running plugin version" version
+chk "version -> plugin.json's version, exit 0" "$EXPECT_CODE|$EXPECT_STDOUT" "0|$RUNNING"
+proj newer '{"version":1,"writtenBy":"9.0.0","features":{"ls-guard":{"on":true,"why":"x"},"teleport-guard":{"on":false,"why":"later"}}}'
+cap "get a known feature beside an unknown one that is off" get "$T/newer" ls-guard
+chk "unknown feature, off -> the read succeeds" "$EXPECT_CODE|$EXPECT_STDOUT" "0|on"
+has "  ...a note names it" "teleport-guard" "$EXPECT_STDERR"
+has "  ...and says it is ignored" "ignored" "$EXPECT_STDERR"
+cap "show a file with an unknown feature that is off" show "$T/newer"
+chk "show -> exit 0" "$EXPECT_CODE" "0"
+has "  ...the table still lists ls-guard on" "ls-guard               | on" "$EXPECT_STDOUT"
+has "  ...a note names the ignored feature" "teleport-guard" "$EXPECT_STDOUT"
+cap "set beside an unknown feature that is off" set "$T/newer" ls-guard off "now off"
+chk "set -> exit 0" "$EXPECT_CODE" "0"
+got=$("$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["features"].get("teleport-guard"), d.get("writtenBy"))' "$T/newer/.claude/bendit.json" 2>&1)
+chk "  ...the newer feature is kept, writtenBy is now this bendit" "$got" "{'on': False, 'why': 'later'} $RUNNING"
+proj newer '{"version":1,"writtenBy":"9.0.0","features":{"teleport-guard":{"on":true,"why":"chosen"}}}'
+cap "get beside an unknown feature that is ON" get "$T/newer" ls-guard
+chk "unknown feature, on -> exit 2" "$EXPECT_CODE" "2"
+has "  ...names the feature" "teleport-guard" "$EXPECT_STDERR"
+has "  ...names the running version" "$RUNNING" "$EXPECT_STDERR"
+has "  ...names writtenBy" "9.0.0" "$EXPECT_STDERR"
+has "  ...gives the update command" "claude plugin update bendit@bendit --scope project" "$EXPECT_STDERR"
+has "  ...names the file" "$T/newer/.claude/bendit.json" "$EXPECT_STDERR"
+chk "  ...nothing on stdout" "$EXPECT_STDOUT" ""
+proj newer '{"version":1,"features":{"teleport-guard":{"on":true,"why":"chosen"}}}'
+cap "unknown feature ON, no writtenBy" get "$T/newer" ls-guard
+chk "unknown feature on, no writtenBy -> exit 2" "$EXPECT_CODE" "2"
+has "  ...still gives the update command" "claude plugin update bendit@bendit --scope project" "$EXPECT_STDERR"
+proj newer
+cap "set records writtenBy" set "$T/newer" ls-guard on "x"
+chk "set writes writtenBy = the running version" "$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1])).get("writtenBy"))' "$T/newer/.claude/bendit.json")" "$RUNNING"
+proj newer '{"version":1,"features":{"ls-guard":{"on":true,"why":"x"}}}'
+cap "a file with no writtenBy (written before 0.5.1)" get "$T/newer" ls-guard
+chk "no writtenBy -> still read" "$EXPECT_CODE|$EXPECT_STDOUT|$EXPECT_STDERR" "0|on|"
+proj newer '{"version":1,"features":{"a\nBLOCKED":{"on":false,"why":"x"}}}'
+cap "an ignored name holding a newline" show "$T/newer"
+chk "  ...is printed as one line, quoted" "$(printf '%s\n' "$EXPECT_STDOUT" | tail -1)" "note: ignored feature 'a\\nBLOCKED' (off; this bendit $RUNNING does not know it; .claude/bendit.json written by bendit an unrecorded version)"
+# Tolerance is for a feature that is clearly off, nothing else.
+bad "an unknown feature with no on" '{"version":1,"features":{"teleport-guard":{"why":"x"}}}' "teleport-guard"
+bad "an unknown feature whose on is not a bool" '{"version":1,"features":{"teleport-guard":{"on":0,"why":"x"}}}' "teleport-guard"
+bad "an unknown feature that is not an object" '{"version":1,"features":{"teleport-guard":false}}' "teleport-guard"
+bad "writtenBy is a number" '{"version":1,"writtenBy":5,"features":{}}' "writtenBy"
+bad "writtenBy is empty" '{"version":1,"writtenBy":"","features":{}}' "writtenBy"
+bad "writtenBy has a newline" '{"version":1,"writtenBy":"1.0\nx","features":{}}' "writtenBy"
+bad "still invalid JSON" '{"version":1,"writtenBy":"9.0.0",' "not valid JSON"
 
 if [ -z "$PY_GIVEN" ]; then
   echo; echo "WHAT IT SAYS (snapshot)"

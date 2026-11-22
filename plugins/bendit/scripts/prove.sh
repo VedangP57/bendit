@@ -538,9 +538,11 @@ FEATURE_CHECKS = {
     'primary-checkout-guard': _check_primary_checkout_guard,
 }
 label = 'features: .claude/bendit.json readable'
+feature_note = ''
 try:
     feats = F.load(repo)
     row(label, 'PASS')
+    feature_note = F.ignored_note(feats)
 except F.FeaturesError as e:
     feats = None
     row(label, 'FAIL', str(e))
@@ -582,6 +584,10 @@ if unused:
     for check, _s, _r, detail in unused:
         print(f'  {check}')
         print(f'    UNUSED  {detail}')
+    print()
+if feature_note:  # a newer bendit's feature, off: read past, said here
+    print('notes (not failures):')
+    print(f'  {feature_note}')
     print()
 if notices:
     print('notices (not failures):')

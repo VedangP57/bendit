@@ -52,7 +52,7 @@ primary-checkout-guard | off    | (not set)
 === unknown feature
 exit 2
 --- stderr
-features: <tmp>/bad/.claude/bendit.json: unknown feature 'lsguard' (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard)
+features: <tmp>/bad/.claude/bendit.json: unknown feature 'lsguard' is not off, and this bendit (<running>) cannot run it. The file was written by bendit (version not recorded). If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).
 
 === on is not a bool
 exit 2
@@ -192,7 +192,7 @@ features: <tmp>/bad/.claude/bendit.json: feature 'ls-guard': unknown key 'colour
 === extra top-level key
 exit 2
 --- stderr
-features: <tmp>/bad/.claude/bendit.json: unknown top-level key 'extra' (only "version" and "features")
+features: <tmp>/bad/.claude/bendit.json: unknown top-level key 'extra' (only "version", "features" and "writtenBy")
 
 === top level is a list
 exit 2
@@ -222,7 +222,7 @@ features: <tmp>/bad/.claude/bendit.json: top level must be an object
 === set on a file with an extra top-level key
 exit 2
 --- stderr
-features: <tmp>/bad/.claude/bendit.json: unknown top-level key 'extra' (only "version" and "features")
+features: <tmp>/bad/.claude/bendit.json: unknown top-level key 'extra' (only "version", "features" and "writtenBy")
 
 === set unknown feature
 exit 2
@@ -242,17 +242,17 @@ features: <tmp>/none/.claude/bendit.json: feature 'ls-guard': "why" must be a no
 === set with a bad on|off token
 exit 2
 --- stderr
-usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <root> | integration-branch <root> <branch>
+usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <root> | integration-branch <root> <branch> | version
 
 === no arguments
 exit 2
 --- stderr
-usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <root> | integration-branch <root> <branch>
+usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <root> | integration-branch <root> <branch> | version
 
 === show on a malformed file
 exit 2
 --- stderr
-features: <tmp>/bad/.claude/bendit.json: unknown feature 'lsguard' (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard)
+features: <tmp>/bad/.claude/bendit.json: unknown feature 'lsguard' is not off, and this bendit (<running>) cannot run it. The file was written by bendit (version not recorded). If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).
 
 === every brief key, each at an edge of its type
 exit 0
@@ -326,4 +326,96 @@ features: <tmp>/bad/.claude/bendit.json: feature 'primary-checkout-guard': 'inte
 exit 0
 --- stdout
 off
+
+=== version prints the running plugin version
+exit 0
+--- stdout
+<running>
+
+=== get a known feature beside an unknown one that is off
+exit 0
+--- stderr
+features: note: ignored feature teleport-guard (off; this bendit <running> does not know it; .claude/bendit.json written by bendit 9.0.0)
+--- stdout
+on
+
+=== show a file with an unknown feature that is off
+exit 0
+--- stdout
+feature                | on/off | why
+browser-driver         | off    | (not set)
+ux-design-laws         | off    | (not set)
+session-brief          | off    | (not set)
+ls-guard               | on     | x
+primary-checkout-guard | off    | (not set)
+note: ignored feature teleport-guard (off; this bendit <running> does not know it; .claude/bendit.json written by bendit 9.0.0)
+
+=== set beside an unknown feature that is off
+exit 0
+(silent)
+
+=== get beside an unknown feature that is ON
+exit 2
+--- stderr
+features: <tmp>/newer/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it. The file was written by bendit 9.0.0. If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).
+
+=== unknown feature ON, no writtenBy
+exit 2
+--- stderr
+features: <tmp>/newer/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it. The file was written by bendit (version not recorded). If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).
+
+=== set records writtenBy
+exit 0
+(silent)
+
+=== a file with no writtenBy (written before 0.5.1)
+exit 0
+--- stdout
+on
+
+=== an ignored name holding a newline
+exit 0
+--- stdout
+feature                | on/off | why
+browser-driver         | off    | (not set)
+ux-design-laws         | off    | (not set)
+session-brief          | off    | (not set)
+ls-guard               | off    | (not set)
+primary-checkout-guard | off    | (not set)
+note: ignored feature 'a\nBLOCKED' (off; this bendit <running> does not know it; .claude/bendit.json written by bendit an unrecorded version)
+
+=== an unknown feature with no on
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it. The file was written by bendit (version not recorded). If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).
+
+=== an unknown feature whose on is not a bool
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it. The file was written by bendit (version not recorded). If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).
+
+=== an unknown feature that is not an object
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it. The file was written by bendit (version not recorded). If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).
+
+=== writtenBy is a number
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: "writtenBy" must be a bendit version, got 5
+
+=== writtenBy is empty
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: "writtenBy" must be a bendit version, got ''
+
+=== writtenBy has a newline
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: "writtenBy" must be a bendit version, got '1.0\nx'
+
+=== still invalid JSON
+exit 2
+--- stderr
+features: <tmp>/bad/.claude/bendit.json: not valid JSON: Expecting property name enclosed in double quotes: line 1 column 34 (char 33)
 

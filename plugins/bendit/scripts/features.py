@@ -17,6 +17,14 @@ beats .env), and probe_env_vars must name variables whose values are URLs.
 primary-checkout-guard may carry "integrationBranch" (a branch name, see
 _branch_name): the branch its guard protects when origin/HEAD cannot say.
 
+"writtenBy" (optional, top level) is the version of the bendit whose `set`
+last wrote the file. A file from a NEWER bendit may name features this one
+does not know. One that is "on": false changes nothing here, so it is kept
+as written (a later `set` preserves it) and reported by ignored() /
+ignored_note(). One that is on, or whose "on" is not plainly false, is a
+guard someone chose that this bendit cannot run: load() refuses, naming both
+versions and UPDATE_COMMAND. It must never silently not run.
+
 A malformed file is never read as "everything off": load() raises
 FeaturesError naming the file, and every caller must refuse (fail closed).
 Absent is different: it means the project never chose, and is_on() is False.
@@ -30,6 +38,7 @@ CLI:
   features.py integration-branch <root> <branch>
                                               records primary-checkout-guard's
                                               integrationBranch (set the feature first)
+  features.py version                         prints the running bendit version
 """
 import json
 import os
@@ -38,6 +47,9 @@ import tempfile
 
 FEATURES = ('browser-driver', 'ux-design-laws', 'session-brief', 'ls-guard', 'primary-checkout-guard')
 VERSION = 1
+UPDATE_COMMAND = 'claude plugin update bendit@bendit --scope project'
+# ../.claude-plugin/plugin.json, relative to this file: the running bendit.
+_PLUGIN_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.claude-plugin', 'plugin.json')
 # The one extra object a feature may carry, keyed by what it is called.
 _CONFIG_KEY = {'session-brief': 'brief'}
 
@@ -86,12 +98,58 @@ def path(root):
     return os.path.join(root, '.claude', 'bendit.json')
 
 
+def _version_str(v):
+    """A version as plugin.json writes one: short, one line, no spaces."""
+    return (isinstance(v, str) and 0 < len(v) <= 64
+            and all(c.isalnum() or c in '.+-_' for c in v))
+
+
+def plugin_version():
+    """The running bendit's version, from ../.claude-plugin/plugin.json."""
+    try:
+        with open(_PLUGIN_JSON, encoding='utf-8') as f:
+            v = json.load(f).get('version')
+    except (OSError, ValueError, AttributeError) as e:
+        raise FeaturesError('%s: cannot read the running version: %s' % (_PLUGIN_JSON, e))
+    if not _version_str(v):
+        raise FeaturesError('%s: "version" is not a version: %r' % (_PLUGIN_JSON, v))
+    return v
+
+
+def _running_version():
+    try:
+        return plugin_version()
+    except FeaturesError:
+        return 'unknown'
+
+
+def ignored(data):
+    """The features in a loaded file that this bendit does not know (each is
+    off, or load() would have refused), sorted."""
+    return sorted(n for n in ((data or {}).get('features') or {}) if n not in FEATURES)
+
+
+def ignored_note(data):
+    """One line naming what ignored() found, or '' when it found nothing."""
+    names = ignored(data)
+    if not names:
+        return ''
+    return ('note: ignored %s %s (off; this bendit %s does not know %s; .claude/bendit.json written by bendit %s)'
+            % ('feature' if len(names) == 1 else 'features',
+               ', '.join(n if n.isprintable() else repr(n) for n in names), _running_version(),
+               'it' if len(names) == 1 else 'them', data.get('writtenBy') or 'an unrecorded version'))
+
+
 def _validate(data, where):
     if not isinstance(data, dict):
         raise FeaturesError('%s: top level must be an object' % where)
     for k in data:
-        if k not in ('version', 'features'):
-            raise FeaturesError('%s: unknown top-level key %r (only "version" and "features")' % (where, k))
+        if k not in ('version', 'features', 'writtenBy'):
+            raise FeaturesError('%s: unknown top-level key %r (only "version", "features" and "writtenBy")' % (where, k))
+    if 'writtenBy' in data and not _version_str(data['writtenBy']):
+        got = repr(data['writtenBy'])
+        raise FeaturesError('%s: "writtenBy" must be a bendit version, got %s'
+                            % (where, got if len(got) <= 80 else got[:77] + '...'))
     if type(data.get('version')) is not int or data.get('version') != VERSION:
         raise FeaturesError('%s: "version" must be %d, got %r' % (where, VERSION, data.get('version')))
     feats = data.get('features')
@@ -99,7 +157,16 @@ def _validate(data, where):
         raise FeaturesError('%s: "features" must be an object' % where)
     for name, entry in feats.items():
         if name not in FEATURES:
-            raise FeaturesError('%s: unknown feature %r (known: %s)' % (where, name, ', '.join(FEATURES)))
+            # A newer bendit's feature. Off: nothing to run, keep it as
+            # written. Anything else: a chosen guard this bendit cannot run.
+            if isinstance(entry, dict) and entry.get('on') is False:
+                continue
+            raise FeaturesError(
+                '%s: unknown feature %r is not off, and this bendit (%s) cannot run it. The file was '
+                'written by bendit %s. If a newer bendit added it, update bendit in this project: %s. '
+                'If not, the name is wrong (known: %s).'
+                % (where, name, _running_version(), data.get('writtenBy') or '(version not recorded)',
+                   UPDATE_COMMAND, ', '.join(FEATURES)))
         if not isinstance(entry, dict):
             raise FeaturesError('%s: feature %r must be an object' % (where, name))
         if not isinstance(entry.get('on'), bool):
@@ -178,10 +245,21 @@ def is_on(root, name):
     return bool(entry and entry['on'])
 
 
-def write(root, features):
-    """Atomically write {"version": 1, "features": features}; the old file survives a failure."""
+def write(root, features, written_by=None):
+    """Atomically write {"version": 1, "writtenBy": ..., "features": features};
+    the old file survives a failure. written_by defaults to the running
+    version, left out when plugin.json cannot say (a probe in a bare copy of
+    scripts/); `set` passes it explicitly, so it always records one."""
     p = path(root)
-    data = _validate({'version': VERSION, 'features': features}, p)
+    if written_by is None:
+        try:
+            written_by = plugin_version()
+        except FeaturesError:
+            written_by = None
+    data = {'version': VERSION, 'features': features}
+    if written_by is not None:
+        data['writtenBy'] = written_by
+    data = _validate(data, p)
     try:
         text = json.dumps(data, indent=2, sort_keys=True) + '\n'
     except (TypeError, ValueError, RecursionError) as e:
@@ -233,11 +311,18 @@ def project_root(payload):
 
 def _main(argv):
     usage = ('usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <root>'
-             ' | integration-branch <root> <branch>')
+             ' | integration-branch <root> <branch> | version')
     try:
         cmd = argv[1] if len(argv) > 1 else ''
         if cmd == 'get' and len(argv) == 4:
+            if argv[3] not in FEATURES:
+                raise FeaturesError('unknown feature %r (known: %s)' % (argv[3], ', '.join(FEATURES)))
+            note = ignored_note(load(argv[2]))
             print('on' if is_on(argv[2], argv[3]) else 'off')
+            if note:
+                print('features: %s' % note, file=sys.stderr)
+        elif cmd == 'version' and len(argv) == 2:
+            print(plugin_version())
         elif cmd == 'set' and len(argv) == 6 and argv[4] in ('on', 'off'):
             root, name, state, why = argv[2], argv[3], argv[4], argv[5]
             if name not in FEATURES:
@@ -248,7 +333,7 @@ def _main(argv):
             entry['on'] = state == 'on'
             entry['why'] = why
             feats[name] = entry
-            write(root, feats)
+            write(root, feats, plugin_version())
         elif cmd == 'integration-branch' and len(argv) == 4:
             root, branch = argv[2], argv[3]
             feats = (load(root) or {'features': {}})['features']
@@ -261,7 +346,8 @@ def _main(argv):
             feats['primary-checkout-guard'] = entry
             write(root, feats)
         elif cmd == 'show' and len(argv) == 3:
-            feats = (load(argv[2]) or {'features': {}})['features']
+            data = load(argv[2]) or {'features': {}}
+            feats = data['features']
             rows = [('feature', 'on/off', 'why')]
             for n in FEATURES:
                 e = feats.get(n)
@@ -270,6 +356,9 @@ def _main(argv):
             w1 = max(len(r[1]) for r in rows)
             for r in rows:
                 print('%-*s | %-*s | %s' % (w0, r[0], w1, r[1], r[2]))
+            note = ignored_note(data)
+            if note:
+                print(note)
         else:
             print(usage, file=sys.stderr)
             return 2

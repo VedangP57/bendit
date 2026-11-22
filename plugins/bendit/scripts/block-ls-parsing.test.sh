@@ -105,6 +105,16 @@ chk "  ...a bare ls still runs"                        "$(run 'ls -la' "$T/bad")
 expect_capture "blocked: malformed bendit.json" python3 "$H" <<< "$(pl 'ls | wc -l' "$T/bad")"
 printf '{"version": 1, "features": {"ls-guard": {"on": true, "why": "x"}, "ls-guard": {"on": false, "why": "y"}}}' > "$T/bad/.claude/bendit.json"
 chk "a duplicate key refuses (fail closed)"            "$(run 'ls | wc -l' "$T/bad")" "2"
+# A file from a newer bendit: its unknown feature written OFF is read past (the
+# guard still gates on ls-guard); one written ON refuses, like any malformed file.
+mkdir -p "$T/newer/.claude"
+printf '{"version":1,"writtenBy":"9.0.0","features":{"ls-guard":{"on":true,"why":"x"},"teleport-guard":{"on":false,"why":"later"}}}' > "$T/newer/.claude/bendit.json"
+chk "newer bendit.json, unknown feature off: ls-guard still refuses" "$(run 'ls | wc -l' "$T/newer")" "2"
+chk "  ...and a plain command runs"                    "$(run 'echo hi' "$T/newer")" "0"
+printf '{"version":1,"writtenBy":"9.0.0","features":{"ls-guard":{"on":false,"why":"x"},"teleport-guard":{"on":false,"why":"later"}}}' > "$T/newer/.claude/bendit.json"
+chk "newer bendit.json, unknown feature off, ls-guard off: allows" "$(run 'ls | wc -l' "$T/newer")" "0"
+printf '{"version":1,"writtenBy":"9.0.0","features":{"ls-guard":{"on":false,"why":"x"},"teleport-guard":{"on":true,"why":"chosen"}}}' > "$T/newer/.claude/bendit.json"
+chk "newer bendit.json, unknown feature ON: refuses (fail closed)" "$(run 'ls | wc -l' "$T/newer")" "2"
 # An import failure is inside the crash net: exit 2, never exit 1 (fail open).
 mkdir -p "$T/broken"; cp "$H" "$SD/shell_text.py" "$T/broken/"
 printf 'raise RuntimeError("broken features module")\n' > "$T/broken/features.py"

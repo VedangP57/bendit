@@ -26,6 +26,8 @@ has() { case "$3" in *"$2"*) chk "$1" y y;; *) chk "$1 (missing '$2' in: $3)" n 
 expect_init "$SD/prove.expected"
 expect_scrub_dir "$T" '<tmp>'
 expect_scrub "$KIT" '<kit>'
+# The running version changes every release; the snapshot must not.
+expect_scrub "$(python3 "$SD/features.py" version)" '<running>'
 
 # repo <dir> <harness-body or ""> [unapproved] -- a committed scratch project.
 # BENDIT_JSON, if set, is the body of its .claude/bendit.json.
@@ -251,6 +253,20 @@ PV="$T/priv-verify"; repo "$PV" 'exit 0'; plantskill "$PV" verify-x
 expect_capture "finding in the generated verify-x skill" bash "$SD/prove.sh" "$PV"
 chk "a finding in .claude/skills/verify-x fails prove (exit 1)" "$EXPECT_CODE" "1"
 chk "  ...on the privacy row" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^privacy: .*\| FAIL ')" "1"
+
+# A file from a newer bendit: its feature written OFF is read past with a note;
+# one written ON fails the readable row (a chosen guard must never silently not run).
+BENDIT_JSON='{"version":1,"writtenBy":"9.0.0","features":{"ls-guard":{"on":false,"why":"plain ls"},"teleport-guard":{"on":false,"why":"later"}}}'
+FN="$T/feat-newer"; repo "$FN" 'exit 0'
+expect_capture "bendit.json from a newer bendit, unknown feature off" bash "$SD/prove.sh" "$FN"
+chk "an unknown feature that is off: prove exits 0" "$EXPECT_CODE" "0"
+chk "  ...the readable row PASSES" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^features: \.claude/bendit\.json readable +\| PASS ')" "1"
+has "  ...with a note naming the feature" "note: ignored feature teleport-guard" "$EXPECT_STDOUT"
+BENDIT_JSON='{"version":1,"writtenBy":"9.0.0","features":{"teleport-guard":{"on":true,"why":"chosen"}}}'
+FO="$T/feat-newer-on"; repo "$FO" 'exit 0'
+expect_capture "bendit.json from a newer bendit, unknown feature ON" bash "$SD/prove.sh" "$FO"
+chk "an unknown feature that is ON: prove fails" "$EXPECT_CODE" "1"
+has "  ...giving the update command" "claude plugin update bendit@bendit --scope project" "$EXPECT_STDOUT"
 
 BENDIT_JSON='{"version":1,'
 F3="$T/feat-bad"; repo "$F3" 'exit 0'

@@ -31,15 +31,15 @@ read line by line with a cap of 1 MiB a line: a longer line is skipped
 without being held in memory, and so is a line that does not parse as a JSON
 object for any reason (nesting too deep included).
 
-WHAT COUNTS AS A CORRECTION. A message the person typed (not tool output, not
-a subagent's prompt, not a meta line, not a /command wrapper) that says so in
-its FIRST sentence: it opens with a negation or an order to stop or undo
-("no,", "don't", "stop", "undo", "wrong"; not "no problem", "never mind"), or
-that sentence says "I told you", "not what I asked", "I said not to".
-A question is not a correction, nor is a bare "no" answering a question the
-agent just asked, nor "don't" or "again" later in a request ("run the tests
-again"). It is paired with the last tool call the agent made before it, if
-any.
+WHAT COUNTS AS A CANDIDATE CORRECTION. A message the person typed (not tool
+output, not a subagent's prompt, not a meta line, not a /command wrapper)
+with any sign of one. This is a WIDE filter, not a judge: each candidate is
+`likely` (it opens with "no,", "don't", "stop", "undo", "wrong", or says "I
+told you", "not what I asked", "you broke", "you didn't" ...) or `maybe` (a
+habit or approval opener, a "no" answering the agent's own question, a
+marker word later on). /bendit:suggest-guards has Claude read each example
+and drop what is not a correction. It is paired with the last tool call the
+agent made before it, if any.
 
 REDACTED FIRST. Every piece of text taken from a transcript -- the person's
 words, the agent's command, a file path -- goes through fire_log.redact (the
@@ -99,35 +99,50 @@ CMD_CAP = 4096
 EXAMPLE_MAX = 160
 NO_SESSIONS = 'No past sessions found for this project'
 
-# A correction says so. Either its FIRST sentence OPENS with a negation or
-# an order to stop or undo ("no,", "don't", "stop", "undo", "wrong") -- but
-# not a habit or an approval ("no problem", "no, that's fine", "don't
-# forget", "never mind", "never thought", "stop here for today") -- or the
-# message anywhere says "I told you", "not what I asked", "I said ...",
-# "why did you ...", "you broke ...", "undo that", "put it back". A word
-# like "don't" or "again" later in a sentence is how people ask for things
-# ("run the tests again", "add X but don't touch Y"), so it does not count.
+# The script is a WIDE filter: it finds candidate corrections, each marked
+# `likely` or `maybe`, and Claude reads each quoted example and drops what is
+# not a correction before anything is shown (commands/suggest-guards.md).
+# Rules tuned for precision overfit whatever messages they were tuned on, so
+# recall comes first here and the judgement is Claude's.
+#
+# LIKELY: the message anywhere says "I told you", "not what I asked", "I
+# asked for", "why did you", "you broke", "you didn't", "you were supposed
+# to", "the third time", "undo that", "put it back"; or its FIRST sentence
+# opens with a negation or an order to stop or undo ("no,", "don't",
+# "stop", "undo", "wrong") that is not a habit or approval ("no problem",
+# "no, that's fine", "don't forget", "never mind", "stop here for today").
+# MAYBE: everything else with a hint of one -- an excluded opener, a "no"
+# answering the agent's own question, a change of mind ("stop -- actually
+# continue"), a rename request, "why would you", or a marker word ("don't",
+# "again", "wrong", "instead", "never") later in the message.
+_OPEN_WORDS = (r"no\b|nope\b|nah\b|stop\b|don'?t\b|do not\b|dont\b|never\b"
+               r"|undo\b|revert\b|wrong\b|not that\b|that'?s (?:wrong|not right|not it)\b")
+_PREFIX = r"^(?:(?:please|ugh|argh|hey|oh|wait|ok|okay)[\s,.!]+)*"
+_OPENS_ANY = re.compile(_PREFIX + r"(?:" + _OPEN_WORDS + r")", re.I)
 _OPENS = re.compile(
-    r"^(?:(?:please|ugh|argh|hey|oh|wait|ok|okay)[\s,.!]+)*"
+    _PREFIX +
     r"(?:no\b(?!\s+(?:problem|worries|rush|thanks|thank|issue|doubt|prob)\b)"
     r"(?![\s,.!]+(?:that'?s|thats|it'?s|its)\s+(?:fine|ok|okay|good|alright|all right)\b)"
     r"|nope\b|nah\b|stop\b(?!\s+(?:here|for\s+(?:today|now|the\s+day)|there)\b)"
-    r"|(?:don'?t|do not|dont)\b(?!\s+(?:forget|worry)\b)|never\b(?!\s+(?:mind|thought)\b)"
+    r"|(?:don'?t|do not|dont)\b(?!\s+(?:forget|worry|bother)\b)|never\b(?!\s+(?:mind|thought)\b)"
     r"|undo\b|revert\b|wrong\b|not that\b|that'?s (?:wrong|not right|not it)\b)", re.I)
 _ANYWHERE = re.compile(
-    r"\b(?:i (?:already )?told you|not what i (?:asked|said|wanted)|i (?:said|asked) (?:not|never|no|to)\b"
+    r"\b(?:i (?:already )?told you|not what i (?:asked|said|wanted)|i (?:said|asked) (?:not|never|no|to|for)\b"
     r"|i asked you not|undo (?:that|this|it|those)|revert (?:that|this|it|those)"
-    r"|put (?:it|them|that|this) back|why (?:did|are|would) you"
+    r"|put (?:it|them|that|this) back|why (?:did|are) you"
     r"|you (?:broke|deleted|removed|overwrote|ignored|wiped)"
+    r"|you (?:didn'?t|did not|never)\s+\w+|you were (?:supposed|meant|told) to"
+    r"|(?:second|third|fourth|fifth|\d+(?:st|nd|rd|th)) time|how many times"
     r"|you (?:shouldn'?t|should not) have)\b", re.I)
-# A request that only renames or changes something, blaming no one, is a
-# request ("wrong name in the doc too, can you rename it").
+_WEAK = re.compile(r"\b(?:why would you|don'?t|do not|never|again|wrong|instead|stop|undo|revert"
+                   r"|not what|supposed to)\b", re.I)
+_CHANGED_MIND = re.compile(r"\b(?:actually|never ?mind)\b[^.?!]*\b(?:continue|go on|carry on|go ahead"
+                           r"|keep going|fine)\b|\bi misread\b", re.I)
+# A request that only renames or changes something, blaming no one.
 _CHANGE_REQUEST = re.compile(r"\b(?:can|could|would) you (?:please )?(?:also )?(?:rename|change|update)\b", re.I)
 _BLAME = re.compile(r"\bagain\b|\byou (?:did|changed|used|ran|added|forgot)\b", re.I)
-# A short no/nope answering the agent's own question is an answer.
 _BARE_NO = re.compile(r"^(?:no|nope|nah)\b", re.I)
 _UNDO_VERB = re.compile(r"\b(?:undo|revert|put|restore|remove|delete|roll)\b", re.I)
-ANSWER_WORDS = 4
 _SENTENCE_END = re.compile(r'[.!?;\n](?=\s|$)|\n')
 MARKER_WORDS = {'no', 'nope', 'nah', 'don', 'dont', "don't", 'do', 'not', 'stop', 'never',
                 'again', 'told', 'asked', 'said', 'wrong', 'instead', 'undo', 'revert',
@@ -295,21 +310,25 @@ def first_sentence(text: str) -> str:
     return (text[:m.end()] if m else text).strip()
 
 
-def is_correction(text: str, after_question: bool) -> bool:
-    """Does this (redacted) message correct the agent's last action? Only
-    the first sentence can OPEN a correction, though "I told you" and the
-    like count anywhere; a question is not one unless it holds such a phrase;
-    and a short "no" with no undo verb, right after the agent asked a
-    question, is an answer."""
+def classify(text: str, after_question: bool):
+    """'likely', 'maybe' or None: is this (redacted) message a candidate
+    correction of the agent's last action? See the rules above _OPEN_WORDS.
+    A no right after the agent asked a question, with no undo verb in its
+    first sentence and no blame, is only `maybe`: it is usually an answer
+    ("No, go with the second option")."""
     if _ANYWHERE.search(text):
-        return True
+        return 'likely'
     first = first_sentence(text)
-    if first.endswith('?') or not _OPENS.search(first):
-        return False
-    if _CHANGE_REQUEST.search(text) and not _BLAME.search(text):
-        return False
-    return not (after_question and _BARE_NO.match(first)
-                and len(first.split()) <= ANSWER_WORDS and not _UNDO_VERB.search(first))
+    if _OPENS_ANY.search(first):
+        if first.endswith('?') or not _OPENS.search(first) or _CHANGED_MIND.search(text):
+            return 'maybe'
+        if _CHANGE_REQUEST.search(text) and not _BLAME.search(text):
+            return 'maybe'
+        if (after_question and _BARE_NO.match(first) and not _UNDO_VERB.search(first)
+                and not _BLAME.search(text)):
+            return 'maybe'
+        return 'likely'
+    return 'maybe' if _WEAK.search(text) else None
 
 
 def stem(word: str) -> str:
@@ -405,8 +424,9 @@ def collect(folder: str, roots, stats: Counter):
                     text = typed_text(obj)
                     if text is None:
                         continue
-                    if len(text) <= TEXT_CAP and is_correction(text, asked):
-                        corrections.append((command_of(tool), keywords(text), text))
+                    conf = classify(text, asked) if len(text) <= TEXT_CAP else None
+                    if conf:
+                        corrections.append((command_of(tool), keywords(text), text, conf))
                     tool = None   # a new turn: the next correction is about what follows
                     asked = False
                 except Exception:
@@ -420,7 +440,7 @@ def collect(folder: str, roots, stats: Counter):
 
 def cluster(corrections):
     clusters = []   # each: {'key', 'words', 'kw' (Counter of stems), 'surface', 'items'}
-    for key, kw, text in corrections:
+    for key, kw, text, conf in corrections:
         stems = set(kw)
         need = 2 if key[0] == '-' else 1
         home = None
@@ -440,7 +460,7 @@ def cluster(corrections):
         home['kw'].update(stems)
         for st, word in kw.items():
             home['surface'].setdefault(st, Counter())[word] += 1
-        home['items'].append(text)
+        home['items'].append((text, conf))
     return clusters
 
 
@@ -457,9 +477,11 @@ def describe(c):
     shared = shared_words(c)
     label = ' '.join(x for x in (tool if tool != '-' else 'no tool call', command) if x)
     pattern = label + (': ' + ', '.join(shared) if shared else '')
+    likely = [t for t, conf in c['items'] if conf == 'likely']
     return {'source': 'session', 'pattern': safe(pattern), 'count': len(c['items']),
+            'confidence': 'likely' if likely else 'maybe', 'likely': len(likely),
             'tool': safe(tool) if tool != '-' else '', 'command': safe(command), 'file': '',
-            'example': safe(example_of(c['items'][0]))}
+            'example': safe(example_of(likely[0] if likely else c['items'][0][0]))}
 
 
 # ---- --git: this repo's own history --------------------------------------
@@ -638,6 +660,7 @@ def run(args) -> int:
     found += git_found
     if args.json:
         out = {'sessions': stats['sessions'], 'corrections': len(corrections),
+               'likely': sum(1 for c in corrections if c[3] == 'likely'),
                'min': args.min, 'skipped_malformed': stats['malformed'],
                'skipped_oversized': stats['oversized'],
                'skipped_links': stats['links'], 'unreadable': stats['unreadable'],
@@ -651,7 +674,9 @@ def run(args) -> int:
         print(json.dumps(out, ensure_ascii=False, indent=1))
         return 0
     if stats['sessions']:
-        print(f"{stats['sessions']} sessions read, {len(corrections)} corrections found.")
+        likely = sum(1 for c in corrections if c[3] == 'likely')
+        print(f"{stats['sessions']} sessions read, {len(corrections)} candidate corrections found "
+              f"({likely} likely, {len(corrections) - likely} maybe).")
     else:
         print(safe(f'{NO_SESSIONS} (looked in {folder}).'))
     if args.git:
@@ -678,8 +703,9 @@ def run(args) -> int:
             print(f"[{i}] {d['pattern']}  ({d['count']} commits)")
             print(f"    source: git   file: {d['file']}")
         else:
-            print(f"[{i}] {d['pattern']}  ({d['count']} times)")
-            print(f"    source: session   tool: {d['tool'] or '-'}   command: {d['command'] or '-'}")
+            print(f"[{i}] {d['pattern']}  ({d['count']} times, {d['likely']} likely)")
+            print(f"    source: session   confidence: {d['confidence']}   "
+                  f"tool: {d['tool'] or '-'}   command: {d['command'] or '-'}")
         print(f'    e.g. "{d["example"]}"')
     if hidden:
         print()

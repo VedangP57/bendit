@@ -419,10 +419,13 @@ idea in poteto's brainmaxxing). Its script, `scripts/suggest-guards.py`,
 reads this project's Claude Code transcripts under `~/.claude/projects/`, and
 only lines whose `cwd` is this project, so a different project that maps to
 the same folder name is left out. It finds the messages where you corrected
-the agent's last action, said in its first sentence ("no,", "don't", "stop",
-"undo that", "I told you", "not what I asked"; a question, an answer to the
-agent's question, an approval or a new request is not one), pairs each with
-the tool call before it, and groups repeats. Labels are whole words. Each cluster has a count,
+the agent: a wide filter that marks each candidate `likely` ("no,", "don't",
+"stop", "undo that", "I told you", "you broke") or `maybe` (an answer to the
+agent's question, a habit such as "don't forget", a marker word later on),
+pairs each with the tool call before it, and groups repeats. Labels are whole
+words. The command then has Claude read every candidate's example and drop
+what is not a correction, saying how many it dropped and why; a cluster of
+only `maybe` candidates is never shown without Claude's confirmation. Each cluster has a count,
 the tool and command, and one example, with secrets redacted before anything
 else happens. A correction seen once is left out (`--min 2`). The command then
 proposes the cheapest layer for each cluster (delete, structure, guard or

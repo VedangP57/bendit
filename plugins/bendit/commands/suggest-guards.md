@@ -16,12 +16,21 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/suggest-guards.py" --min 2
 It reads this project's own Claude Code transcripts, and no other project's:
 it keeps only lines whose `cwd` is this project, even when another project
 shares the folder name.
-It finds the messages where the person corrected the agent's last action,
-said in the first sentence ("no,", "don't", "stop", "undo that", "I told
-you", "not what I asked"). Questions, answers, approvals and new requests are
-not corrections. It groups them by the tool and command they corrected. Each
-cluster shows a count, the tool and command, and one example with secrets
-redacted. The script is read-only.
+It finds CANDIDATE corrections: a wide filter, not a judge. Each is
+`likely` ("no,", "don't", "stop", "undo that", "I told you", "not what I
+asked", "you broke") or `maybe` (an answer to the agent's question, a habit
+such as "don't forget", a marker word later on). It groups them by the tool
+and command before them. Each cluster shows a count, how many are likely, its
+confidence, the tool and command, and one example with secrets redacted. The
+script is read-only.
+
+**You judge each candidate.** Before you show any table:
+read every candidate's quoted example and drop the ones that are not corrections of the agent
+(a question, an answer, an approval, a new request, a change of mind).
+Then say in one line how many you dropped and why.
+A cluster made only of `maybe` candidates is never shown without your confirmation:
+keep it only if its example plainly corrects the agent's action before it;
+otherwise drop it and count it in that line.
 
 With `--git` it also reads this repo's last 2,000 commits (one read-only
 `git log`): commits whose subject starts with fix or revert, and commits that

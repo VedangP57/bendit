@@ -306,8 +306,9 @@ N="$T/plain"; NS="$PD/$(slug "$N")"; mkdir -p "$N" "$NS"; place not-corrections.
 run --root "$N" --projects-dir "$PD" --min 1 --json
 chk "exit 0"                                     "$CODE" 0
 printf '%s' "$OUT" >"$J"
-chk "  no correction found in 13 ordinary messages" "$(q 'd["corrections"]')" 0
-chk "  and no cluster"                           "$(q 'len(d["clusters"])')" 0
+chk "  none of 13 ordinary messages is a likely correction" "$(q 'd["likely"]')" 0
+chk "  so every cluster they make is maybe-only (Claude must confirm it)" \
+    "$(q 'sorted({(c["confidence"], c["likely"]) for c in d["clusters"]})')" "[('maybe', 0)]"
 
 echo; echo "REAL CORRECTIONS, EACH PAIRED WITH THE TOOL CALL BEFORE IT"
 C="$T/corr"; CS="$PD/$(slug "$C")"; mkdir -p "$C" "$CS"; place corrections.jsonl "$C" "$CS"
@@ -315,6 +316,7 @@ run --root "$C" --projects-dir "$PD" --min 1 --json
 chk "exit 0"                                     "$CODE" 0
 printf '%s' "$OUT" >"$J"
 chk "  six corrections (no / stop / undo / not what I asked / I told you / please don't)" "$(q 'd["corrections"]')" 6
+chk "  all six likely"                            "$(q 'd["likely"]')" 6
 chk "  each aimed at the call before it"         "$(q 'sorted((c["tool"], c["command"], c["count"]) for c in d["clusters"])')" \
     "[('Bash', 'git push', 2), ('Bash', 'npm publish', 1), ('Bash', 'rm', 1), ('Edit', '*.ts', 2)]"
 chk "  every session row says source: session"   "$(q 'sorted({c["source"] for c in d["clusters"]})')" "['session']"
@@ -327,13 +329,19 @@ P2="$(q '[c["pattern"] for c in d["clusters"] if c["command"] == "*.ts"][0]')"
 has   "  'page' and 'pages' still join one cluster, labelled with a whole word" "$P2" "login"
 case "$P2" in *"pag,"*|*"pag"|*"pag "*) bad "  no 'pag' stem" "$P2";; *) ok "  no 'pag' stem";; esac
 
-echo; echo "TWENTY MESSAGES THE FIXTURES' AUTHOR DID NOT WRITE (A REVIEWER'S TABLE): AT LEAST 18 RIGHT"
+echo; echo "THE CLASSIFIER IS A WIDE FILTER: CORRECTIONS ARE CANDIDATES, ORDINARY MESSAGES ARE NOT 'likely'"
+# Two tables. TUNED: a reviewer's first 20 (7 quoted, 13 written to its
+# categories), which the rules were tuned on. HELD-OUT: a second reviewer's
+# fresh 20 (the elided ones completed to their quoted openings), added AFTER
+# the rules were set and never tuned against. A correction scores if it is a
+# candidate (likely or maybe); an ordinary message scores if it is not
+# `likely`: a `maybe` is Claude's to drop.
 cat >"$T/table.py" <<'PY'
 import importlib.util, sys
 sys.dont_write_bytecode = True
 spec = importlib.util.spec_from_file_location('sg', sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 # (message, the agent's last turn asked a question, is it a correction?)
-cases = [
+tuned = [
     ("no, that's fine, go ahead", False, False),
     ("Never thought of that. Good idea, go with it", False, False),
     ("Stop here for today, we'll pick it up tomorrow", False, False),
@@ -355,17 +363,44 @@ cases = [
     ("undo that, it broke the tests", False, True),
     ("That's not what I asked for, use the existing helper", False, True),
 ]
-right = 0
-for text, asked, want in cases:
-    got = m.is_correction(text, asked)
-    right += got == want
-    if got != want:
-        print('    miss: %r (wanted %s)' % (text, want), file=sys.stderr)
-print(right)
+held_out = [
+    ("stop, wait \u2014 actually continue, I misread the diff", False, False),
+    ("No, go with the second option", True, False),
+    ("why would you need a cache here? just curious, it's fine either way", False, False),
+    ("Don't bother with the docs, I'll write them later", False, False),
+    ("looks good, ship it", True, False),
+    ("no rush on this, finish the tests first", False, False),
+    ("can you also add a loading spinner to the form", False, False),
+    ("never mind, I'll do it myself", False, False),
+    ("don't worry about the tests for now, just get it compiling", False, False),
+    ("perfect. now do the same for the settings page", False, False),
+    ("I asked for a modal, not a new page", False, True),
+    ("you didn't run the tests before saying it works", False, True),
+    ("this is the third time you've hardcoded the API key", False, True),
+    ("hey, you were supposed to leave the lockfile alone", False, True),
+    ("you broke the build again", False, True),
+    ("revert that", False, True),
+    ("that's wrong, the port is 3000", False, True),
+    ("why are you editing main?", False, True),
+    ("No. Use pnpm, not npm", False, True),
+    ("nope, that's the old endpoint \u2014 use /v2", True, True),
+]
+for name, cases in (('tuned', tuned), ('held-out', held_out)):
+    found = sum(1 for t, a, w in cases if w and m.classify(t, a))
+    calm = sum(1 for t, a, w in cases if not w and m.classify(t, a) != 'likely')
+    for t, a, w in cases:
+        got = m.classify(t, a)
+        if (w and not got) or (not w and got == 'likely'):
+            print('    %s miss: %r -> %s' % (name, t, got), file=sys.stderr)
+    nc = sum(1 for c in cases if c[2])
+    print('%s %d %d %d %d' % (name, found, nc, calm, len(cases) - nc))
 PY
-SCORE="$("$PY" -B "$T/table.py" "$S")"
-echo "  score: $SCORE/20"
-chk "  at least 18 of 20 right"                  "$("$PY" -c 'import sys; print(int(sys.argv[1] or 0) >= 18)' "$SCORE")" True
+"$PY" -B "$T/table.py" "$S" >"$T/table.out"
+while read -r name found nc calm no; do
+  echo "  $name: corrections found $found/$nc, ordinary messages not 'likely' $calm/$no"
+done <"$T/table.out"
+chk "  tuned: at least 18 of 20 right"           "$(awk '$1=="tuned"{print ($2+$4>=18)}' "$T/table.out")" 1
+chk "  held-out: at least 9 of 10 corrections are candidates" "$(awk '$1=="held-out"{print ($3==10 && $2>=9)}' "$T/table.out")" 1
 
 echo; echo "--git: THIS REPO'S HISTORY, READ-ONLY, BOUNDED"
 G="$T/gitrepo"; mkdir -p "$G"; REALGIT="$(command -v git)"

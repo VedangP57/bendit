@@ -72,6 +72,9 @@ pin "$SG" "Adapted from the \`ruminate\` idea in poteto's brainmaxxing"
 pin "$SG" 'one PR per row'
 pin "$SG" '| # | source | pattern | count | layer | proposal |'
 pin "$SG" '`No pattern repeats`'
+pin "$SG" "read every candidate's quoted example and drop the ones that are not corrections of the agent"
+pin "$SG" 'Then say in one line how many you dropped and why.'
+pin "$SG" 'A cluster made only of `maybe` candidates is never shown without your confirmation'
 hasnt "$SG" 'Bash(rm'
 hasnt "$SG" '.claude/settings.json'
 pin "$KIT/skills/adopt-bendit/references/grow.md" '/bendit:suggest-guards'

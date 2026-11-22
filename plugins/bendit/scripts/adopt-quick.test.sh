@@ -198,5 +198,46 @@ after="$(sed -n "$((${last:-1}+1)),\$p" "$DOCTOR" | grep -c '^#\|^\*\*' | tr -d 
 chk "  ...the ending is the last section of doctor.md" "${last:+found}|$after" "found|0"
 hasnt "the old ending is gone" "None of the scripts proves Claude Code actually runs the hooks" "$D_TXT"
 
+echo
+echo "QUICK: THE TEST CHECK IS WRITTEN ONCE (step 6)"
+# 2026-11-22: step 6 ran the scaffold, which wrote a harness (lint + type-check
+# + test + the app's verify call), and the agent then rewrote it to the decided
+# check: two writes, a confusing diff. Step 6 now writes the decided check
+# FIRST and runs the scaffold with --keep-harness, which leaves it as it is.
+S6="$(sed -n '/^6\. \*\*The test check/,/^7\. \*\*Project files/p' "$QUICK")"
+chk "step 6 was found" "$([ -n "$S6" ] && echo y || echo n)" y
+has "step 6 says written once" 'The test check, written once.' "$S6"
+w="$(printf '%s' "$S6" | awk 'BEGIN{RS="\001"} {print index($0,"first write")}')"
+sc="$(printf '%s' "$S6" | awk 'BEGIN{RS="\001"} {print index($0,"Then run `bash")}')"
+chk "  ...the harness is written BEFORE the scaffold runs" "$([ "$w" -gt 0 ] && [ "$sc" -gt "$w" ] && echo y || echo n)" y
+has "  ...the scaffold is told to keep it" '"$ROOT" --keep-harness' "$S6"
+hasnt "  ...no rewrite after the scaffold" 'rewrite `.claude/verify-harness`' "$S6"
+
+# Run it as step 6 reads: --harness-owner, write the decided check, scaffold
+# with --keep-harness. A wrapper on `cat`-style writes is not possible in sh, so
+# the file's identity (inode, mtime to the second via stat, bytes) is compared
+# before and after the scaffold: any rewrite changes the bytes or the inode.
+SCAF="$KIT/scripts/scaffold-verification-skill.sh"
+P="$T/once"; mkdir -p "$P"
+printf '%s\n' '{"name":"demo","scripts":{"dev":"next dev","lint":"next lint","type-check":"tsc --noEmit","test":"vitest run"},"dependencies":{"next":"14.0.0"}}' > "$P/package.json"
+: > "$P/pnpm-lock.yaml"
+git -C "$P" init -q . 2>/dev/null
+chk "owner before step 6: absent" "$(bash "$SCAF" "$P" --harness-owner --pm pnpm 2>&1)" absent
+DECIDED='# What verifies demo: type-check and tests.
+set -e
+pnpm run type-check && pnpm run test'
+mkdir -p "$P/.claude"; printf '%s\n' "$DECIDED" > "$P/.claude/verify-harness"
+ino1="$(stat -f %i "$P/.claude/verify-harness" 2>/dev/null || stat -c %i "$P/.claude/verify-harness")"
+sum1="$(cksum < "$P/.claude/verify-harness")"
+bash "$SCAF" "$P" --keep-harness --pm pnpm >"$T/once.out" 2>&1; rc=$?
+ino2="$(stat -f %i "$P/.claude/verify-harness" 2>/dev/null || stat -c %i "$P/.claude/verify-harness")"
+chk "the scaffold ran (0 or 3: TODOs are fine)" "$([ "$rc" = 0 ] || [ "$rc" = 3 ] && echo y || echo n)" y
+chk "the harness is byte-for-byte what step 6 wrote" "$(cksum < "$P/.claude/verify-harness")" "$sum1"
+chk "  ...and the same file (never replaced)" "$ino2" "$ino1"
+chk "  ...it has no lint and no app line" "$(grep -c 'lint\|verify-demo' "$P/.claude/verify-harness")" 0
+chk "  ...the scaffold said it kept it" "$(grep -c 'kept as it was: --keep-harness' "$T/once.out" | tr -d ' ')" 1
+chk "  ...and the app skill was still generated" "$([ -d "$P/.claude/skills/verify-demo" ] && echo y || echo n)" y
+chk "owner after: kept (a retry keeps it)" "$(bash "$SCAF" "$P" --harness-owner --pm pnpm 2>&1)" kept
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

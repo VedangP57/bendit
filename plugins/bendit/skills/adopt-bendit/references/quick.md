@@ -254,7 +254,12 @@ report (§6) with NOT COMPLETE, the failing command, its output, and the fix.
    (`brew install pnpm`), then `<python> -m pip install -U pip` when listed,
    then the listed install command (e.g. `bun install --frozen-lockfile`).
    Any of them failing: stop (the test check cannot run without them).
-6. **The test check.** `bash "$KIT/scripts/scaffold-verification-skill.sh"
+6. **The test check, written once.** Skip this step when question A was
+   skipped. If §1's `--harness-owner` printed `own` or `absent`, first write
+   `.claude/verify-harness` with the decided check, in one Bash call: its
+   comment header, `set -e`, and the one command line. That is the only write
+   the file gets; the scaffold never writes a different one. A `kept` harness
+   is never touched. Then run `bash "$KIT/scripts/scaffold-verification-skill.sh"
    "$ROOT" --keep-harness`, with `--pm <pm>` for a Node project only (it
    accepts npm, pnpm, yarn or bun, and refuses anything else, so never pass it
    for Python), and `--kind`/`--dev` when detection settled them: the same
@@ -262,17 +267,13 @@ report (§6) with NOT COMPLETE, the failing command, its output, and the fix.
    `.claude/verify-harness` and a whole `.claude/skills/verify-<name>/` exactly
    as they are, and generates only what is missing (a `verify-<name>/` with no
    `bin/verify-<name>` is completed, its existing files kept), so a retry
-   after a late failure resumes instead of being refused. Skip this step when
-   question A was skipped. Then, **only if §1's `--harness-owner` printed
-   `own` or `absent`**, in one Bash call, rewrite `.claude/verify-harness` to
-   the decided check: its comment header, `set -e`, and the one command line.
-   A `kept` harness is never touched. The scaffold also writes
+   after a late failure resumes instead of being refused. The scaffold also writes
    `.git/info/exclude` lines and, for a web app, `.claude/skills/verify-<name>/`
    and `.env.verify.example`.
    Exit 0 is done. Exit 3 means it left TODOs, and is expected, not a failure,
-   in exactly these cases: (a) the harness is rewritten next (`own` or
-   `absent`), because the rewrite replaces every TODO line in it (a project
-   with only a build script gets "no test command found" here); (b) the
+   in exactly these cases: (a) the harness was written just above (`own` or
+   `absent`), because the written check answers every TODO the scaffold lists
+   for it (a project with only a build script gets "no test command found" here); (b) the
    harness is `kept` and the project is not a web app, because then the
    scaffold wrote no file its TODOs are in; (c) the harness is `kept` and
    every TODO is "no command to serve this web app was detected", because

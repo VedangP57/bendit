@@ -255,12 +255,23 @@ report (§6) with NOT COMPLETE, the failing command, its output, and the fix.
    then the listed install command (e.g. `bun install --frozen-lockfile`).
    Any of them failing: stop (the test check cannot run without them).
 6. **The test check, written once.** Skip this step when question A was
-   skipped. If §1's `--harness-owner` printed `own` or `absent`, first write
-   `.claude/verify-harness` with the decided check, in one Bash call: its
-   comment header, `set -e`, and the one command line. That is the only write
-   the file gets; the scaffold never writes a different one. A `kept` harness
-   is never touched. Then run `bash "$KIT/scripts/scaffold-verification-skill.sh"
-   "$ROOT" --keep-harness`, with `--pm <pm>` for a Node project only (it
+   skipped. Run this in one Bash call, replacing the `<...>` parts. The `cat`
+   (and the `mkdir` before it) only when §1's `--harness-owner` printed `own`
+   or `absent`: it writes the decided check, which is the only write the file
+   gets; the scaffold never writes a different one. A `kept` harness is never
+   touched, so leave those two lines out.
+
+   ```bash
+   mkdir -p "$ROOT/.claude"
+   cat > "$ROOT/.claude/verify-harness" <<'HARNESS'
+   # What verifies <name>: <the decided check, in words>.
+   set -e
+   <the one command line>
+   HARNESS
+   bash "$KIT/scripts/scaffold-verification-skill.sh" "$ROOT" --keep-harness --pm <pm>
+   ```
+
+   The scaffold call takes `--pm <pm>` for a Node project only (it
    accepts npm, pnpm, yarn or bun, and refuses anything else, so never pass it
    for Python), and `--kind`/`--dev` when detection settled them: the same
    options the §1 `--harness-owner` call got. `--keep-harness` leaves a

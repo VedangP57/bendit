@@ -199,45 +199,56 @@ chk "  ...the ending is the last section of doctor.md" "${last:+found}|$after" "
 hasnt "the old ending is gone" "None of the scripts proves Claude Code actually runs the hooks" "$D_TXT"
 
 echo
-echo "QUICK: THE TEST CHECK IS WRITTEN ONCE (step 6)"
+echo "QUICK: THE TEST CHECK IS WRITTEN ONCE (step 6, run as written)"
 # 2026-11-22: step 6 ran the scaffold, which wrote a harness (lint + type-check
 # + test + the app's verify call), and the agent then rewrote it to the decided
-# check: two writes, a confusing diff. Step 6 now writes the decided check
-# FIRST and runs the scaffold with --keep-harness, which leaves it as it is.
+# check: two writes, a confusing diff. Step 6 now prints the commands: write the
+# decided check, THEN the scaffold with --keep-harness. This extracts that block
+# from quick.md (like the undo command) and RUNS it. quick.md is prose, so how an
+# agent follows it needs an eval; this pins what the printed commands do.
 S6="$(sed -n '/^6\. \*\*The test check/,/^7\. \*\*Project files/p' "$QUICK")"
 chk "step 6 was found" "$([ -n "$S6" ] && echo y || echo n)" y
 has "step 6 says written once" 'The test check, written once.' "$S6"
-w="$(printf '%s' "$S6" | awk 'BEGIN{RS="\001"} {print index($0,"first write")}')"
-sc="$(printf '%s' "$S6" | awk 'BEGIN{RS="\001"} {print index($0,"Then run `bash")}')"
-chk "  ...the harness is written BEFORE the scaffold runs" "$([ "$w" -gt 0 ] && [ "$sc" -gt "$w" ] && echo y || echo n)" y
-has "  ...the scaffold is told to keep it" '"$ROOT" --keep-harness' "$S6"
-hasnt "  ...no rewrite after the scaffold" 'rewrite `.claude/verify-harness`' "$S6"
+S6CMDS="$(printf '%s\n' "$S6" | awk '/^[[:space:]]*```bash/{on=1;next} on&&/^[[:space:]]*```/{exit} on{sub(/^   /,"");print}')"
+chk "step 6 prints a command block" "$([ -n "$S6CMDS" ] && echo y || echo n)" y
+lw="$(printf '%s\n' "$S6CMDS" | grep -n '^cat > .*/verify-harness' | head -1 | cut -d: -f1)"
+ls_="$(printf '%s\n' "$S6CMDS" | grep -n 'scaffold-verification-skill\.sh' | head -1 | cut -d: -f1)"
+chk "  ...the line writing the harness comes BEFORE the scaffold line" "$([ -n "$lw" ] && [ -n "$ls_" ] && [ "$lw" -lt "$ls_" ] && echo y || echo n)" y
+has "  ...the scaffold is told to keep it" '--keep-harness' "$(printf '%s\n' "$S6CMDS" | grep 'scaffold-verification-skill\.sh')"
+chk "  ...the block makes .claude itself, before the write" "$(printf '%s\n' "$S6CMDS" | grep -n '^mkdir -p ".*/\.claude"' | head -1 | cut -d: -f1)" 1
+hasnt "  ...no rewrite of the harness after the scaffold" 'rewrite `.claude/verify-harness`' "$S6"
 
-# Run it as step 6 reads: --harness-owner, write the decided check, scaffold
-# with --keep-harness. A wrapper on `cat`-style writes is not possible in sh, so
-# the file's identity (inode, mtime to the second via stat, bytes) is compared
-# before and after the scaffold: any rewrite changes the bytes or the inode.
-SCAF="$KIT/scripts/scaffold-verification-skill.sh"
-P="$T/once"; mkdir -p "$P"
-printf '%s\n' '{"name":"demo","scripts":{"dev":"next dev","lint":"next lint","type-check":"tsc --noEmit","test":"vitest run"},"dependencies":{"next":"14.0.0"}}' > "$P/package.json"
-: > "$P/pnpm-lock.yaml"
-git -C "$P" init -q . 2>/dev/null
-chk "owner before step 6: absent" "$(bash "$SCAF" "$P" --harness-owner --pm pnpm 2>&1)" absent
-DECIDED='# What verifies demo: type-check and tests.
-set -e
-pnpm run type-check && pnpm run test'
-mkdir -p "$P/.claude"; printf '%s\n' "$DECIDED" > "$P/.claude/verify-harness"
-ino1="$(stat -f %i "$P/.claude/verify-harness" 2>/dev/null || stat -c %i "$P/.claude/verify-harness")"
-sum1="$(cksum < "$P/.claude/verify-harness")"
-bash "$SCAF" "$P" --keep-harness --pm pnpm >"$T/once.out" 2>&1; rc=$?
-ino2="$(stat -f %i "$P/.claude/verify-harness" 2>/dev/null || stat -c %i "$P/.claude/verify-harness")"
-chk "the scaffold ran (0 or 3: TODOs are fine)" "$([ "$rc" = 0 ] || [ "$rc" = 3 ] && echo y || echo n)" y
-chk "the harness is byte-for-byte what step 6 wrote" "$(cksum < "$P/.claude/verify-harness")" "$sum1"
-chk "  ...and the same file (never replaced)" "$ino2" "$ino1"
-chk "  ...it has no lint and no app line" "$(grep -c 'lint\|verify-demo' "$P/.claude/verify-harness")" 0
-chk "  ...the scaffold said it kept it" "$(grep -c 'kept as it was: --keep-harness' "$T/once.out" | tr -d ' ')" 1
-chk "  ...and the app skill was still generated" "$([ -d "$P/.claude/skills/verify-demo" ] && echo y || echo n)" y
-chk "owner after: kept (a retry keeps it)" "$(bash "$SCAF" "$P" --harness-owner --pm pnpm 2>&1)" kept
+# run_step6 <quick.md> <dir>: extract that file's step-6 block, fill the
+# placeholders, run it in a fresh Next.js-shaped project. Leaves the output in
+# $T/s6.out and the exit in $S6RC. .claude is NOT made here: the block must.
+run_step6() {
+  local md="$1" P="$2" cmds
+  cmds="$(sed -n '/^6\. \*\*The test check/,/^7\. \*\*Project files/p' "$md" |
+    awk '/^[[:space:]]*```bash/{on=1;next} on&&/^[[:space:]]*```/{exit} on{sub(/^   /,"");print}')"
+  rm -rf "$P"; mkdir -p "$P"
+  printf '%s\n' '{"name":"demo","scripts":{"dev":"next dev","lint":"next lint","type-check":"tsc --noEmit","test":"vitest run"},"dependencies":{"next":"14.0.0"}}' > "$P/package.json"
+  : > "$P/pnpm-lock.yaml"; git -C "$P" init -q . 2>/dev/null
+  cmds="$(printf '%s\n' "$cmds" | sed -e 's/<name>/demo/' -e 's/<the decided check, in words>/type-check and tests/' \
+    -e 's/<the one command line>/pnpm run type-check \&\& pnpm run test/' -e 's/<pm>/pnpm/')"
+  ( ROOT="$P" KIT="$KIT" bash -c "$cmds" ) >"$T/s6.out" 2>&1; S6RC=$?
+}
+ONCE="$T/once"
+run_step6 "$QUICK" "$ONCE"
+H="$ONCE/.claude/verify-harness"
+chk "step 6 ran (0 or 3: TODOs are fine)" "$([ "$S6RC" = 0 ] || [ "$S6RC" = 3 ] && echo y || echo n)" y
+chk "the harness is exactly the decided check (no lint, no app line)" \
+"$(grep -v '^#' "$H")" "set -e
+pnpm run type-check && pnpm run test"
+chk "  ...the scaffold said it kept it" "$(grep -c 'kept as it was: --keep-harness' "$T/s6.out" | tr -d ' ')" 1
+chk "  ...and the app skill was still generated" "$([ -d "$ONCE/.claude/skills/verify-demo" ] && echo y || echo n)" y
+chk "  ...a retry (owner) keeps it" "$(bash "$KIT/scripts/scaffold-verification-skill.sh" "$ONCE" --harness-owner --pm pnpm 2>&1)" kept
+# The OLD quick.md (before this fix) must fail this row: it printed no block, and
+# its order was scaffold-then-rewrite. Only checked when the commit is reachable.
+OLDMD="$T/old-quick.md"
+if git -C "$KIT" show 9b1dfa2:plugins/bendit/skills/adopt-bendit/references/quick.md > "$OLDMD" 2>/dev/null; then
+  chk "the old quick.md prints no step-6 command block (this row failed on it)" \
+  "$(sed -n '/^6\. \*\*The test check/,/^7\. \*\*Project files/p' "$OLDMD" | grep -c '^[[:space:]]*```bash')" 0
+fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

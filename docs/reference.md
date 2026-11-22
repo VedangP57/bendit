@@ -433,8 +433,12 @@ runs `/bendit:new-guard` only for the guard rows you pick, one PR per row.
 poteto's pstack): one read-only `git log` of the last 2,000 commits. A commit
 is a candidate when its subject starts with fix or revert, or when it touches
 a file again within an hour of the last commit to it. Candidates group by
-file (a file and its test fixed by the same commits are one row), marked
-`source: git`, with one redacted subject as the example. The script writes
+file (files fixed by nearly the same commits, Jaccard 0.6 or more, are one
+row), marked `source: git`, with one redacted subject as the example. Git
+rows rank by 3 per revert, 2 per fix and 1 per follow-up, scaled by how much
+of the file's history is fixes; docs-only rows come last, session rows always
+come first, and text mode prints the top 8 git rows (`--json` has all). Only
+commits under the project folder count (`git log -- .`). The script writes
 nothing. What it prints, already redacted, is read by the agent like any other
 command output.
 

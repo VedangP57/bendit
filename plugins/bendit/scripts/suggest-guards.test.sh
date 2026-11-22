@@ -327,18 +327,94 @@ P2="$(q '[c["pattern"] for c in d["clusters"] if c["command"] == "*.ts"][0]')"
 has   "  'page' and 'pages' still join one cluster, labelled with a whole word" "$P2" "login"
 case "$P2" in *"pag,"*|*"pag"|*"pag "*) bad "  no 'pag' stem" "$P2";; *) ok "  no 'pag' stem";; esac
 
+echo; echo "TWENTY MESSAGES THE FIXTURES' AUTHOR DID NOT WRITE (A REVIEWER'S TABLE): AT LEAST 18 RIGHT"
+cat >"$T/table.py" <<'PY'
+import importlib.util, sys
+sys.dont_write_bytecode = True
+spec = importlib.util.spec_from_file_location('sg', sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+# (message, the agent's last turn asked a question, is it a correction?)
+cases = [
+    ("no, that's fine, go ahead", False, False),
+    ("Never thought of that. Good idea, go with it", False, False),
+    ("Stop here for today, we'll pick it up tomorrow", False, False),
+    ("Don't forget to also update the changelog when you're done", False, False),
+    ("Wrong file name in the spec doc too, can you rename it to plan.md", False, False),
+    ("no worries, take your time", False, False),
+    ("no rush.", False, False),
+    ("Nope, all good. Merge it.", True, False),
+    ("add a settings page with a dark mode toggle", False, False),
+    ("looks great, thanks! now wire it into the nav", False, False),
+    ("can you check why the build fails? don't change any code yet", False, False),
+    ("no, it's ok, leave it as is", False, False),
+    ("why did you delete the migration? I told you to keep it", False, True),
+    ("no no no, put it back", True, True),
+    ("ugh, you broke the login page again", False, True),
+    ("Why are you running the migration against prod?", False, True),
+    ("no, don't force push to main", False, True),
+    ("stop, that's the wrong branch", False, True),
+    ("undo that, it broke the tests", False, True),
+    ("That's not what I asked for, use the existing helper", False, True),
+]
+right = 0
+for text, asked, want in cases:
+    got = m.is_correction(text, asked)
+    right += got == want
+    if got != want:
+        print('    miss: %r (wanted %s)' % (text, want), file=sys.stderr)
+print(right)
+PY
+SCORE="$("$PY" -B "$T/table.py" "$S")"
+echo "  score: $SCORE/20"
+chk "  at least 18 of 20 right"                  "$("$PY" -c 'import sys; print(int(sys.argv[1] or 0) >= 18)' "$SCORE")" True
+
 echo; echo "--git: THIS REPO'S HISTORY, READ-ONLY, BOUNDED"
 G="$T/gitrepo"; mkdir -p "$G"; REALGIT="$(command -v git)"
 "$REALGIT" -C "$G" init -q && "$REALGIT" -C "$G" symbolic-ref HEAD refs/heads/main
 # 5 000 commits through fast-import (seconds, not minutes). Oldest first:
-# two fix commits to src/old.py that lie past the 2 000-commit bound, 4 986
-# filler commits a day apart, then the recent ones the test is about.
+# two fix commits to src/old.py that lie past the 2 000-commit bound, filler
+# commits a day apart, then the recent ones the test is about.
 "$PY" - "$STRIPE" <<'PY' | "$REALGIT" -C "$G" fast-import --quiet
 import sys
 stripe = sys.argv[1]
+out = sys.stdout
+recent = []
+def c(msg, files, gap=86400):
+    recent.append((msg, files, gap))
+c('fix: empty cart crashes checkout', ['src/cart.py'])
+c('fix(cart): empty cart total, key ' + stripe, ['src/cart.py'])
+c('Fix cart rounding on empty cart', ['src/cart.py', 'tests/cart_test.py'])
+c('Revert "feat: new checkout"', ['src/checkout.py'])
+# a file and its test, the test sorting first: one row, code named first
+c('fix: refund rounding', ['src/pay.py', 'src/a_pay_test.py'])
+c('fix: refund twice', ['src/a_pay_test.py', 'src/pay.py'])
+c('feat: add the banner', ['src/ui.py'], 600)
+c('tweak the banner colour', ['src/ui.py'], 600)
+c('adjust the banner spacing', ['src/ui.py'])
+c('docs: usage', ['docs/use.md'])
+c('docs: more usage', ['docs/use.md'])
+# three files fixed together, but not by exactly the same commits: one row
+for i in range(5):
+    c('fix: install step %d' % i, ['install.sh', 'tests/install.test.sh', 'tests/install.expected'])
+c('fix: install pacman', ['install.sh', 'tests/install.test.sh'])
+# ten fixes to one hot file
+for i in range(10):
+    c('fix: hot path %d' % i, ['src/hot.py'])
+# churn: 4 fixes among 40 commits, against 3 fixes out of 3
+for i in range(36):
+    c('feat: busy %d' % i, ['src/busy.py'])
+for i in range(4):
+    c('fix: busy %d' % i, ['src/busy.py'])
+for i in range(3):
+    c('fix: focused %d' % i, ['src/focused.py'])
+# a docs-only row with more fixes than cart.py: still ranked after code
+for i in range(5):
+    c('fix: guide typo %d' % i, ['docs/guide.md'])
+for k in range(1, 5):
+    for i in range(2):
+        c('fix: m%d %d' % (k, i), ['src/m%d.py' % k])
+c('feat: step last', ['notes/n0.txt'])
 n = 0
 t = 946684800          # 2000-01-01
-out = sys.stdout
 def commit(msg, files, ts):
     global n
     n += 1
@@ -348,25 +424,15 @@ def commit(msg, files, ts):
     if n > 1:
         out.write('from :%d\n' % (n - 1))
     for f in files:
-        body = ('%s %d\n' % (f, n)).encode()
-        out.write('M 100644 inline %s\ndata %d\n%s\n' % (f, len(body), body.decode()))
+        body = '%s %d\n' % (f, n)
+        out.write('M 100644 inline %s\ndata %d\n%s\n' % (f, len(body), body))
 day = 86400
 commit('fix: old bug in the parser', ['src/old.py'], t); t += day
 commit('fix: old bug in the parser again', ['src/old.py'], t); t += day
-for i in range(4986):
+for i in range(5000 - 2 - len(recent)):
     commit('feat: step %d' % i, ['notes/n%d.txt' % (i % 100)], t); t += day
-commit('fix: empty cart crashes checkout', ['src/cart.py'], t); t += day
-commit('fix(cart): empty cart total, key ' + stripe, ['src/cart.py'], t); t += day
-commit('Fix cart rounding on empty cart', ['src/cart.py', 'tests/cart_test.py'], t); t += day
-commit('Revert "feat: new checkout"', ['src/checkout.py'], t); t += day
-commit('fix: refund rounding', ['src/pay.py', 'tests/pay_test.py'], t); t += day
-commit('fix: refund twice', ['tests/pay_test.py', 'src/pay.py'], t); t += day
-commit('feat: add the banner', ['src/ui.py'], t); t += 600
-commit('tweak the banner colour', ['src/ui.py'], t); t += 600
-commit('adjust the banner spacing', ['src/ui.py'], t); t += day
-commit('docs: usage', ['docs/use.md'], t); t += day
-commit('docs: more usage', ['docs/use.md'], t); t += day
-commit('feat: step last', ['notes/n0.txt'], t); t += day
+for msg, files, gap in recent:
+    commit(msg, files, t); t += gap
 assert n == 5000, n
 PY
 chk "  (the scratch repo has 5 000 commits)"     "$("$REALGIT" -C "$G" rev-list --count main)" 5000
@@ -397,11 +463,18 @@ has "  git ran"                                  "$(cat "$T/gitcalls")" "log"
 chk "  and only read-only subcommands"           "$(cat "$T/gitrefused")" ""
 printf '%s' "$OUT" >"$J"
 chk "  no sessions here, but the git rows still show" "$(q 'd["sessions"]')" 0
-chk "  the fix commits to one file cluster, and the quick follow-ups" \
-    "$(q 'sorted((c["source"], c["file"], c["count"]) for c in d["clusters"])')" \
-    "[('git', 'src/cart.py', 3), ('git', 'src/pay.py', 2), ('git', 'src/ui.py', 2)]"
-chk "  a file and its test, fixed by the same commits, are one row" \
-    "$(q '[c["files"] for c in d["clusters"] if c["file"] == "src/pay.py"]')" "[['src/pay.py', 'tests/pay_test.py']]"
+chk "  every row says source: git"               "$(q 'sorted({c["source"] for c in d["clusters"]})')" "['git']"
+chk "  the rows, by file and count"              "$(q 'sorted((c["file"], c["count"]) for c in d["clusters"])')" \
+    "[('docs/guide.md', 5), ('install.sh', 6), ('src/busy.py', 4), ('src/cart.py', 3), ('src/focused.py', 3), ('src/hot.py', 10), ('src/m1.py', 2), ('src/m2.py', 2), ('src/m3.py', 2), ('src/m4.py', 2), ('src/pay.py', 2), ('src/ui.py', 2)]"
+chk "  three install files fixed by nearly the same commits are one row" \
+    "$(q '[c["files"] for c in d["clusters"] if c["file"] == "install.sh"]')" "[['install.sh', 'tests/install.test.sh', 'tests/install.expected']]"
+chk "  in a merged row the code comes before its test, though the test sorts first" \
+    "$(q '[c["files"] for c in d["clusters"] if c["file"] == "src/pay.py"]')" "[['src/pay.py', 'src/a_pay_test.py']]"
+chk "  ranked: 10 fixes first, then the install row" "$(q '[c["file"] for c in d["clusters"]][:2]')" "['src/hot.py', 'install.sh']"
+chk "  3 fixes out of 3 touches outrank 4 fixes out of 40" \
+    "$(q '[c["file"] for c in d["clusters"]].index("src/focused.py") < [c["file"] for c in d["clusters"]].index("src/busy.py")')" True
+chk "  a docs-only row comes after every code row"  "$(q '[c["file"] for c in d["clusters"]][-1]')" "docs/guide.md"
+chk "  a revert weighs 3, a fix 2, a follow-up 1" "$(q '[(c["file"], c["score"]) for c in d["clusters"] if c["file"] in ("src/hot.py", "src/ui.py")]')" "[('src/hot.py', 20), ('src/ui.py', 2)]"
 chk "  only the last 2 000 commits are read"     "$(q 'd["commits_read"]')" 2000
 hasnt "  nothing past the bound (src/old.py)"    "$OUT" "old.py"
 hasnt "  two docs commits a day apart are not a pattern" "$OUT" "use.md"
@@ -415,11 +488,42 @@ has "  at --min 1 the Revert shows"              "$(q '[c["file"] for c in d["cl
 grun --root "$G" --projects-dir "$PD" --min 2 --git
 chk "text mode: exit 0"                          "$CODE" 0
 has "  marks the source"                         "$OUT" "source: git"
-has "  names the file"                           "$OUT" "src/cart.py"
+chk "  prints the top 8 git rows"                "$(printf '%s\n' "$OUT" | grep -c 'source: git')" 8
+has "  and says how many more"                   "$OUT" "4 more git rows (--json for all)"
 chk "  still only read-only subcommands"         "$(cat "$T/gitrefused")" ""
-# Sessions and git together, in one table.
+
+echo; echo "--git: SESSION ROWS COME FIRST"
+GS="$PD/$(slug "$G")"; mkdir -p "$GS"; place corrections.jsonl "$G" "$GS"
+grun --root "$G" --projects-dir "$PD" --min 2 --git --json
+printf '%s' "$OUT" >"$J"
+chk "  the two session rows (2 each) sit above a git row of 10" \
+    "$(q '[(c["source"], c["count"]) for c in d["clusters"]][:3]')" "[('session', 2), ('session', 2), ('git', 10)]"
+grun --root "$G" --projects-dir "$PD" --min 2 --git
+chk "  text mode: the first row is a session row" "$(printf '%s\n' "$OUT" | grep -m1 'source:' | sed 's/ *source: \([a-z]*\).*/\1/')" "session"
+rm -rf "$GS"
+
+echo; echo "--git: A PROJECT INSIDE A BIGGER REPO READS ONLY ITS OWN FOLDER"
+OUTER="$T/outer"; mkdir -p "$OUTER/proj" "$OUTER/other"
+"$REALGIT" -C "$OUTER" init -q
+for i in 1 2; do
+  echo "$i" >"$OUTER/other/x.py"; "$REALGIT" -C "$OUTER" add -A
+  "$REALGIT" -C "$OUTER" -c user.name=T -c user.email= commit -q -m "fix: outside $i"
+  echo "$i" >"$OUTER/proj/y.py"; "$REALGIT" -C "$OUTER" add -A
+  "$REALGIT" -C "$OUTER" -c user.name=T -c user.email= commit -q -m "fix: inside $i"
+done
+grun --root "$OUTER/proj" --projects-dir "$PD" --min 2 --git --json
+printf '%s' "$OUT" >"$J"
+chk "  only the project's own file"              "$(q '[c["files"] for c in d["clusters"]]')" "[['proj/y.py']]"
+hasnt "  nothing from outside it"                "$OUT" "outside"
+
+echo; echo "--git THAT FINDS NOTHING DOES NOT CALL GIT ROWS CORRECTIONS"
+grun --root "$OUTER/proj" --projects-dir "$PD" --min 5 --git
+has   "  says no pattern repeats"                "$OUT" "No pattern repeats 5 or more times"
+hasnt "  not 'No correction repeats'"            "$OUT" "No correction repeats"
+
+echo; echo "--git AND A FOLDER THAT IS NOT A GIT REPO"
 grun --root "$C" --projects-dir "$PD" --min 1 --git --json
-chk "a folder that is not a git repo: exit 0"    "$CODE" 0
+chk "exit 0"                                     "$CODE" 0
 printf '%s' "$OUT" >"$J"
 chk "  the session rows still show"              "$(q 'len(d["clusters"])')" 4
 chk "  and it says there is no git history"      "$(q 'd["git"]')" "no git history"

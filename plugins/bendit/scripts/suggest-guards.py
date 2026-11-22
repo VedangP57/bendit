@@ -99,23 +99,35 @@ CMD_CAP = 4096
 EXAMPLE_MAX = 160
 NO_SESSIONS = 'No past sessions found for this project'
 
-# A correction says so in its FIRST sentence. Either it OPENS with a
-# negation or an order to stop or undo ("no,", "don't", "stop", "undo",
-# "wrong") -- not "no problem", "never mind" -- or the sentence holds "I told
-# you", "not what I asked", "I said ...", "undo that". A word like "don't" or
-# "again" later in a sentence is how people ask for things ("run the tests
-# again", "add X but don't touch Y"), so it does not count.
+# A correction says so. Either its FIRST sentence OPENS with a negation or
+# an order to stop or undo ("no,", "don't", "stop", "undo", "wrong") -- but
+# not a habit or an approval ("no problem", "no, that's fine", "don't
+# forget", "never mind", "never thought", "stop here for today") -- or the
+# message anywhere says "I told you", "not what I asked", "I said ...",
+# "why did you ...", "you broke ...", "undo that", "put it back". A word
+# like "don't" or "again" later in a sentence is how people ask for things
+# ("run the tests again", "add X but don't touch Y"), so it does not count.
 _OPENS = re.compile(
     r"^(?:(?:please|ugh|argh|hey|oh|wait|ok|okay)[\s,.!]+)*"
     r"(?:no\b(?!\s+(?:problem|worries|rush|thanks|thank|issue|doubt|prob)\b)"
-    r"|nope\b|nah\b|stop\b|don'?t\b|do not\b|dont\b|never\b(?!\s+mind\b)"
+    r"(?![\s,.!]+(?:that'?s|thats|it'?s|its)\s+(?:fine|ok|okay|good|alright|all right)\b)"
+    r"|nope\b|nah\b|stop\b(?!\s+(?:here|for\s+(?:today|now|the\s+day)|there)\b)"
+    r"|(?:don'?t|do not|dont)\b(?!\s+(?:forget|worry)\b)|never\b(?!\s+(?:mind|thought)\b)"
     r"|undo\b|revert\b|wrong\b|not that\b|that'?s (?:wrong|not right|not it)\b)", re.I)
 _ANYWHERE = re.compile(
     r"\b(?:i (?:already )?told you|not what i (?:asked|said|wanted)|i (?:said|asked) (?:not|never|no|to)\b"
     r"|i asked you not|undo (?:that|this|it|those)|revert (?:that|this|it|those)"
+    r"|put (?:it|them|that|this) back|why (?:did|are|would) you"
+    r"|you (?:broke|deleted|removed|overwrote|ignored|wiped)"
     r"|you (?:shouldn'?t|should not) have)\b", re.I)
-# A plain no/nope answering the agent's own question is an answer.
+# A request that only renames or changes something, blaming no one, is a
+# request ("wrong name in the doc too, can you rename it").
+_CHANGE_REQUEST = re.compile(r"\b(?:can|could|would) you (?:please )?(?:also )?(?:rename|change|update)\b", re.I)
+_BLAME = re.compile(r"\bagain\b|\byou (?:did|changed|used|ran|added|forgot)\b", re.I)
+# A short no/nope answering the agent's own question is an answer.
 _BARE_NO = re.compile(r"^(?:no|nope|nah)\b", re.I)
+_UNDO_VERB = re.compile(r"\b(?:undo|revert|put|restore|remove|delete|roll)\b", re.I)
+ANSWER_WORDS = 4
 _SENTENCE_END = re.compile(r'[.!?;\n](?=\s|$)|\n')
 MARKER_WORDS = {'no', 'nope', 'nah', 'don', 'dont', "don't", 'do', 'not', 'stop', 'never',
                 'again', 'told', 'asked', 'said', 'wrong', 'instead', 'undo', 'revert',
@@ -285,17 +297,19 @@ def first_sentence(text: str) -> str:
 
 def is_correction(text: str, after_question: bool) -> bool:
     """Does this (redacted) message correct the agent's last action? Only
-    its first sentence counts; a question is not a correction unless it says
-    "I told you" or the like; and a bare "no" right after the agent asked a
-    question is an answer, not a correction."""
-    first = first_sentence(text)
-    if _ANYWHERE.search(first):
+    the first sentence can OPEN a correction, though "I told you" and the
+    like count anywhere; a question is not one unless it holds such a phrase;
+    and a short "no" with no undo verb, right after the agent asked a
+    question, is an answer."""
+    if _ANYWHERE.search(text):
         return True
-    if first.endswith('?'):
+    first = first_sentence(text)
+    if first.endswith('?') or not _OPENS.search(first):
         return False
-    if not _OPENS.search(first):
+    if _CHANGE_REQUEST.search(text) and not _BLAME.search(text):
         return False
-    return not (after_question and _BARE_NO.match(first))
+    return not (after_question and _BARE_NO.match(first)
+                and len(first.split()) <= ANSWER_WORDS and not _UNDO_VERB.search(first))
 
 
 def stem(word: str) -> str:
@@ -462,6 +476,9 @@ FIX_FILES_MAX = 10        # a fix touching more files is a sweep, not one mistak
 FOLLOWUP_FILES_MAX = 3    # a follow-up touches a few files, or it is new work
 _FIX_SUBJECT = re.compile(r'^(?:fix(?:es|ed)?|revert(?:s|ed)?)\b', re.I)
 _CONVENTIONAL = re.compile(r'^\s*(?:revert\s*"?\s*)?(?:[A-Za-z]+(?:\([^)]*\))?!?:\s*)?', re.I)
+MERGE_JACCARD = 0.6       # files fixed by this much the same commits are one row
+WEIGHT = {'revert': 3, 'fix': 2, 'follow-up': 1}
+GIT_SHOWN = 8             # git rows printed in text mode; --json has all
 GIT_WORDS = {'fix', 'fixes', 'fixed', 'revert', 'reverts', 'reverted', 'feat'}
 
 
@@ -469,14 +486,15 @@ def git_log(root):
     """[(time, subject, [files])] for the last GIT_MAX commits of the repo
     `root` is in, oldest first; or a reason string. Runs ONE read-only
     command, `git log`, with no pager, no signature check and no optional
-    locks."""
+    locks, limited to `root` itself (`-- .`): a project inside a bigger repo
+    reads only its own folder's history."""
     git = shutil.which('git')
     if not git:
         return 'git not found'
     env = dict(os.environ, GIT_OPTIONAL_LOCKS='0', GIT_TERMINAL_PROMPT='0', LC_ALL='C')
     cmd = [git, '-C', root, '--no-pager', '-c', 'log.showSignature=false',
            '-c', 'core.quotePath=true', 'log', '-n', str(GIT_MAX), '--no-color',
-           '--no-renames', '--name-only', '--format=%x1e%ct%x1f%s']
+           '--no-renames', '--name-only', '--format=%x1e%ct%x1f%s', '--', '.']
     try:
         p = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                            stderr=subprocess.DEVNULL, env=env, timeout=GIT_TIMEOUT)
@@ -501,27 +519,29 @@ def git_log(root):
 
 
 def git_candidates(commits):
-    """(commit number, file, keywords, subject) for each candidate commit and
-    file it touches. The subject and path are cut and REDACTED before
-    anything else."""
-    last = {}
-    out = []
+    """(candidates, touches). candidates: (commit number, kind, files hit,
+    keywords, subject), kind being 'revert', 'fix' or 'follow-up'.
+    touches: {file: every commit number that touched it}. The subject and
+    paths are cut and REDACTED before anything else."""
+    last, touches, out = {}, {}, []
     for n, (ts, subject, files) in enumerate(commits):
         subject = redact(subject[:CMD_CAP])
         files = [redact(f[:CMD_CAP]) for f in files]
         hit = set()
-        if _FIX_SUBJECT.match(subject) and len(files) <= FIX_FILES_MAX:
+        fix = _FIX_SUBJECT.match(subject)
+        if fix and len(files) <= FIX_FILES_MAX:
             hit.update(files)
         if len(files) <= FOLLOWUP_FILES_MAX:
             hit.update(f for f in files if f in last and 0 <= ts - last[f] <= GIT_WINDOW)
         for f in files:
             last[f] = ts
+            touches.setdefault(f, set()).add(n)
         if hit:
+            kind = ('revert' if fix.group(0).lower().startswith('revert') else 'fix') if fix else 'follow-up'
             words = {st: w for st, w in keywords(_CONVENTIONAL.sub('', subject)).items()
                      if w not in GIT_WORDS}
-            for f in sorted(hit):
-                out.append((n, f, words, subject))
-    return out
+            out.append((n, kind, sorted(hit), words, subject))
+    return out, touches
 
 
 def _main_file(path: str):
@@ -530,31 +550,54 @@ def _main_file(path: str):
     return ('test' in base or base.endswith('.expected'), len(path), path)
 
 
-def git_rows(candidates):
-    """One row per set of files that the same candidate commits touched: a
-    fix to a script and its test is one pattern, not two."""
-    commits_of, subject_of = {}, {}
-    for n, f, kw, subject in candidates:
-        commits_of.setdefault(f, set()).add(n)
-        subject_of[n] = (kw, subject)
-    groups = {}
-    for f, ns in commits_of.items():
-        groups.setdefault(frozenset(ns), []).append(f)
+def _jaccard(a, b) -> float:
+    return len(a & b) / len(a | b) if a or b else 0.0
+
+
+def git_rows(candidates, touches):
+    """One row per group of files fixed by (nearly) the same commits: a
+    script, its test and its expected output are one pattern, not three.
+    A file joins the group whose commit set it shares MERGE_JACCARD of.
+
+    Each row is scored 3 per revert, 2 per fix commit and 1 per quick
+    follow-up, and ranked by that score times the share of the files'
+    commits that were candidates: 10 fixes in 12 touches is a pattern, 10
+    in 80 is churn. A row of only Markdown files ranks after the rest: a
+    docs fix is rarely something a guard can hold."""
+    commits_of, info = {}, {}
+    for n, kind, files, kw, subject in candidates:
+        info[n] = (kind, kw, subject)
+        for f in files:
+            commits_of.setdefault(f, set()).add(n)
+    groups = []   # each: [files, commit set]
+    for f in sorted(commits_of, key=lambda f: (-len(commits_of[f]), _main_file(f))):
+        ns = commits_of[f]
+        best = max(groups, key=lambda g: _jaccard(ns, g[1]), default=None)
+        if best is not None and _jaccard(ns, best[1]) >= MERGE_JACCARD:
+            best[0].append(f)
+            best[1] |= ns
+        else:
+            groups.append([[f], set(ns)])
     rows = []
-    for ns, files in groups.items():
+    for files, ns in groups:
         files.sort(key=_main_file)
         c = {'kw': Counter(), 'surface': {}}
         for n in sorted(ns):
-            kw = subject_of[n][0]
+            kw = info[n][1]
             c['kw'].update(set(kw))
             for st, word in kw.items():
                 c['surface'].setdefault(st, Counter())[word] += 1
+        score = sum(WEIGHT[info[n][0]] for n in ns)
+        touched = set().union(*(touches.get(f, set()) for f in files)) | ns
         shared = shared_words(c)
         label = files[0] + (f' (+{len(files) - 1} more)' if len(files) > 1 else '')
         rows.append({'source': 'git', 'pattern': safe(label + (': ' + ', '.join(shared) if shared else '')),
-                     'count': len(ns), 'tool': '', 'command': '', 'file': safe(files[0]),
+                     'count': len(ns), 'score': score,
+                     'weight': round(score * len(ns) / len(touched), 2),
+                     'docs_only': all(f.lower().endswith('.md') for f in files),
+                     'tool': '', 'command': '', 'file': safe(files[0]),
                      'files': [safe(f) for f in files],
-                     'example': safe(example_of(subject_of[min(ns)][1]))})
+                     'example': safe(example_of(info[min(ns)][2]))})
     return rows
 
 
@@ -577,18 +620,22 @@ def run(args) -> int:
                       'that shares this folder name.')
         return 0
 
-    rows = [describe(c) for c in cluster(corrections)]
-    git_state, commits_read, candidates = None, 0, []
+    # Session rows first, always: they are a person's own corrections.
+    found = sorted((d for d in (describe(c) for c in cluster(corrections)) if d['count'] >= args.min),
+                   key=lambda d: (-d['count'], d['pattern']))
+    git_state, commits_read, candidates, git_found = None, 0, [], []
     if args.git:
         log = git_log(root)
         if isinstance(log, str):
             git_state = log
         else:
             git_state, commits_read = 'ok', len(log)
-            candidates = git_candidates(log)
-            rows += git_rows(candidates)
-    found = sorted((d for d in rows if d['count'] >= args.min),
-                   key=lambda d: (-d['count'], d['source'] != 'session', d['pattern']))
+            candidates, touches = git_candidates(log)
+            git_found = sorted((d for d in git_rows(candidates, touches) if d['count'] >= args.min),
+                               key=lambda d: (d['docs_only'], -d['weight'], -d['count'], d['pattern']))
+            for i, d in enumerate(git_found, 1):
+                d['rank'] = i
+    found += git_found
     if args.json:
         out = {'sessions': stats['sessions'], 'corrections': len(corrections),
                'min': args.min, 'skipped_malformed': stats['malformed'],
@@ -621,7 +668,10 @@ def run(args) -> int:
     if skipped:
         print('Skipped: ' + ', '.join(skipped) + '.')
     if not found:
-        print(f'No correction repeats {args.min} or more times.')
+        print(f"No {'pattern' if args.git else 'correction'} repeats {args.min} or more times.")
+    hidden = max(0, len(git_found) - GIT_SHOWN)
+    if hidden:
+        found = found[:len(found) - hidden]
     for i, d in enumerate(found, 1):
         print()
         if d['source'] == 'git':
@@ -631,6 +681,9 @@ def run(args) -> int:
             print(f"[{i}] {d['pattern']}  ({d['count']} times)")
             print(f"    source: session   tool: {d['tool'] or '-'}   command: {d['command'] or '-'}")
         print(f'    e.g. "{d["example"]}"')
+    if hidden:
+        print()
+        print(f'{hidden} more git rows (--json for all).')
     return 0
 
 

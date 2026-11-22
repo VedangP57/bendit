@@ -365,8 +365,8 @@ project, and any mistakes in the adaptation are bendit's.
   `primary-checkout-guard`, and the lead judgment in `/bendit:review-diff`.
 - [how](https://github.com/poteto/how): the act on, consider, noted and
   dismissed buckets in `/bendit:review-diff`.
-- [pstack](https://github.com/cursor/plugins/tree/main/pstack), in the Cursor
-  plugins repo: `/bendit:suggest-guards --git` is adapted from its `correct`
+- [pstack](https://github.com/cursor/plugins/tree/main/pstack) (by poteto, in
+  Cursor's plugins repo): `/bendit:suggest-guards --git` is adapted from its `correct`
   skill: read recent commits and reverts for the mistakes agents repeat, and
   count a class once it has happened twice.
 

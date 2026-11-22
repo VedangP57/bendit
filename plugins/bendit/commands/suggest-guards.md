@@ -26,11 +26,16 @@ redacted. The script is read-only.
 With `--git` it also reads this repo's last 2,000 commits (one read-only
 `git log`): commits whose subject starts with fix or revert, and commits that
 touch a file again within an hour. These rows say `source: git` and name the
-file. They are candidates: many fix commits to one file can be normal work.
+file (a file and its test fixed by nearly the same commits are one row).
+They are candidates, ranked: reverts and fixes weigh more than quick
+follow-ups, a file whose commits are mostly fixes ranks higher, and a
+docs-only row comes last. Session rows always come first. Text mode prints
+the top 8 git rows; `--json` has them all.
 
 - `No past sessions found for this project` is not a failure. Say so, and
   stop unless `--git` rows follow.
-- `No correction repeats` means nothing came up twice. Say so and stop: a
+- `No correction repeats` (or, with `--git`, `No pattern repeats`) means
+  nothing came up twice. Say so and stop: a
   one-off is an incident, not a pattern.
 - Report skipped lines or files as the numbers given.
 
@@ -53,8 +58,8 @@ never open the transcripts to read more, and never read more commits or
 diffs.
 
 Propose git rows the same way as session rows.
-Then ask once which rows to build. Each accepted row is its own change: one
-PR per row.
+Then ask once which rows to build. Each accepted row is its own change:
+one PR per row.
 Only on a yes, run `/bendit:new-guard <name>` for each guard row the person
 picked, and say what the other picked rows need. Write nothing otherwise: no
 file, no setting, no note.

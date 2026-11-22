@@ -1,6 +1,6 @@
 ---
 description: Check every bendit guard can still run and refuse, then prove this repo's setup
-allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/selfcheck.py *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/prove.sh *), Bash(git push --force bendit-probe HEAD)
+allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/selfcheck.py *), Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/installed-versions.py *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/prove.sh *), Bash(git push --force bendit-probe HEAD)
 ---
 
 Run these checks, in this order, from the repo the user is in, and read each
@@ -11,6 +11,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/selfcheck.py" --verbose
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/selfcheck.py" --features .
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/prove.sh" .
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/selfcheck.py" --session
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/installed-versions.py" --root .
 ```
 
 1. **selfcheck** fires one known-bad probe at every hook in `hooks/hooks.json`,
@@ -41,6 +42,18 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/selfcheck.py" --session
    the marker bendit's start-up check leaves, named after this window's
    session id (`CLAUDE_CODE_SESSION_ID`, which Claude Code gives the Bash tool;
    the start-up check gets the same id in its `session_id`).
+   Its `copy:` line says which bendit is running: `installed` (the one
+   Claude Code installed, which a reopened window runs too) or `installer
+   copy` (the installer's own download, or another folder: a reopened window
+   runs the installed one instead, which may be another version).
+5. **installed-versions** prints `running: bendit <version>`, then which
+   bendit and bendit-web version every checkout of this repo (the main one and
+   each `git worktree`) has installed for its folder, or `none`. Exit 1 means
+   another checkout of this repo will load a different bendit (a worktree has
+   been seen loading the main checkout's install): report it as a warning, and
+   give each update command exactly as printed. Exit 2 means the versions could not be read: say
+   so, never call it fine. It never changes anything; never run an update
+   command yourself here.
 
 **The live test.** Always run the live test, whatever the window line says,
 unless the `live test:` line says `skip`. Run this through the Bash tool
@@ -65,7 +78,8 @@ not permitted`), that is the finding: report it as every guard OFF.
 
 Then print ONE table, a row per check from the first three outputs (a row per feature
 from the features table, and one for the add-on scope line) and one `live test`
-row (PASS, not a pass with what came back, or `skipped` with why),
+row (PASS, not a pass with what came back, or `skipped` with why), one `version` row: the `running: bendit <version>` line
+and the `copy:` line, and one row per checkout from installed-versions (WARN when its version differs),
 without rewording their results:
 
 | check | result | evidence rung | detail |
@@ -100,12 +114,18 @@ is one status block from the list below, then, when anything is still open,
    > Open a new Terminal window (not this chat), paste this, and type y:
    >   <the exact --trust command prove.sh printed>
 
-2. Every other FAIL or OFF row: its fix, in plain words (what to do, not what
+2. Every other FAIL, OFF or WARN row: its fix (for a version WARN, the update
+   command installed-versions printed, to paste into a Terminal window), in plain words (what to do, not what
    broke), one step each.
 3. The status block says to reopen Claude: that step goes last.
 
 Never say bendit is active while a guard is OFF. Status blocks, the first that
 applies:
+
+- The live test was refused by bendit, but the `copy:` line says `installer copy`:
+
+  > bendit is running in this window, but it is the setup copy, not the one installed for this project.
+  > Close Claude and open it again in this project, then type /bendit:doctor.
 
 - The live test was refused by bendit, and no guard is OFF:
 

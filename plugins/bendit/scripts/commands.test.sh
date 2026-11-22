@@ -94,6 +94,17 @@ rm -f "$QS"
 pin "$KIT/../../README.md" '`primary-checkout-guard`'
 pin "$KIT/../../docs/reference.md" '| `primary-checkout-guard` |'
 
+echo; echo "DOCTOR: WHICH BENDIT IS RUNNING, AND WHICH EACH CHECKOUT WILL LOAD"
+DR="$CMD/doctor.md"
+pin "$DR" 'python3 "${CLAUDE_PLUGIN_ROOT}/scripts/installed-versions.py" --root .'
+pin "$DR" 'Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/installed-versions.py *)'
+pin "$DR" 'one `version` row: the `running: bendit <version>` line'
+pin "$DR" 'another checkout of this repo will load a different bendit'
+pin "$DR" 'give each update command exactly as printed'
+pin "$DR" 'Exit 2 means the versions could not be read'
+pin "$DR" '> bendit is running in this window, but it is the setup copy, not the one installed for this project.'
+hasnt "$DR" 'claude plugin list'
+
 echo; echo "DOCS: AN INSTALL RUNBOOK AN AGENT CAN RESUME, CREDITS, NEW COMMANDS"
 ROOT="$(cd "$KIT/../.." && pwd)"
 IN="$ROOT/INSTALL.md"; RM="$ROOT/README.md"; RF="$ROOT/docs/reference.md"

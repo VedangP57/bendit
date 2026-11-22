@@ -58,6 +58,31 @@ has "step 9 asks whether this window is already live" 'scripts/selfcheck.py" --s
 has "  ...and then leaves step 2 out" "then last step 2 is left out" "$Q_TXT"
 has "step 9 always runs the live test (unless --session says to skip it)" "Always run the live force-push check" "$Q_TXT"
 hasnt "the person is never asked to type a force push" "run: git push" "$Q_TXT"
+# 2026-11-22: setup ran the installer's own copy (bendit@inline), its refusal
+# dropped "reopen Claude", and the reopened window ran an older INSTALLED bendit.
+# A refusal counts only when --session's copy: line says the installed copy ran.
+has "step 9 reads the copy: line" '`copy:` line' "$Q_TXT"
+has "  ...step 2 is left out only for the installed copy, refused by bendit" \
+    'A refusal by bendit with `copy: installed` means this window already runs the bendit installed for this project: then last step 2 is left out.' "$Q_TXT"
+has "  ...the installer's copy keeps step 2" '`copy: installer copy`, step 2 stays' "$Q_TXT"
+hasnt "  ...the old rule (any refusal drops step 2) is gone" 'A refusal by bendit means this window is
+   already protected' "$Q_TXT"
+has "the report's 'everything passed' needs the installed copy too" 'refused by bendit in this window with `copy: installed`' "$Q_TXT"
+echo
+echo "QUICK: STEP 2b SAYS WHICH BENDIT EACH CHECKOUT WILL LOAD"
+S5="$(sed -n '/^## 5\. Do it/,/^## 6\./p' "$QUICK")"
+has "step 2b exists" '2b. **Which bendit each checkout will load.**' "$S5"
+has "  ...runs installed-versions on ROOT" 'scripts/installed-versions.py" --root "$ROOT"' "$S5"
+has "  ...updates THIS folder only" 'only the command for the line marked `(this folder)`' "$S5"
+has "  ...never another checkout" 'Never run the command for another checkout' "$S5"
+l2="$(printf '%s\n' "$S5" | grep -n '^2\. \*\*Install bendit' | cut -d: -f1)"
+l2b="$(printf '%s\n' "$S5" | grep -n '^2b\. ' | cut -d: -f1)"
+l3="$(printf '%s\n' "$S5" | grep -n '^3\. ' | cut -d: -f1)"
+chk "  ...between step 2 and step 3" "$([ -n "$l2" ] && [ -n "$l2b" ] && [ -n "$l3" ] && [ "$l2" -lt "$l2b" ] && [ "$l2b" -lt "$l3" ] && echo y || echo n)" y
+has "  ...and its result is in the report's record" 'Versions:' \
+    "$(printf '%s\n' "$REPORT" | sed -n '/What I did (for the record/,/^Two last steps:/p')"
+has "the summary lists the update when this folder has an older bendit" 'Update bendit for this project to' \
+    "$(block "$QUICK" '^## 2\. The one question' 1)"
 
 echo
 echo "QUICK: THE SUMMARY IS IN EVERYDAY WORDS"

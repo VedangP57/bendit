@@ -44,6 +44,12 @@ older than 30 days are removed. No id, or no marker: never "live"; a marker
 folder that cannot be written is named ("can't write <folder>"). A second line,
 `live test: run|skip`, says whether `git push --force bendit-probe HEAD` is
 harmless here: only while no git remote, file or folder is named bendit-probe.
+Between those two, `copy: installed|installer copy (...)` says whether the bendit
+running is the one Claude Code installed (under ${CLAUDE_CONFIG_DIR:-~/.claude}
+/plugins/cache/) or another copy: the installer's download (under
+${BENDIT_CACHE:-${XDG_CACHE_HOME:-~/.cache}/bendit}/, loaded with --plugin-dir
+as bendit@inline) or any other folder. Only the installed one is what a
+reopened window runs.
 
 Exit (table mode): 0 every hook answered, 1 something is OFF or unchecked.
 """
@@ -387,6 +393,41 @@ def live_test_line():
     return f'live test: run -- nothing here is named {PROBE}, so the test push cannot reach anything'
 
 
+def _under(path, folder):
+    """Is <path> inside <folder>, comparing whole path components after
+    resolving symlinks (so `cache-other` is not inside `cache`)?"""
+    path, folder = os.path.realpath(path), os.path.realpath(folder)
+    return path == folder or path.startswith(folder.rstrip(os.sep) + os.sep)
+
+
+def copy_line():
+    """Which copy of bendit is running: the one Claude Code installed (its
+    plugin cache), or the installer's own download, which `bendit` starts with
+    `claude --plugin-dir` (it loads as bendit@inline). Only the installed one
+    is what a reopened window runs; a refusal from the installer's copy proves
+    nothing about it."""
+    root = os.environ.get('CLAUDE_PLUGIN_ROOT') or KIT
+    home = os.path.expanduser('~')
+    claude_dir = os.environ.get('CLAUDE_CONFIG_DIR') or os.path.join(home, '.claude')
+    installed = os.path.join(claude_dir, 'plugins', 'cache')
+    installer = os.environ.get('BENDIT_CACHE') or os.path.join(
+        os.environ.get('XDG_CACHE_HOME') or os.path.join(home, '.cache'), 'bendit')
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import features
+        version = 'bendit ' + features.plugin_version()
+    except Exception as e:  # noqa: BLE001 -- the line still says which copy
+        version = f'bendit, version unreadable ({type(e).__name__})'
+    if _under(root, installer):
+        return (f"copy: installer copy ({version}, the installer's download at {root}) -- this window is not "
+                'running the bendit installed for this project; close Claude and open it again to run that one')
+    if not _under(root, installed):
+        return (f'copy: installer copy ({version}, loaded from {root}, not from Claude\'s plugin folder) -- '
+                'this window is not running the bendit installed for this project; close Claude and open it '
+                'again to run that one')
+    return f'copy: installed ({version}, {root})'
+
+
 def session_report():
     sid = os.environ.get('CLAUDE_CODE_SESSION_ID', '')
     name = marker_name(sid)
@@ -406,6 +447,7 @@ def session_report():
         else:
             print(f"window: not live -- bendit's hooks did not start in this Claude window (session {sid}): "
                   'it was opened before bendit was set up, or bendit is not installed for this project')
+    print(copy_line())
     print(live_test_line())
     return rc
 

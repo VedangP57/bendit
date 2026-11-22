@@ -37,6 +37,9 @@ unset CLAUDE_PROJECT_DIR
 # cache: every hook run below would leave one there).
 unset CLAUDE_CODE_SESSION_ID
 export BENDIT_LIVE_DIR="$T/live"
+# Hermetic too: which copy of bendit this is (--session's `copy:` line) is read
+# from these. Cases that need them set them inline.
+unset CLAUDE_PLUGIN_ROOT BENDIT_CACHE CLAUDE_CONFIG_DIR XDG_CACHE_HOME
 # A tmp dir of the suite's own, so "it cleaned up" is checkable.
 export TMPDIR="$T/tmpd"; mkdir -p "$TMPDIR"
 chk() { if [ "$2" = "$3" ]; then printf '  ok    %s\n' "$1"; pass=$((pass+1));
@@ -48,6 +51,8 @@ if [ -z "$PY_GIVEN" ]; then
   expect_init "$SD/selfcheck.expected"
   expect_scrub_dir "$T" '<tmp>'
   expect_scrub "$KIT" '<kit>'
+  # The copy: line names the running version; a release bump must not churn the snapshot.
+  expect_scrub "bendit $("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$KIT/.claude-plugin/plugin.json")" 'bendit <version>'
 fi
 
 # Every `python3` -- selfcheck's and each guard's -- resolves to $PY.
@@ -437,6 +442,45 @@ has "a folder named bendit-probe here: skipped" "live test: skip" "$(lt "$LF")"
 has "  ...saying why" "named bendit-probe in this folder" "$(lt "$LF")"
 LN="$T/lt-nogit"; mkdir -p "$LN"
 has "not a git repository: the push fails anyway, may run" "live test: run" "$(lt "$LN")"
+
+# The `copy:` line: is the bendit running here the one installed for this
+# project, or the installer's own copy (`claude --plugin-dir ~/.cache/bendit/v<v>/
+# plugins/bendit`, which loads as bendit@inline)? On 2026-11-22 the installer's
+# copy passed the live test, setup dropped "reopen Claude", and the reopened
+# window ran an older installed bendit. Only Claude Code's plugin cache
+# (~/.claude/plugins/cache/) holds an installed copy.
+cp_line() {  # cp_line <plugin root> [env assignments...] -- the copy: line --session prints
+  local root="$1"; shift
+  (cd "$LP" && env "$@" CLAUDE_PLUGIN_ROOT="$root" CLAUDE_CODE_SESSION_ID=win-started-here \
+     "$PY" "$KIT/scripts/selfcheck.py" --session 2>&1) | grep '^copy:'
+}
+H="$T/cphome"; mkdir -p "$H/.claude/plugins/cache/bendit/bendit/1.0.0" "$H/.cache/bendit/v1.0.0/plugins/bendit"
+has "installed by Claude Code (under ~/.claude/plugins/cache): copy: installed" "copy: installed" \
+    "$(cp_line "$H/.claude/plugins/cache/bendit/bendit/1.0.0" HOME="$H")"
+has "the installer's download (~/.cache/bendit/): copy: installer copy" "copy: installer copy" \
+    "$(cp_line "$H/.cache/bendit/v1.0.0/plugins/bendit" HOME="$H")"
+has "  ...and says what that means: reopen Claude" "open it again" \
+    "$(cp_line "$H/.cache/bendit/v1.0.0/plugins/bendit" HOME="$H")"
+mkdir -p "$T/xdg/bendit/v1.0.0/plugins/bendit"
+has "\$XDG_CACHE_HOME/bendit/ is the installer's too" "copy: installer copy" \
+    "$(cp_line "$T/xdg/bendit/v1.0.0/plugins/bendit" HOME="$H" XDG_CACHE_HOME="$T/xdg")"
+mkdir -p "$T/dev/plugins/bendit"
+has "anywhere else (a --plugin-dir checkout): installer copy" "copy: installer copy" \
+    "$(cp_line "$T/dev/plugins/bendit" HOME="$H")"
+mkdir -p "$H/.claude/plugins/cache-other/bendit"
+has "a folder that only starts with the cache's name is not in it" "copy: installer copy" \
+    "$(cp_line "$H/.claude/plugins/cache-other/bendit" HOME="$H")"
+ln -s "$H" "$T/cphome-link"
+has "the cache reached through a symlinked home: still installed" "copy: installed" \
+    "$(cp_line "$H/.claude/plugins/cache/bendit/bendit/1.0.0" HOME="$T/cphome-link")"
+mkdir -p "$T/cfg/plugins/cache/bendit/bendit/1.0.0"
+has "CLAUDE_CONFIG_DIR moves Claude's folder: installed there" "copy: installed" \
+    "$(cp_line "$T/cfg/plugins/cache/bendit/bendit/1.0.0" HOME="$H" CLAUDE_CONFIG_DIR="$T/cfg")"
+has "  ...names the running version" "bendit $("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$KIT/.claude-plugin/plugin.json")" \
+    "$(cp_line "$H/.claude/plugins/cache/bendit/bendit/1.0.0" HOME="$H")"
+startup "win-copy" startup
+win "win-copy"
+chk "the copy: line never changes --session's exit (still 0 when live)" "$WIN_RC" 0
 
 # Old markers are removed, so they cannot pile up: 30 days.
 mkdir -p "$BENDIT_LIVE_DIR"; : > "$BENDIT_LIVE_DIR/old-win"; : > "$BENDIT_LIVE_DIR/recent-win"

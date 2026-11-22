@@ -80,6 +80,7 @@ cd "$ROOT" && bash "$KIT/scripts/scaffold-verification-skill.sh" "$ROOT" --harne
 "$KIT/scripts/install-route.sh" route https://github.com/VedangP57/bendit
 "$KIT/scripts/install-route.sh" conflict <the source the route will add>   # see below
 claude plugin list --json                                 # from ROOT: SKILL.md 3b's rule
+python3 "$KIT/scripts/installed-versions.py" --root "$ROOT"   # which bendit each checkout has (read-only)
 ```
 
 The `conflict` source is the URL for `github`, or `"$ROOT/.claude/vendor/bendit"`
@@ -108,7 +109,7 @@ in your head; the summary is built from it.
 | features | detect.md §8, unchanged. `primary-checkout-guard` is always off here (only `--detailed` asks), and the summary never mentions it. |
 | web add-on | `ux-design-laws` on and the add-on not already installed for ROOT (SKILL.md step 3b's rule): install it. |
 | feature dependencies | `browser-driver` on: Node 20+ missing → `brew install node` (macOS with Homebrew); Chrome missing → `brew install --cask google-chrome`; `drive-setup.sh --check` exits 1 → `bash "$KIT/scripts/drive-setup.sh"`. Each only if not already installed. No Homebrew for a missing Node or Chrome: the feature is off with why `Node not found` / `Chrome not found (Chromium cannot be driven)`, and the summary says so. |
-| install route | Already installed for this project at project scope: nothing. `install-route.sh route` prints `github` → bendit from GitHub (anyone else who downloads this project gets it too). `vendor` → a copy inside the project, stated as "works on this computer only". |
+| install route | Already installed for this project at project scope: nothing, except that an older version on installed-versions' `(this folder)` line is updated in §5 step 2b (the summary lists it). `install-route.sh route` prints `github` → bendit from GitHub (anyone else who downloads this project gets it too). `vendor` → a copy inside the project, stated as "works on this computer only". |
 | marketplace conflict | `conflict` exit 0 and silent: nothing. Exit 0 with `switch: <sentence>`: proceed, and put the sentence in the summary and report. Non-zero: §3 question B. |
 | existing AGENTS.md / CLAUDE.md | Absent: create (`AGENTS.md` from `KIT/templates/AGENTS.md`, placeholders with no answer deleted with their line; `CLAUDE.md` the single line `@AGENTS.md`). Present: add only what is missing (project-layer.md §1), never rewrite; a `CLAUDE.md` without the import gets `@AGENTS.md` as the first line, then one blank line, above its own text (exactly what the undo command removes). |
 | dead configuration (detect.md §6) | Not changed. Listed in the report as found. |
@@ -150,6 +151,8 @@ What I'll do on this computer
   • <the switch sentence, verbatim: "Your other project, <name>, uses its own copy of bendit. bendit on
     this computer will now point at the public version on GitHub; <name> may switch back to its own copy
     the next time you open Claude there. Nothing in <name>'s files changes.">
+  • Update bendit for this project to <running version>, the version setting it up (it has <older version>).
+                                                                           (only when §1 found an older one here)
   • The design-advice part (bendit's web add-on).                          (web apps)
   • Pick a web address number for your app that none of your other projects use, and remember it
     on this computer.                                                       (web apps, unless already noted)
@@ -227,6 +230,19 @@ report (§6) with NOT COMPLETE, the failing command, its output, and the fix.
    set yet. That's fine: bendit uses its standard settings. Nothing to do." `vendor`: install.md Route B steps
    1–5 (clone into a `mktemp -d`, copy, register, install, `VENDORED_FROM`),
    then remove the temporary clone (`rm -r <that mktemp dir>`).
+2b. **Which bendit each checkout will load.** `python3
+   "$KIT/scripts/installed-versions.py" --root "$ROOT"`. It reads Claude
+   Code's record of installs and lists every checkout of this repo (the main
+   one and each `git worktree`) with the bendit version installed for its
+   folder: a worktree has been seen running the main checkout's older install
+   after a reopen. Exit 0: nothing to do. Exit 1: run only the command for the line marked `(this folder)`
+   (the summary listed it), then run installed-versions again. Never run the command for another checkout,
+   whatever it says: the report gives it to the person as a step, in plain
+   words ("Your other copy of this project at <path> still has bendit
+   <version>, and Claude may run that one, even here. To update it, paste this
+   into a Terminal window: <the command, as printed>"). Exit 2: say plainly
+   that it could not check which version each copy will load, with its line,
+   and carry on (it is a check, not a guard).
 3. **Web add-on.** `claude plugin install bendit-web@bendit --scope project`.
    If it fails, `ux-design-laws` is off with why `bendit-web install failed`;
    say so in the report and carry on (it is advice, not a guard).
@@ -274,12 +290,15 @@ report (§6) with NOT COMPLETE, the failing command, its output, and the fix.
    earlier step finished. prove.sh (next) reads it for its feature rows.
 9. **Prove it.** `bash "$KIT/scripts/prove.sh" "$ROOT"`, then
    `python3 "$KIT/scripts/selfcheck.py" --session` (is bendit running in this
-   Claude window? `window: live`, `not live` or `unknown`; and a `live test:`
-   line). Always run the live force-push check, exactly as prove.md says,
+   Claude window? `window: live`, `not live` or `unknown`; a `copy:` line,
+   `installed` or `installer copy`, saying which bendit that is; and a
+   `live test:` line). Always run the live force-push check, exactly as prove.md says,
    whatever the window line says, unless the `live test:` line says `skip`
    (something here is named `bendit-probe`; the report says so plainly, and
-   the live check is "skipped"). A refusal by bendit means this window is
-   already protected: then last step 2 is left out. Anything else: step 2
+   the live check is "skipped"). Read the `copy:` line before deciding. A refusal by bendit with `copy: installed` means this window already runs the bendit installed for this project: then last step 2 is left out.
+   A refusal with `copy: installer copy`, step 2 stays: the bendit that refused is the installer's
+   own download (`bendit@inline`), and a reopened Claude runs the installed
+   one, which may be another version. Anything else: step 2
    stays, and the window line only explains why (`not live`: this window was
    opened before bendit was set up). prove.sh's "approved by you" row fails
    until the person does last step 1 in §6, and the live check may wait for a
@@ -295,8 +314,8 @@ Plain words first, the evidence after. The header is the first that applies:
 - only the expected rows open: `bendit is almost set up: two last steps.`
   (or `one last step.`). The last steps block shows, with only the steps still
   open.
-- everything passed (the harness already approved, and the live check refused
-  by bendit in this window): `bendit is set up in <project>.` The last steps
+- everything passed (the harness already approved, and the live check
+  refused by bendit in this window with `copy: installed`): `bendit is set up in <project>.` The last steps
   block is left out, and the report ends with "Nothing else to do."
 
 **What is on screen last.** The report is long, and the person reads its end.
@@ -307,8 +326,11 @@ next, with nothing after them:
 - only step 2 (the check was already approved, as on a re-run):
   `One last step:` then, on the next line, `  Close Claude and open it again in
   this project, then type /bendit:doctor.`
-- only step 1 (this window is already protected): `One last step:` then the
-  step 1 lines, unnumbered.
+- only step 1 (this window already runs the installed bendit): `One last
+  step:` then the step 1 lines, unnumbered.
+- step 2b left another checkout on a different version: its update is one
+  more numbered step just before the reopen step (`Three last steps:`), so the
+  reopened Claude finds the same bendit everywhere.
 - NOT COMPLETE: the last line repeats `To fix it: <the fix>.`
 
 Template:
@@ -373,7 +395,8 @@ What I did (for the record; no action needed)
   Files written: <every path, new or changed>
   Commands run:  <every command, in order, with its exit status>
   prove.sh:      <its table, as printed>
-  Live check:    <PASS / FAIL / inconclusive / waits until you reopen Claude>
+  Live check:    <PASS / FAIL / inconclusive / waits until you reopen Claude>, copy: <installed / installer copy>
+  Versions:      <installed-versions' lines, as printed: each checkout and its bendit version>
   Also noted:    <.git/info/exclude: the lines added; the port, in ~/.config/bendit/ports.json (web apps)>
   Found, not changed: <dead configuration, other tools' privacy notices>
 

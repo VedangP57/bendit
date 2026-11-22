@@ -12,10 +12,16 @@ Bugs earlier versions of guards like this one had, each now pinned by a test:
   6. non-UTF-8 input, or any crash inside the guard, raising a traceback and
      exited 1 -- which Claude Code treats as a non-blocking error, so the
      command ran. A crash now refuses (see main).
-All are covered by block-dangerous-bash.test.sh.
+  7. importing shell_text.py OUTSIDE that net, so a helper that was broken,
+     missing or exited on import still let the command run -- and a
+     SystemExit or KeyboardInterrupt from a helper CALL (setup or main)
+     escaped every `except Exception`. Both now refuse (see could_not_start).
+     Not coverable: a helper calling os._exit(0) ends the process at once.
+1-6 are covered by block-dangerous-bash.test.sh, 7 by guard-startup.test.sh.
 """
 import bisect
 import fnmatch
+import io
 import json
 import os
 import re
@@ -23,7 +29,67 @@ import shlex
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from shell_text import SHELLS, SQL_CLIENTS, _match_close, lex, simple_commands, unwrap  # noqa: E402
+
+
+# A GUARD THAT CANNOT START REFUSES. Its helper import and module setup used to
+# run outside every net: a shell_text.py that was broken, missing or exited on
+# import made Python exit 1 (or 0) -- and Claude Code runs the command on any
+# exit but 2. Now any error nothing else catches refuses with exit 2 here, and
+# a SystemExit raised by a helper -- which never reaches an excepthook -- is
+# turned into an error first, wherever this module calls one: at import, at
+# setup, and in main's nets, which catch BaseException.
+# Not logged to fires.jsonl: the payload is not read yet, and fire_log may
+# share the breakage.
+def _describe(exc: BaseException) -> str:
+    """`Type: message`, or less when even that cannot be produced."""
+    try:
+        return f'{type(exc).__name__}: {exc}'
+    except BaseException:
+        try:
+            return type(exc).__name__
+        except BaseException:
+            return 'an error that could not be described'
+
+
+def could_not_start(guard: str, exc: BaseException) -> str:
+    return (f'[bendit] BLOCKED: bendit guard {guard} could not start: '
+            f'{_describe(exc)}; refusing to be safe. Run /bendit:doctor.')
+
+
+def failed_while_checking(guard: str, exc: BaseException) -> str:
+    return (f'[bendit] BLOCKED: bendit guard {guard} failed while checking: '
+            f'{_describe(exc)}; refusing to be safe. Run /bendit:doctor.')
+
+
+def _say(msg: str) -> None:
+    """Print a refusal; if that fails, write a fixed one straight to fd 2."""
+    try:
+        print(msg, file=sys.stderr)
+        sys.stderr.flush()
+    except BaseException:
+        try:
+            os.write(2, b'[bendit] BLOCKED: bendit guard block-dangerous-bash failed and could not say why; '
+                        b'refusing to be safe. Run /bendit:doctor.\n')
+        except BaseException:
+            pass
+
+
+_STARTED = False   # set by main(): after that an uncaught error is not a start failure
+
+
+def _refuse_uncaught(_type, exc, _tb):
+    try:
+        _say((failed_while_checking if _STARTED else could_not_start)('block-dangerous-bash', exc))
+    finally:
+        os._exit(2)
+
+
+if __name__ == '__main__':
+    sys.excepthook = _refuse_uncaught
+try:
+    from shell_text import SHELLS, SQL_CLIENTS, _match_close, lex, simple_commands, unwrap  # noqa: E402
+except SystemExit as _exc:   # a helper that exits on import never reaches excepthook
+    raise ImportError(f'shell_text.py raised SystemExit on import (exit {_exc.code})') from None
 
 # HOW COMMANDS ARE FOUND. An earlier version made every rule a regex anchored
 # at a command boundary (start, newline, `;|&`, backtick, `$(`, then/do/else).
@@ -233,7 +299,10 @@ class Vars:
 
 
 # The variable table of the command being inspected. Set by _judge().
-VARS = Vars('')
+try:
+    VARS = Vars('')   # calls shell_text.lex: setup, so a SystemExit here must refuse too
+except SystemExit as _exc:
+    raise RuntimeError(f'shell_text raised SystemExit during setup (exit {_exc.code})') from None
 
 
 def _inside_temp(path: str) -> bool:
@@ -628,17 +697,17 @@ def script_deletes_tree(s):
 # found is asked each rule in turn; the first rule any command trips gives the
 # reason.
 COMMAND_RULES = [
-    (rm_recursive, 'recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed'),
-    (find_delete, '`find -delete` removes everything it matches — run it yourself if you mean it'),
-    (destructive_sql, 'destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE)'),
-    (supabase_push_or_reset, 'supabase db push/reset — use `supabase db diff` and let the human push'),
-    (prisma_reset, '`prisma migrate reset` / `prisma db push --force-reset` drops the database and every row in it — use `prisma migrate dev --create-only` to write the migration and let the human apply it'),
-    (force_push, 'force push — use --force-with-lease, and never on a shared branch'),
-    (push_deletes_remote_refs, '`git push --mirror` / `--delete` / `:<branch>` deletes branches on the remote (--mirror: every remote branch you do not have locally), and other people\'s commits go with them — push your own branch, and leave deleting remote branches to the human'),
-    (git_clean_force, '`git clean -f` deletes untracked (and with -x, ignored, .env included) files with no undo — run `git clean -n` to see the list, then run it yourself if you mean it'),
-    (git_reset_hard, '`git reset --hard` throws away every uncommitted change to tracked files, with no undo — run `git stash` instead (`git stash pop` brings it back), or `git reset --keep`, which refuses to overwrite local changes'),
-    (git_discard_all, '`git checkout .` / `git restore .` throws away EVERY uncommitted change in the working tree, with no undo — name the files you mean (`git restore path/to/file`), or `git stash` to set everything aside recoverably'),
-    (script_deletes_tree, 'a one-liner that deletes a folder tree'),
+    (rm_recursive, 'recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed', 'rm-recursive'),
+    (find_delete, '`find -delete` removes everything it matches — run it yourself if you mean it', 'find-delete'),
+    (destructive_sql, 'destructive SQL through a database client (DROP/TRUNCATE, ALTER TABLE ... DROP, or DELETE with no WHERE)', 'destructive-sql'),
+    (supabase_push_or_reset, 'supabase db push/reset — use `supabase db diff` and let the human push', 'supabase-push-reset'),
+    (prisma_reset, '`prisma migrate reset` / `prisma db push --force-reset` drops the database and every row in it — use `prisma migrate dev --create-only` to write the migration and let the human apply it', 'prisma-reset'),
+    (force_push, 'force push — use --force-with-lease, and never on a shared branch', 'force-push'),
+    (push_deletes_remote_refs, '`git push --mirror` / `--delete` / `:<branch>` deletes branches on the remote (--mirror: every remote branch you do not have locally), and other people\'s commits go with them — push your own branch, and leave deleting remote branches to the human', 'push-deletes-remote-refs'),
+    (git_clean_force, '`git clean -f` deletes untracked (and with -x, ignored, .env included) files with no undo — run `git clean -n` to see the list, then run it yourself if you mean it', 'git-clean-force'),
+    (git_reset_hard, '`git reset --hard` throws away every uncommitted change to tracked files, with no undo — run `git stash` instead (`git stash pop` brings it back), or `git reset --keep`, which refuses to overwrite local changes', 'git-reset-hard'),
+    (git_discard_all, '`git checkout .` / `git restore .` throws away EVERY uncommitted change in the working tree, with no undo — name the files you mean (`git restore path/to/file`), or `git stash` to set everything aside recoverably', 'git-discard-all'),
+    (script_deletes_tree, 'a one-liner that deletes a folder tree', 'script-deletes-tree'),
 ]
 
 # A command must not leave the shell standing in a directory it deleted.
@@ -862,16 +931,33 @@ def deletes_the_directory_it_enters(simples):
     return None
 
 
+# fire_log.redact() reads these patterns from this file's source to scrub the
+# refusal log: one definition.
 # Rules about MATERIAL present anywhere in the call. A live key is just as
 # leaked when it is written into a file by a heredoc, so these see the raw text.
 MATERIAL_RULES = [
-    (r'sk_live_[A-Za-z0-9]{20,}', 'Stripe LIVE secret key in the command'),
-    (r'\brk_live_[A-Za-z0-9]{20,}', 'Stripe LIVE restricted key in the command'),
-    (r'\bsbp_[A-Za-z0-9]{30,}', 'Supabase personal access token in the command'),
-    (r'\bsb_secret_[A-Za-z0-9_-]{20,}', 'Supabase secret key in the command'),
-    (r'\bghp_[A-Za-z0-9]{36}', 'GitHub personal access token in the command'),
-    (r'\bgithub_pat_[A-Za-z0-9_]{22,}', 'GitHub fine-grained personal access token in the command'),
-    (r'-----BEGIN [A-Z ]*PRIVATE KEY-----', 'private key material in the command'),
+    (r'sk_live_[A-Za-z0-9]{20,}', 'Stripe LIVE secret key in the command', 'stripe-live-key'),
+    (r'\brk_live_[A-Za-z0-9]{20,}', 'Stripe LIVE restricted key in the command', 'stripe-restricted-key'),
+    (r'\bsbp_[A-Za-z0-9]{30,}', 'Supabase personal access token in the command', 'supabase-access-token'),
+    (r'\bsb_secret_[A-Za-z0-9_-]{20,}', 'Supabase secret key in the command', 'supabase-secret-key'),
+    (r'\bghp_[A-Za-z0-9]{36}', 'GitHub personal access token in the command', 'github-token'),
+    (r'\bgithub_pat_[A-Za-z0-9_]{22,}', 'GitHub fine-grained personal access token in the command', 'github-fine-grained-token'),
+    (r'-----BEGIN [A-Z ]*PRIVATE KEY-----', 'private key material in the command', 'private-key'),
+]
+
+
+# The rule id every refusal is logged under (fire_log.py), and the list
+# /bendit:guard-report reads -- by PARSING this file, so it stays a literal.
+# A refusal that is not a rule anyone would turn off (a payload it cannot
+# read, a crash) is logged as payload-unreadable / guard-error and kept out.
+SPECIAL_RULES = ['deletes-own-cwd', 'trust-approval', 'trust-file-write', 'installer-preanswer']
+RULES = [
+    'deletes-own-cwd', 'trust-approval', 'trust-file-write', 'installer-preanswer',
+    'rm-recursive', 'find-delete', 'destructive-sql', 'supabase-push-reset',
+    'prisma-reset', 'force-push', 'push-deletes-remote-refs', 'git-clean-force',
+    'git-reset-hard', 'git-discard-all', 'script-deletes-tree',
+    'stripe-live-key', 'stripe-restricted-key', 'supabase-access-token',
+    'supabase-secret-key', 'github-token', 'github-fine-grained-token', 'private-key',
 ]
 
 
@@ -884,7 +970,10 @@ def block(reason: str) -> int:
     return 2
 
 
-def inspect(raw: str) -> int:
+def inspect(raw: str, fired=None) -> int:
+    """The exit code for this payload. A refusal appends (rule, payload,
+    command) to `fired`, for the log written after the decision."""
+    fired = [] if fired is None else fired
     # Not a hook payload at all (tests, a shell pipeline, a future payload
     # shape). Blocking here would break every Bash call everywhere, so permit.
     if not raw.strip():
@@ -898,27 +987,39 @@ def inspect(raw: str) -> int:
     # If we still cannot see the command, we are guarding something we cannot
     # read — that is the bypass-shaped case, and it blocks.
     if not isinstance(payload, dict):
+        fired.append(('payload-unreadable', None, ''))
         return block('hook payload was JSON but not an object, so the command could not be read')
     tool_input = payload.get('tool_input')
     if not isinstance(tool_input, dict):
         tool_input = {}
     command = tool_input.get('command', payload.get('command'))
     if command is None:
+        fired.append(('payload-unreadable', payload, ''))
         return block('hook payload carried no command to inspect')
     if not isinstance(command, str):
+        fired.append(('payload-unreadable', payload, ''))
         return block('hook payload command was not a string, so it could not be inspected')
     # An empty command runs nothing, so there is nothing to guard. This is a
     # permit, not a bypass: the command WAS extracted, it is just empty.
     if not command.strip():
         return 0
 
-    reason = _judge(command)
-    return block(reason) if reason else 0
+    rule, reason = _verdict(command)
+    if not reason:
+        return 0
+    code = block(reason)
+    fired.append((rule, payload, command))
+    return code
 
 
 def _judge(command: str):
     """The reason to refuse `command`, or None. Re-entrant: a one-liner's
     os.system('...') string is judged by calling this again."""
+    return _verdict(command)[1]
+
+
+def _verdict(command: str):
+    """(rule id, reason) to refuse `command`, or (None, None)."""
     global VARS
     saved, VARS = VARS, Vars(command)
     try:
@@ -932,40 +1033,80 @@ def _judge(command: str):
                 what = f'this enters {entered} and then deletes it (as {deleted})'
             else:
                 what = f'this enters {entered} and then deletes {deleted}, a folder above it'
-            return (f'{what}, which leaves the shell '
-                    'with no working directory — every later command, and every hook, '
-                    'then fails with EPERM. Delete it from a subshell, or cd out first')
+            return 'deletes-own-cwd', (
+                f'{what}, which leaves the shell '
+                'with no working directory — every later command, and every hook, '
+                'then fails with EPERM. Delete it from a subshell, or cd out first')
         if runs_trust_approval(command, simples):
-            return TRUST_REASON
+            return 'trust-approval', TRUST_REASON
         if writes_trust_file(command, simples):
-            return TRUST_FILE_REASON
+            return 'trust-file-write', TRUST_FILE_REASON
         if preanswers_installer(command):
-            return INSTALLER_REASON
-        for rule, reason in COMMAND_RULES:
+            return 'installer-preanswer', INSTALLER_REASON
+        for rule, reason, rule_id in COMMAND_RULES:
             for s in simples:
                 hit = rule(s)
                 if hit:
-                    return hit if isinstance(hit, str) else reason
-        for pattern, reason in MATERIAL_RULES:
+                    return rule_id, (hit if isinstance(hit, str) else reason)
+        for pattern, reason, rule_id in MATERIAL_RULES:
             if re.search(pattern, command, re.IGNORECASE):
-                return reason
-        return None
+                return rule_id, reason
+        return None, None
     finally:
         VARS = saved
 
 
 def main() -> int:
-    # Bytes, decoded leniently: a payload that is JSON apart from one bad byte
-    # is still a payload, and its command is still inspected.
-    raw = sys.stdin.buffer.read().decode('utf-8', 'surrogateescape')
+    global _STARTED
+    _STARTED = True
+    fired = []
+    raw = ''
     try:
-        return inspect(raw)
-    except Exception as exc:
-        # Exit 1 from a traceback is a NON-blocking error to Claude Code: the
+        # Bytes, decoded leniently: a payload that is JSON apart from one bad
+        # byte is still a payload, and its command is still inspected.
+        raw = sys.stdin.buffer.read().decode('utf-8', 'surrogateescape')
+        code = inspect(raw, fired)
+    except BaseException as exc:
+        # Exit 1 from a traceback is a NON-blocking error to Claude Code, and a
+        # SystemExit or KeyboardInterrupt from a helper exits 0 or 130: the
         # command would run unguarded. A guard that cannot finish refuses.
-        return block(f'the guard itself failed ({type(exc).__name__}: {exc}), '
-                     'so the command could not be checked')
+        try:
+            code = block(f'the guard itself failed ({_describe(exc)}), '
+                         'so the command could not be checked')
+        except BaseException:
+            _say(failed_while_checking('block-dangerous-bash', exc))
+            code = 2
+        fired[:] = [('guard-error', None, '')]
+    if code == 2 and fired:
+        rule, payload, command = fired[-1]
+        _record_fire(raw if payload is None else payload, rule, command)
+    return code
+
+
+def _record_fire(payload, rule: str, preview: str) -> None:
+    """Log this refusal (fire_log.py). Called only AFTER the decision is
+    printed, inside a net that catches everything -- a fire_log.py that is
+    missing, will not import, raises, exits or prints -- with stdout and
+    stderr held, so the exit code and every byte the guard printed are the
+    same whether or not the log was written."""
+    saved = sys.stdout, sys.stderr
+    try:
+        sys.stderr.flush()
+        sys.stdout.flush()
+        sys.stdout = sys.stderr = io.StringIO()
+        if isinstance(payload, str):
+            payload = json.loads(payload)
+        import fire_log
+        fire_log.record(fire_log.project_root(payload), 'block-dangerous-bash', rule, preview)
+    except BaseException:
+        pass
+    finally:
+        sys.stdout, sys.stderr = saved
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    try:
+        _code = main()
+    except BaseException:   # last resort: the net itself failed
+        os._exit(2)
+    sys.exit(_code)

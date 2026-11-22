@@ -4,6 +4,10 @@ The kit's guards cover mistakes common to most projects. The ones that cost
 *this* project are found by using it. The signal is a repeat: **the second time
 you correct the same mistake, the correction is the symptom.**
 
+To find the repeats, run `/bendit:suggest-guards`. It reads this project's past
+sessions (read-only), groups the corrections you keep making by the command
+they correct, and proposes a layer for each. It builds nothing without a yes.
+
 ## 1. Pick the cheapest layer that holds it
 
 | layer | ask | example |

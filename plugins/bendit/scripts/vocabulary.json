@@ -8,7 +8,8 @@
     "aimed at the agent, instruction files only), `evidence` (a completion claim naming no",
     "observation, report files only). Each term is {\"use\": replacement, \"why\": reason}.",
     "Add a term only when you can name what it should say instead, and delete one that",
-    "fires more than it catches: a rule that cries wolf gets switched off."
+    "fires more than it catches: a rule that cries wolf gets switched off.",
+    "`slop` (advisory, plain writing) is adapted from poteto/noodle's unslop skill (MIT); see `_source`."
   ],
   "substitute": {
     "_why": "ASD-STE100 panel D. Exact one-for-one swaps with no judgment required. Safe to auto-fix.",
@@ -164,6 +165,121 @@
     "successfully": {
       "use": "delete it, or name the success signal",
       "why": "adds no observation"
+    }
+  },
+  "slop": {
+    "_why": [
+      "Plain writing. Phrases and marks that read as machine-written prose, adapted from the unslop list in poteto/noodle.",
+      "Advisory only: the report lists them, `--check` and the default run never fail on them, and `--fix` never edits them.",
+      "Each entry is a regex `pattern` (case-insensitive, word-bounded unless `raw`), a `use` hint and a `why`.",
+      "Code spans, fenced code and tables are not scanned. Patterns that need judgment (rule of three, synonym cycling,",
+      "false ranges, colon connectors, title-case headings, bold overuse, missing specifics) are in /bendit:vocabulary, not here."
+    ],
+    "significance inflation": {
+      "pattern": "pivotal moment|testament to|evolving landscape|setting the stage for|indelible mark|deeply rooted",
+      "use": "say what happened",
+      "why": "puffery adds no fact"
+    },
+    "trailing -ing phrase": {
+      "pattern": ",\\s+(?:highlighting|showcasing|fostering|underscoring|reflecting)\\b",
+      "raw": true,
+      "use": "end the sentence, or give the real source",
+      "why": "a participle tacked on to sound significant"
+    },
+    "promotional language": {
+      "pattern": "nestled|vibrant|breathtaking|groundbreaking|renowned|stunning|must-visit",
+      "use": "a neutral description",
+      "why": "advertising tone"
+    },
+    "vague attribution": {
+      "pattern": "experts (?:believe|say|agree)|industry reports suggest|some critics argue|studies show|observers note",
+      "use": "name the source, or delete it",
+      "why": "an unnamed authority cannot be checked"
+    },
+    "formulaic challenge": {
+      "pattern": "despite (?:these |the |its |many |several )?challenges",
+      "use": "state the specific problem and what happened",
+      "why": "a template, not a fact"
+    },
+    "ai vocabulary": {
+      "pattern": "additionally|crucial|delv(?:e|es|ed|ing)|enduring|enhanc(?:e|es|ed|ing)|garner(?:s|ed|ing)?|interplay|intricate|pivotal|showcas(?:e|es|ed|ing)|tapestry|underscor(?:e|es|ed|ing)",
+      "use": "a plain word: also, important, look into, improve, get, link, detailed, show",
+      "why": "words an assistant uses far more than a person does"
+    },
+    "copula avoidance": {
+      "pattern": "(?:serves|stands) as|boasts",
+      "use": "is, or has",
+      "why": "a longer way to say is"
+    },
+    "negative parallelism": {
+      "pattern": "(?:it(?:['’]s| is)|this is|that(?:['’]s| is)) not (?:just|only|merely)\\b[^.\\n]{0,80}?,\\s+(?:it(?:['’]s| is)|but)|not (?:just|merely) [^.\\n]{0,60}?,? but\\b",
+      "use": "state the point directly",
+      "why": "'not X, but Y' argues with a claim nobody made"
+    },
+    "em dash": {
+      "pattern": "—",
+      "raw": true,
+      "use": "a period, a comma or parentheses",
+      "why": "a common machine-prose tell; prose only, code is not scanned"
+    },
+    "decorative emoji": {
+      "pattern": "[🌀-🫿✅❌✨⚠⭐]",
+      "raw": true,
+      "use": "delete it",
+      "why": "decoration in a heading or bullet"
+    },
+    "curly quotes": {
+      "pattern": "[‘’“”]",
+      "raw": true,
+      "use": "a straight quote",
+      "why": "mixed quote styles show a paste from a chat window"
+    },
+    "chatbot phrase": {
+      "pattern": "i hope this helps|let me know if|of course!|certainly!|great question|happy to help",
+      "use": "delete it",
+      "why": "conversation, not documentation"
+    },
+    "sycophantic tone": {
+      "pattern": "you(?:['’]re| are) absolutely right|what a great",
+      "use": "answer directly",
+      "why": "flattery carries no information"
+    },
+    "cutoff disclaimer": {
+      "pattern": "as of my (?:last|knowledge)|while (?:specific )?details are (?:limited|scarce)|limited information is available",
+      "use": "find the source, or delete it",
+      "why": "a disclaimer in place of a fact"
+    },
+    "filler phrase": {
+      "pattern": "it(?:['’]s| is) (?:important to note|worth noting) that|needless to say|at the end of the day",
+      "use": "delete it and start at the point",
+      "why": "the sentence works without it"
+    },
+    "excessive hedging": {
+      "pattern": "could potentially|might possibly|could possibly|may potentially|it could be argued that",
+      "use": "may, or state it plainly",
+      "why": "stacked hedges say nothing"
+    },
+    "generic conclusion": {
+      "pattern": "the future looks bright|exciting times (?:lie )?ahead|only time will tell|the possibilities are endless",
+      "use": "state the specific next step",
+      "why": "a closing line with no content"
+    },
+    "inline-header list": {
+      "pattern": "^[ \\t]*(?:[-*+]|\\d+\\.)[ \\t]+\\*\\*([A-Za-z]+)[^*\\n]{0,30}:\\*\\*[ \\t]+\\1",
+      "raw": true,
+      "use": "write it as a sentence, or plain bullets",
+      "why": "a bolded label that the sentence after it repeats; a label that adds a fact is fine"
+    }
+  },
+  "_source": {
+    "slop": {
+      "repo": "poteto/noodle",
+      "path": ".agents/skills/unslop/SKILL.md",
+      "commit": "82d2921c52370f23f29086de81ccfb600939c037",
+      "file_last_changed_in": "00ad13458e5aeed004396835d0844b620396d86c",
+      "license": "MIT (Copyright (c) 2026 Lauren Tan), repo LICENSE",
+      "notice": "NOTICE at the repository root carries noodle's full MIT notice for these phrases",
+      "note": "Adapted, not copied: patterns 1, 3-9, 13, 16, 18-25 of the 25 are matched here; 2, 10-12, 14, 15 and 17 need judgment and are listed in /bendit:vocabulary."
     }
   }
 }

@@ -13,7 +13,7 @@ may end a turn that changed code.
 [![npm](https://img.shields.io/npm/v/bendit.svg)](https://www.npmjs.com/package/bendit)
 [![PyPI](https://img.shields.io/pypi/v/bendit.svg)](https://pypi.org/project/bendit/)
 
-[Quick start](#quick-start) · [What you get](#what-you-get) · [Evidence](#evidence) · [Limits](#what-it-does-not-protect-against) · [Reference](docs/reference.md)
+[Quick start](#quick-start) · [What you get](#what-you-get) · [Evidence](#evidence) · [Limits](#what-it-does-not-protect-against) · [Reference](docs/reference.md) · [Credits](#credits)
 
 </div>
 
@@ -43,12 +43,23 @@ curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh | 
 ```
 
 Or, if you prefer a package manager, run **one** of these instead (same installer):
-`npx bendit` · `pipx run bendit` · `uvx bendit`
+`npx bendit` · `pipx run bendit` · `uvx bendit` · `brew install vedangp57/tap/bendit`
+(Homebrew installs the command `bendit`; run it in your project folder.)
 
 The command checks that your computer has what bendit needs (`claude`, `git`,
 `python3` 3.9 or newer), asks before installing anything that is missing (type
 `y` to agree; just pressing Enter means no), then opens Claude Code on
 `/bendit:adopt`.
+
+Or let the agent do it, from Claude Code opened in your project:
+
+Paste into Claude Code: Install bendit in this project by following https://raw.githubusercontent.com/VedangP57/bendit/main/INSTALL.md
+
+The agent then follows [INSTALL.md](INSTALL.md) step by step. Each step first
+checks whether it is already done, so a run that stopped half way picks up
+where it left off. On this path the agent first shows you what it will
+install, and installs nothing until you say yes. The approval line below
+stays yours.
 
 ### What happens next
 
@@ -97,8 +108,10 @@ If something is still open, it ends with "What to do next:" and numbered steps i
   attempts to approve it.
 - **It tells you when a guard is off.** Every session starts with a self-check
   that fires a known-bad test at each guard. It is silent when all is well.
-- **Your own rules, the second time.** `/bendit:new-guard` scaffolds a new
-  guard with its tests when you catch yourself correcting the same mistake twice.
+- **Your own rules, the second time.** `/bendit:suggest-guards` finds the
+  corrections you keep repeating in this project's past sessions, and
+  `/bendit:new-guard` scaffolds a guard with its tests for one.
+  `/bendit:guard-report` shows which rules refused something lately, and which never do.
 
 What is a wall and what is a suggestion:
 
@@ -113,8 +126,8 @@ What is a wall and what is a suggestion:
 | Advice | notes after edits; a warning when a command hid its errors and printed nothing; a start-of-session brief | after each edit or command; the brief per project |
 | Advice | skills: `checks-that-can-lie`, `engineering-habits`, `blast-radius`, `encode-lessons-in-structure`, and `ux-design-laws` for web apps | loaded when relevant |
 
-**Enforced**: a hook refuses the action, and a guard that crashes refuses too
-(it fails closed). **Advice**: the agent may ignore it. [Full table](docs/reference.md#enforced-and-advice-in-full).
+**Enforced**: a hook refuses the action, and a guard that crashes, or cannot
+load its own code, refuses too (it fails closed). **Advice**: the agent may ignore it. [Full table](docs/reference.md#enforced-and-advice-in-full).
 
 ## See it block, safely
 
@@ -225,11 +238,15 @@ with the reason, in `.claude/bendit.json`.
 | `ux-design-laws`: a skill for interface work | a web app | the `bendit-web` add-on, this project only |
 | `session-brief`: where the repo stands, at session start | the project is a git repo | nothing |
 | `ls-guard`: refuses parsing `ls` output | `ls` is an alias or function in your shell | nothing |
+| `primary-checkout-guard`: refuses edits in your main folder while it is on the integration branch, and gives the `git worktree add` command to use instead (inspired by poteto's noodle) | only when you say yes in `/bendit:adopt --detailed`; off by default | a git project |
 
 In `--detailed`, saying no to a dependency turns its feature off and never stops setup.
 [Details](docs/reference.md#per-project-features-in-detail).
 
 ## Commands
+
+**Start here:** `/bendit:adopt` is the one command you need. The rest are for
+later, when you want them.
 
 | Command | What it does |
 |---|---|
@@ -237,9 +254,11 @@ In `--detailed`, saying no to a dependency turns its feature off and never stops
 | `/bendit:doctor` | check every guard can still refuse, run the live test, say what to do next |
 | `/bendit:verify` | run your project's check now (for a web app: start it and click through it) |
 | `/bendit:ship` | pre-PR checklist, then open the pull request once you agree |
-| `/bendit:review-diff` | review everything this branch changes against common failure modes |
+| `/bendit:review-diff` | review everything this branch changes against common failure modes; each finding is sorted into act on, consider, noted or dismissed |
+| `/bendit:guard-report` | which guard rules refused something in the last 30 days, and which never fired |
+| `/bendit:suggest-guards` | find corrections you repeat in this project's past sessions, and propose the cheapest fix for each |
 | `/bendit:new-guard <name>` | scaffold a new guard and its tests from a mistake you keep correcting |
-| `/bendit:vocabulary` | report or fix words used with more than one meaning |
+| `/bendit:vocabulary` | report or fix words used with more than one meaning, and flag machine-sounding phrases |
 
 ## Undo or uninstall
 
@@ -286,7 +305,7 @@ claude plugin install bendit@bendit
 ```
 
 The install URL above is "latest". To pin a release, put its tag in the URL,
-for example `https://raw.githubusercontent.com/VedangP57/bendit/v0.4.1/install.sh`
+for example `https://raw.githubusercontent.com/VedangP57/bendit/v0.5.0/install.sh`
 (`/<tag>/` for any other release).
 
 To read the installer before running it:
@@ -324,6 +343,27 @@ Design decisions are in [docs/design.md](docs/design.md); the method and its
 twelve failure classes in [docs/ladder.md](docs/ladder.md).
 
 </details>
+
+## Credits
+
+Several ideas in bendit are adapted from, or inspired by, public repositories
+by [poteto](https://github.com/poteto) (Lauren Tan). bendit is a separate
+project, and any mistakes in the adaptation are bendit's.
+
+- [brainmaxxing](https://github.com/poteto/brainmaxxing): the principles behind
+  the `engineering-habits` and `encode-lessons-in-structure` skills and
+  [the ladder](docs/ladder.md) (prove it works, fix root causes, subtract
+  before you add, encode lessons in structure), and the transcript-mining idea
+  behind `/bendit:suggest-guards`.
+- [verification-skill-example](https://github.com/poteto/verification-skill-example):
+  the proof bar, the list of what a harness cannot drive, and the feature-map
+  stubs in every verify skill bendit generates.
+- [noodle](https://github.com/poteto/noodle): the `slop` patterns in the
+  vocabulary check (from its unslop list), the shape of
+  [INSTALL.md](INSTALL.md), the worktree-first rule behind
+  `primary-checkout-guard`, and the lead judgment in `/bendit:review-diff`.
+- [how](https://github.com/poteto/how): the act on, consider, noted and
+  dismissed buckets in `/bendit:review-diff`.
 
 ## Contributing, security, license
 

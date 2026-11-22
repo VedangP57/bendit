@@ -14,6 +14,9 @@ list of integers 1-65535, docs_glob a string or null; any other key, or a
 wrong type, is malformed. env_files is read highest priority first (.env.local
 beats .env), and probe_env_vars must name variables whose values are URLs.
 
+primary-checkout-guard may carry "integrationBranch" (a branch name, see
+_branch_name): the branch its guard protects when origin/HEAD cannot say.
+
 A malformed file is never read as "everything off": load() raises
 FeaturesError naming the file, and every caller must refuse (fail closed).
 Absent is different: it means the project never chose, and is_on() is False.
@@ -24,13 +27,16 @@ CLI:
   features.py get  <root> <name>              prints on / off; exit 2 if malformed
   features.py set  <root> <name> on|off <why> merges, keeping other keys
   features.py show <root>                     table: feature | on/off | why
+  features.py integration-branch <root> <branch>
+                                              records primary-checkout-guard's
+                                              integrationBranch (set the feature first)
 """
 import json
 import os
 import sys
 import tempfile
 
-FEATURES = ('browser-driver', 'ux-design-laws', 'session-brief', 'ls-guard')
+FEATURES = ('browser-driver', 'ux-design-laws', 'session-brief', 'ls-guard', 'primary-checkout-guard')
 VERSION = 1
 # The one extra object a feature may carry, keyed by what it is called.
 _CONFIG_KEY = {'session-brief': 'brief'}
@@ -61,6 +67,21 @@ BRIEF_KEYS = {
 _CONFIG_SCHEMA = {'brief': BRIEF_KEYS}
 
 
+def _branch_name(v):
+    """A plain branch name: what `git worktree add -b` and a comparison with
+    `git symbolic-ref --short HEAD` can take as-is. No leading '-' (it would
+    read as an option), no whitespace or control characters, no '..'."""
+    return (isinstance(v, str) and 0 < len(v) <= 200 and not v.startswith(('-', '/'))
+            and not v.endswith(('/', '.', '.lock')) and '..' not in v and '//' not in v
+            and all(c.isalnum() or c in '._/-' for c in v))
+
+
+# Single values a feature may carry beside "on" and "why", each with one type.
+_SCALAR_KEYS = {
+    'primary-checkout-guard': {'integrationBranch': (_branch_name, 'a branch name (letters, digits, . _ / -)')},
+}
+
+
 def path(root):
     return os.path.join(root, '.claude', 'bendit.json')
 
@@ -87,8 +108,16 @@ def _validate(data, where):
         if not isinstance(why, str) or not why.strip():
             raise FeaturesError('%s: feature %r: "why" must be a non-empty string' % (where, name))
         cfg = _CONFIG_KEY.get(name)
+        scalars = _SCALAR_KEYS.get(name, {})
         for k, v in entry.items():
             if k in ('on', 'why'):
+                continue
+            if k in scalars:
+                ok, what = scalars[k]
+                if not ok(v):
+                    got = repr(v)
+                    raise FeaturesError('%s: feature %r: %r must be %s, got %s'
+                                        % (where, name, k, what, got if len(got) <= 80 else got[:77] + '...'))
                 continue
             if k != cfg:
                 raise FeaturesError('%s: feature %r: unknown key %r' % (where, name, k))
@@ -203,7 +232,8 @@ def project_root(payload):
 
 
 def _main(argv):
-    usage = ('usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <root>')
+    usage = ('usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <root>'
+             ' | integration-branch <root> <branch>')
     try:
         cmd = argv[1] if len(argv) > 1 else ''
         if cmd == 'get' and len(argv) == 4:
@@ -218,6 +248,17 @@ def _main(argv):
             entry['on'] = state == 'on'
             entry['why'] = why
             feats[name] = entry
+            write(root, feats)
+        elif cmd == 'integration-branch' and len(argv) == 4:
+            root, branch = argv[2], argv[3]
+            feats = (load(root) or {'features': {}})['features']
+            if 'primary-checkout-guard' not in feats:
+                raise FeaturesError('%s: set primary-checkout-guard first (features.py set %s '
+                                    'primary-checkout-guard on|off <why>), then its integrationBranch'
+                                    % (path(root), root))
+            entry = dict(feats['primary-checkout-guard'])
+            entry['integrationBranch'] = branch
+            feats['primary-checkout-guard'] = entry
             write(root, feats)
         elif cmd == 'show' and len(argv) == 3:
             feats = (load(argv[2]) or {'features': {}})['features']

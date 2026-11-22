@@ -298,7 +298,9 @@ if [ -z "$PY_GIVEN" ]; then
 fi
 fe "$T/stub-user" "$FP"
 chk "features: exit 0" "$FE_RC" 0
-has "  ...a row for a feature that is on" "browser-driver | on" "$FE_OUT"
+# The columns are padded to the longest feature name: match the row, not its padding.
+onrow() { printf '%s\n' "$1" | grep -cE '^browser-driver +\| on +\|'; }
+chk "  ...a row for a feature that is on" "$(onrow "$FE_OUT")" 1
 has "  ...with its reason" "package.json:14 next" "$FE_OUT"
 has "  ...a row for one that is off" "ls-guard" "$FE_OUT"
 has "  ...add-on enabled at user scope: the warning" "bendit-web is installed for every project, not only this one" "$FE_OUT"
@@ -309,7 +311,7 @@ fe "$T/stub-broken" "$FP"
 has "claude CLI errors: says it could not check" "could not check" "$FE_OUT"
 case "$FE_OUT" in *"not only this one"*) o=warned ;; *) o=quiet ;; esac
 chk "  ...and does not claim the add-on is at user scope" "$o" quiet
-has "  ...and the table still prints" "browser-driver | on" "$FE_OUT"
+chk "  ...and the table still prints" "$(onrow "$FE_OUT")" 1
 # No claude on PATH at all: a hermetic PATH holding only the interpreter.
 mkdir -p "$T/hermetic"; ln -sf "$PY" "$T/hermetic/python3"
 FE_OUT="$(env PATH="$T/hermetic" "$PY" "$KIT/scripts/selfcheck.py" --features "$FP" 2>&1)"

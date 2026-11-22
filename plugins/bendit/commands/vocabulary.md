@@ -41,7 +41,7 @@ every document), `--json`.
 
 ## What it checks
 
-Three rules, routed by what a document is for.
+Four rules, routed by what a document is for.
 
 - **substitute**: register inflation with an exact equivalent. Runs everywhere.
 - **obligation**: a requirement addressed to the agent but phrased as advice
@@ -50,6 +50,24 @@ Three rules, routed by what a document is for.
   lines. Report files only. Evidence rungs: 1 said so, 2 pointed at the line,
   3 showed the bad case cannot happen, 4 ran it and read the output, 5
   reproduced it in the running app.
+- **slop**: phrasing that reads as machine-written (`serves as`, `crucial`,
+  em dashes in prose, `I hope this helps`). Adapted from the unslop list in
+  poteto's noodle (MIT). Runs everywhere and is advice only: `--check` and the
+  exit code ignore it, and `--fix` never touches it. A repo's own
+  `.claude/vocabulary.json` replaces the starter, so it gets `slop` only if its
+  copy has the entry.
+
+Seven of noodle's patterns need judgment, so the script cannot match them.
+When you write or review prose, check these by eye:
+
+- Name-dropping: a list of outlets or sources with no word on what each said.
+- Rule of three: a list padded to three items when there are two or four.
+- Synonym cycling: one thing called by three names in a paragraph. Pick one.
+- False ranges: "from X to Y" where X and Y are not on one scale.
+- Colon connectors: a colon in mid-sentence where a period would do. A colon
+  before a list or an example is fine.
+- Bold on every proper noun or acronym.
+- Title Case Headings. Use sentence case.
 
 ## Reading the result
 

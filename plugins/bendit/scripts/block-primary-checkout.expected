@@ -1,0 +1,42 @@
+=== Edit on main in the primary checkout (origin/HEAD)
+exit 2
+--- stderr
+BLOCKED by bendit: this edit is in the primary checkout of <tmp>/proj, on `main`, the integration branch (origin/HEAD).
+primary-checkout-guard is on in .claude/bendit.json: work in a worktree, so `main` changes only by merge.
+Make one, then make this edit there:
+
+    git -C <tmp>/proj worktree add <tmp>/proj-edit-app -b edit-app
+
+The file is then <tmp>/proj-edit-app/app.py. (If that folder or branch already exists, pick another name.)
+Turning the guard off is the person's call (/bendit:adopt --detailed), not yours.
+
+=== a repo path with a space: the command is quoted
+exit 2
+--- stderr
+BLOCKED by bendit: this edit is in the primary checkout of '<tmp>/with space', on `main`, the integration branch (origin/HEAD).
+primary-checkout-guard is on in .claude/bendit.json: work in a worktree, so `main` changes only by merge.
+Make one, then make this edit there:
+
+    git -C '<tmp>/with space' worktree add '<tmp>/with space-edit-my-file' -b edit-my-file
+
+The file is then '<tmp>/with space-edit-my-file/my file.py'. (If that folder or branch already exists, pick another name.)
+Turning the guard off is the person's call (/bendit:adopt --detailed), not yours.
+
+=== git is not installed
+exit 2
+--- stderr
+BLOCKED by bendit: primary-checkout-guard is on, but git could not say whether this edit is in the primary checkout on the integration branch: git is not installed (or not on PATH)
+Refusing rather than guessing. Fix git here (or ask the person), then retry.
+
+=== a corrupt .git (HEAD is garbage)
+exit 2
+--- stderr
+BLOCKED by bendit: primary-checkout-guard is on, but git could not say whether this edit is in the primary checkout on the integration branch: `git rev-parse --git-dir --git-common-dir` exited 128 in <tmp>/corrupt: fatal: not a git repository (or any of the parent directories): .git
+Refusing rather than guessing. Fix git here (or ask the person), then retry.
+
+=== malformed bendit.json
+exit 2
+--- stderr
+BLOCKED by bendit: `.claude/bendit.json` is unreadable: <tmp>/malformed/.claude/bendit.json: not valid JSON: Expecting value: line 1 column 28 (char 27)
+primary-checkout-guard cannot tell whether it is on, so edits are refused until the file is fixed: fix .claude/bendit.json itself (that edit is allowed), or ask the person.
+

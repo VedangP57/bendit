@@ -59,27 +59,65 @@ conflict() {
 import json, os, re, sys
 reg, src = sys.argv[1], sys.argv[2]
 try:
-    entry = json.load(open(reg)).get("bendit")
+    data = json.load(open(reg))
+    if not isinstance(data, dict):
+        raise ValueError("not a JSON object")
+    entry = data.get("bendit")
 except Exception as e:
     print(f"I could not read {reg} ({e}), so I cannot tell whether another project already uses the name bendit.")
     sys.exit(3)
 if not isinstance(entry, dict):
     sys.exit(0)
-s = entry.get("source") or {}
-def repo_of(u):
-    m = re.match(r"^(?:https://github\.com/|git@[^:]+:)([^/]+/[^/]+?)(?:\.git)?/?$", u)
-    return m.group(1) if m else u
-if re.match(r"^(https://|git@)", src):
-    new = ("github", repo_of(src))
+def unreadable():
+    print(f"The bendit entry in {reg} has a source I cannot read, so I cannot tell whether another project already uses the name bendit.")
+    sys.exit(3)
+s = entry.get("source")
+if not isinstance(s, dict):
+    unreadable()
+def text(v):
+    if not isinstance(v, str):
+        unreadable()
+    return v
+# One repo, however it is written: owner/repo, https://github.com/owner/repo
+# (.git, trailing /, userinfo), git@github.com:owner/repo.git, ssh://git@github.com/...
+# ASCII only, on purpose: re.A stops re.I folding U+212A (Kelvin sign) to k or
+# U+0131 (dotless i) to i, and LOW lowercases A-Z and nothing else. A lookalike
+# therefore never matches github.com or an owner/repo; it is "different" (exit 3).
+GH = re.compile(r"(?:https?://(?:[^/@]*@)?github\.com/|(?:ssh://)?git@github\.com[:/])"
+                r"([A-Za-z0-9._-]+/[A-Za-z0-9._-]+?)(?:\.git)?/*", re.I | re.A)
+# Bare owner/repo (deterministic, never looks at the disk or the cwd): exactly
+# one slash, no leading "." or "/", so ./a/b, ../a/b and /a/b stay paths.
+BARE = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9._-]*/[A-Za-z0-9._-]+?(?:\.git)?/*", re.A)
+LOW = {c: c + 32 for c in range(65, 91)}
+def norm(u):
+    m = GH.fullmatch(u)
+    if m:
+        return ("github", m.group(1).translate(LOW), m.group(1))
+    if re.match(r"(https?://|ssh://|git@|git://)", u, re.A):
+        # another host: never keep userinfo, so nothing printed can hold a secret
+        k = re.sub(r"(\.git)?/*\Z", "", re.sub(r"^([a-z+]+://)[^/@]*@", r"\1", u))
+        return ("url", k, k)
+    if BARE.fullmatch(u):
+        k = re.sub(r"(\.git)?/*\Z", "", u)
+        return ("github", k.translate(LOW), k)
+    k = os.path.realpath(u)
+    return ("directory", k, k)
+new = norm(src)
+kind = s.get("source")
+if kind == "github":
+    cur = norm("https://github.com/" + text(s.get("repo")))
+elif kind == "directory":
+    if not text(s.get("path")):
+        unreadable()
+    k = os.path.realpath(s.get("path"))
+    cur = ("directory", k, k)
+elif kind in ("git", "url"):
+    cur = norm(text(s.get("url")))
+    if cur[0] == "directory":
+        unreadable()
 else:
-    new = ("directory", os.path.realpath(src))
-if s.get("source") == "github":
-    cur = ("github", s.get("repo") or "")
-elif s.get("source") == "directory":
-    cur = ("directory", os.path.realpath(s.get("path") or ""))
-else:
-    cur = (s.get("source"), s.get("url") or s.get("path") or "")
-if cur[0] == new[0] and cur[1].lower() == new[1].lower():
+    unreadable()
+if cur[:2] == new[:2]:
     sys.exit(0)
 
 TAIL = os.sep + os.path.join(".claude", "vendor", "bendit")
@@ -118,7 +156,7 @@ if cur[0] == "directory":
     print(f"bendit is already set up in another project on this computer ({name}) from a different copy. "
           f"Setting it up here makes {name} use this one too. Go ahead?")
 else:
-    where = f"the version on GitHub ({cur[1]})" if cur[0] == "github" and cur[1] else "a copy I cannot name"
+    where = f"the version on GitHub ({cur[2]})" if cur[0] == "github" else "a copy I cannot name"
     print(f"bendit is already set up on this computer from a different copy ({where}). "
           f"Setting it up here makes every project that uses that copy use this one too. Go ahead?")
 sys.exit(3)

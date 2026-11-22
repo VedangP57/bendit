@@ -35,13 +35,74 @@ The known false positive is a real zsh array -- `for x in $arr` is correct
 there, and no static check can tell an array from a scalar. The message says
 so, and says how to proceed.
 """
+import io
 import json
 import re
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from shell_text import code_mask, lex, shell_c_string, unwrap  # noqa: E402
+
+
+# A GUARD THAT CANNOT START REFUSES. Its helper import and module setup used to
+# run outside every net: a shell_text.py that was broken, missing or exited on
+# import made Python exit 1 (or 0) -- and Claude Code runs the command on any
+# exit but 2. Now any error nothing else catches refuses with exit 2 here, and
+# a SystemExit raised by a helper -- which never reaches an excepthook -- is
+# turned into an error first, wherever this module calls one: at import, at
+# setup, and in main's nets, which catch BaseException.
+# Not logged to fires.jsonl: the payload is not read yet, and fire_log may
+# share the breakage.
+def _describe(exc: BaseException) -> str:
+    """`Type: message`, or less when even that cannot be produced."""
+    try:
+        return f'{type(exc).__name__}: {exc}'
+    except BaseException:
+        try:
+            return type(exc).__name__
+        except BaseException:
+            return 'an error that could not be described'
+
+
+def could_not_start(guard: str, exc: BaseException) -> str:
+    return (f'[bendit] BLOCKED: bendit guard {guard} could not start: '
+            f'{_describe(exc)}; refusing to be safe. Run /bendit:doctor.')
+
+
+def failed_while_checking(guard: str, exc: BaseException) -> str:
+    return (f'[bendit] BLOCKED: bendit guard {guard} failed while checking: '
+            f'{_describe(exc)}; refusing to be safe. Run /bendit:doctor.')
+
+
+def _say(msg: str) -> None:
+    """Print a refusal; if that fails, write a fixed one straight to fd 2."""
+    try:
+        print(msg, file=sys.stderr)
+        sys.stderr.flush()
+    except BaseException:
+        try:
+            os.write(2, b'[bendit] BLOCKED: bendit guard block-zsh-wordsplit failed and could not say why; '
+                        b'refusing to be safe. Run /bendit:doctor.\n')
+        except BaseException:
+            pass
+
+
+_STARTED = False   # set by main(): after that an uncaught error is not a start failure
+
+
+def _refuse_uncaught(_type, exc, _tb):
+    try:
+        _say((failed_while_checking if _STARTED else could_not_start)('block-zsh-wordsplit', exc))
+    finally:
+        os._exit(2)
+
+
+if __name__ == '__main__':
+    sys.excepthook = _refuse_uncaught
+try:
+    from shell_text import code_mask, lex, shell_c_string, unwrap  # noqa: E402
+except SystemExit as _exc:   # a helper that exits on import never reaches excepthook
+    raise ImportError(f'shell_text.py raised SystemExit on import (exit {_exc.code})') from None
 
 # `for NAME in $VAR` / `${VAR}` / `${VAR:-default words}` -- a bare scalar
 # expansion, first in the list. Not `$(`: command substitution splits. Not
@@ -50,6 +111,11 @@ from shell_text import code_mask, lex, shell_c_string, unwrap  # noqa: E402
 # one expression -- capturing `${v:-a` put a syntax error in the advice below.
 # The expansion must END the word: in `$dir/*.ts` the scalar is only part of a
 # word whose literal glob zsh does expand, so it iterates per file.
+# The rule id each refusal is logged under (fire_log.py), and the list
+# /bendit:guard-report reads -- by PARSING this file, so it stays a literal.
+# A crash that refuses is logged as guard-error and kept out of the list.
+RULES = ['zsh-bare-scalar-loop']
+
 LOOP = re.compile(r'\bfor\s+\w+\s+in\s+'
                   r'(\$\w+(?![\w\[])|\$\{\w+(?:[:\-+=?#%/^,~@][^}\n]*)?\})'
                   r'(?=[\s;&|)]|$)')
@@ -133,18 +199,45 @@ def main() -> int:
         f'it under bash -c, or quote the expansion to show the single-item intent.\n'
         f'(Disable this guard with the plugin option zshGuard=false.)',
         file=sys.stderr)
+    _record_fire(payload, 'zsh-bare-scalar-loop', cmd)
     return 2
 
 
 def run() -> int:
+    global _STARTED
+    _STARTED = True
     try:
         return main()
-    except Exception as exc:
-        print(f'[bendit] BLOCKED: the zsh word-split guard itself failed '
-              f'({type(exc).__name__}: {exc}), so the command could not be checked.',
-              file=sys.stderr)
+    except BaseException as exc:   # SystemExit/KeyboardInterrupt from a helper too
+        _say(f'[bendit] BLOCKED: the zsh word-split guard itself failed '
+             f'({_describe(exc)}), so the command could not be checked.')
+        _record_fire(None, 'guard-error', '')
         return 2
 
 
+def _record_fire(payload, rule: str, preview: str) -> None:
+    """Log this refusal (fire_log.py). Called only AFTER the decision is
+    printed, inside a net that catches everything -- a fire_log.py that is
+    missing, will not import, raises, exits or prints -- with stdout and
+    stderr held, so the exit code and every byte the guard printed are the
+    same whether or not the log was written."""
+    saved = sys.stdout, sys.stderr
+    try:
+        sys.stderr.flush()
+        sys.stdout.flush()
+        sys.stdout = sys.stderr = io.StringIO()
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import fire_log
+        fire_log.record(fire_log.project_root(payload), 'block-zsh-wordsplit', rule, preview)
+    except BaseException:
+        pass
+    finally:
+        sys.stdout, sys.stderr = saved
+
+
 if __name__ == '__main__':
-    sys.exit(run())
+    try:
+        _code = run()
+    except BaseException:   # last resort: the net itself failed
+        os._exit(2)
+    sys.exit(_code)

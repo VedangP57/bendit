@@ -35,6 +35,7 @@ because matching a quoted command name would also match `echo 'ls | wc -l'`,
 which is ordinary text. An absolute path is always permitted: a path is never
 the function, and a missing binary fails loudly, the opposite of this failure.
 """
+import io
 import json
 import os
 import re
@@ -46,6 +47,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # shell_text.py must exit 2 (refuse), not exit 1 (a non-blocking error).
 features = None
 strip_quoted_heredocs = None
+
+# The rule id each refusal is logged under (fire_log.py), and the list
+# /bendit:guard-report reads -- by PARSING this file, so it stays a literal.
+# A crash that refuses is logged as guard-error and kept out of the list.
+RULES = ['parses-ls-output']
 
 # `ls` in COMMAND POSITION: at the start, or after a separator, with only
 # whitespace and an optional backslash between. Anchoring this way is what
@@ -284,6 +290,35 @@ def no_bendit_json(payload) -> bool:
     return False
 
 
+def _describe(exc: BaseException) -> str:
+    """`Type: message`, or less when even that cannot be produced."""
+    try:
+        return f'{type(exc).__name__}: {exc}'
+    except BaseException:
+        try:
+            return type(exc).__name__
+        except BaseException:
+            return 'an error that could not be described'
+
+
+def could_not_start(guard: str, exc: BaseException) -> str:
+    return (f'[bendit] BLOCKED: bendit guard {guard} could not start: '
+            f'{_describe(exc)}; refusing to be safe. Run /bendit:doctor.')
+
+
+def _say(msg: str) -> None:
+    """Print a refusal; if that fails, write a fixed one straight to fd 2."""
+    try:
+        print(msg, file=sys.stderr)
+        sys.stderr.flush()
+    except BaseException:
+        try:
+            os.write(2, b'[bendit] BLOCKED: bendit guard block-ls-parsing failed and could not say why; '
+                        b'refusing to be safe. Run /bendit:doctor.\n')
+        except BaseException:
+            pass
+
+
 def main() -> int:
     global features, strip_quoted_heredocs
     try:
@@ -293,8 +328,16 @@ def main() -> int:
     if no_bendit_json(payload):
         return 0
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    import features as _features
-    from shell_text import strip_quoted_heredocs as _strip
+    # This guard's own helpers. run() catches Exception, but a helper that
+    # exits on import raises SystemExit -- exit 0, the command runs. So this
+    # net catches everything, and refuses.
+    try:
+        import features as _features
+        from shell_text import strip_quoted_heredocs as _strip
+    except BaseException as exc:  # noqa: B036 -- SystemExit from a helper included
+        _say(could_not_start('block-ls-parsing', exc))
+        _record_fire(payload, 'guard-error', '')
+        return 2
     features, strip_quoted_heredocs = _features, _strip
     # The feature gate comes first: off or absent -> nothing else runs. A
     # malformed bendit.json is never read as "off", but it must not block
@@ -315,17 +358,45 @@ def main() -> int:
                'is refused until the file is fixed: fix it with the Edit tool, or ask the person.'
                % unreadable)
     print(msg, file=sys.stderr)
+    _record_fire(payload, 'parses-ls-output', payload['tool_input']['command'])
     return 2
 
 
 def run() -> int:
     try:
         return main()
-    except Exception as e:  # exit 1 is non-blocking to a hook: refuse instead
-        print('BLOCKED by bendit: block-ls-parsing crashed (%s: %s); refusing rather '
-              'than letting the command through unchecked.' % (type(e).__name__, e), file=sys.stderr)
+    # Exit 1 is non-blocking to a hook, and a SystemExit or KeyboardInterrupt
+    # from a helper exits 0 or 130: every one of them refuses instead.
+    except BaseException as e:
+        _say('BLOCKED by bendit: block-ls-parsing crashed (%s); refusing rather '
+             'than letting the command through unchecked.' % _describe(e))
+        _record_fire(None, 'guard-error', '')
         return 2
 
 
+def _record_fire(payload, rule: str, preview: str) -> None:
+    """Log this refusal (fire_log.py). Called only AFTER the decision is
+    printed, inside a net that catches everything -- a fire_log.py that is
+    missing, will not import, raises, exits or prints -- with stdout and
+    stderr held, so the exit code and every byte the guard printed are the
+    same whether or not the log was written."""
+    saved = sys.stdout, sys.stderr
+    try:
+        sys.stderr.flush()
+        sys.stdout.flush()
+        sys.stdout = sys.stderr = io.StringIO()
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import fire_log
+        fire_log.record(fire_log.project_root(payload), 'block-ls-parsing', rule, preview)
+    except BaseException:
+        pass
+    finally:
+        sys.stdout, sys.stderr = saved
+
+
 if __name__ == '__main__':
-    sys.exit(run())
+    try:
+        _code = run()
+    except BaseException:   # last resort: the net itself failed
+        os._exit(2)
+    sys.exit(_code)

@@ -7,27 +7,28 @@ exit 0
 --- stdout
 bendit selfcheck: <kit>
 
-hook                           | event                                 | result
--------------------------------+---------------------------------------+-------
-block-dangerous-bash.py        | PreToolUse Bash                       | ok
-block-zsh-wordsplit.py         | PreToolUse Bash                       | ok
-block-ls-parsing.py            | PreToolUse Bash                       | ok
-require-verification.py --pre  | PreToolUse Bash                       | ok
-path-contracts.py              | PreToolUse Write|Edit|MultiEdit       | ok
-post-edit-review.py --pre      | PreToolUse Write|Edit|MultiEdit       | ok
-post-edit-review.py            | PostToolUse Edit|Write|MultiEdit      | ok
-require-verification.py --mark | PostToolUse Edit|Write|MultiEdit|Bash | ok
-warn-suppressed-stderr.py      | PostToolUse Bash                      | ok
-require-verification.py        | Stop                                  | ok
-session-brief.py --hook        | SessionStart startup|clear            | ok
+hook                           | event                                        | result
+-------------------------------+----------------------------------------------+-------
+block-dangerous-bash.py        | PreToolUse Bash                              | ok
+block-zsh-wordsplit.py         | PreToolUse Bash                              | ok
+block-ls-parsing.py            | PreToolUse Bash                              | ok
+require-verification.py --pre  | PreToolUse Bash                              | ok
+path-contracts.py              | PreToolUse Write|Edit|MultiEdit              | ok
+post-edit-review.py --pre      | PreToolUse Write|Edit|MultiEdit              | ok
+block-primary-checkout.py      | PreToolUse Edit|Write|MultiEdit|NotebookEdit | ok
+post-edit-review.py            | PostToolUse Edit|Write|MultiEdit             | ok
+require-verification.py --mark | PostToolUse Edit|Write|MultiEdit|Bash        | ok
+warn-suppressed-stderr.py      | PostToolUse Bash                             | ok
+require-verification.py        | Stop                                         | ok
+session-brief.py --hook        | SessionStart startup|clear                   | ok
 
-selfcheck: all 11 hooks answered their probe
+selfcheck: all 12 hooks answered their probe
 
 === block-dangerous-bash replaced by exit 0
 exit 0
 --- stdout
 -- systemMessage (the person)
-bendit: 1 of 11 hooks is OFF -- it could not run, or let a known-bad call through, so that check is not protecting you this session. The rest still work.
+bendit: 1 of 12 hooks is OFF -- it could not run, or let a known-bad call through, so that check is not protecting you this session. The rest still work.
   - block-dangerous-bash.py (PreToolUse Bash): exit 0 on its known-bad probe: it no longer refuses `git push --force`
     this guard is OFF. Fix: it runs but lets a known-bad call through: reinstall, or revert a local edit to it.
 After fixing, start a new session or run /bendit:doctor to re-check.
@@ -113,11 +114,12 @@ exit 0
 --- stdout
 bendit features: <tmp>/featproj/.claude/bendit.json
 
-feature        | on/off | why
-browser-driver | on     | package.json:14 next
-ux-design-laws | off    | (not set)
-session-brief  | off    | (not set)
-ls-guard       | off    | declined by the person
+feature                | on/off | why
+browser-driver         | on     | package.json:14 next
+ux-design-laws         | off    | (not set)
+session-brief          | off    | (not set)
+ls-guard               | off    | declined by the person
+primary-checkout-guard | off    | (not set)
 
 add-on scope: bendit-web is installed for every project, not only this one. Fix: claude plugin uninstall bendit-web@bendit --scope user, then run /bendit:adopt per project
 

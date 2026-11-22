@@ -105,7 +105,7 @@ in your head; the summary is built from it.
 | guards | all on. The zsh guard is active when `$SHELL` is zsh. Protected paths: none. |
 | invariants | none. |
 | CI | **not added**, whatever detection found. The report says how to add it. |
-| features | detect.md §8, unchanged. |
+| features | detect.md §8, unchanged. `primary-checkout-guard` is always off here (only `--detailed` asks), and the summary never mentions it. |
 | web add-on | `ux-design-laws` on and the add-on not already installed for ROOT (SKILL.md step 3b's rule): install it. |
 | feature dependencies | `browser-driver` on: Node 20+ missing → `brew install node` (macOS with Homebrew); Chrome missing → `brew install --cask google-chrome`; `drive-setup.sh --check` exits 1 → `bash "$KIT/scripts/drive-setup.sh"`. Each only if not already installed. No Homebrew for a missing Node or Chrome: the feature is off with why `Node not found` / `Chrome not found (Chromium cannot be driven)`, and the summary says so. |
 | install route | Already installed for this project at project scope: nothing. `install-route.sh route` prints `github` → bendit from GitHub (anyone else who downloads this project gets it too). `vendor` → a copy inside the project, stated as "works on this computer only". |

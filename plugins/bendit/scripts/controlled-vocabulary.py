@@ -159,9 +159,14 @@ def doc_class(p: Path) -> str:
     return 'other'
 
 
-RULES_FOR = {'instruction': ('substitute', 'obligation'),
-             'report':      ('substitute', 'evidence'),
-             'other':       ('substitute',)}
+RULES_FOR = {'instruction': ('substitute', 'obligation', 'slop'),
+             'report':      ('substitute', 'evidence', 'slop'),
+             'other':       ('substitute', 'slop')}
+
+# Advisory rules are listed in the report and nowhere else: --check, the exit
+# code of a default run and --fix all ignore them. Plain writing is a matter of
+# taste at the margin, and a rule that blocks on taste gets switched off.
+ADVISORY = frozenset({'slop'})
 
 # An evidence claim is acceptable when an OBSERVATION sits near it. These are the
 # shapes an observation usually takes. Checked against the
@@ -275,7 +280,7 @@ def scan_text(text: str, rel: str, voc: dict, strict: bool = False,
     def suppressed_at(line_no):
         return suppression(src_lines, line_no)
 
-    active = set(RULES_FOR.get(klass, ('substitute',)))
+    active = set(RULES_FOR.get(klass, ('substitute', 'slop')))
     if strict:
         active |= {'obligation', 'evidence'}
 
@@ -335,6 +340,23 @@ def scan_text(text: str, rel: str, voc: dict, strict: bool = False,
                 continue          # an observation sits beside the claim; that is the ask
             evidence_lines.add(line)
             add(m.start(), 'evidence', term, spec['use'], spec['why'])
+
+    # R5 -- slop: plain writing. Each entry is a regex; the reported term is the
+    # text that matched. Code spans, fences and tables were blanked above. One
+    # finding per position, so two entries naming the same word report it once.
+    seen_slop: set[int] = set()
+    for label, spec in (voc.get('slop', {}) if 'slop' in active else {}).items():
+        if label.startswith('_') or not isinstance(spec, dict):
+            continue
+        pat = spec.get('pattern') or re.escape(label)
+        if not spec.get('raw'):
+            pat = r'(?<![\w-])(?:' + pat + r')(?![\w-])'
+        for m in re.finditer(pat, red, re.I | re.M):
+            if m.start() in seen_slop:
+                continue
+            seen_slop.add(m.start())
+            add(m.start(), 'slop', ' '.join(m.group(0).split()),
+                spec.get('use', ''), spec.get('why', label))
 
     found.sort(key=lambda f: (f.line, f.col))
     return found
@@ -428,12 +450,14 @@ RULE_BLURB = {
     'substitute': 'Register inflation with an exact approved equivalent. Safe to auto-fix with --fix. Runs on every document.',
     'obligation': 'A requirement addressed to the agent, stated as advice — so the agent treats it as advice. Instruction files only.',
     'evidence':   'A claim that work is done, with no observation within three lines: no rung, no command, no exit code, no file:line, no artifact. Report files only.',
+    'slop':       'Phrasing that reads as machine-written (adapted from noodle\'s unslop list). Advisory: it never blocks and --fix never edits it. Runs on every document.',
 }
-RULE_ORDER = ('substitute', 'obligation', 'evidence')
+RULE_ORDER = ('substitute', 'obligation', 'evidence', 'slop')
 
 
 def report(findings, baseline, show_all, dict_note=''):
     new = [f for f in findings if not baseline.covers(f) and not f.suppressed]
+    blocking = [f for f in new if f.rule not in ADVISORY]
     known = [f for f in findings if baseline.covers(f)]
     supp = [f for f in findings if f.suppressed]
     shown = findings if show_all else new
@@ -470,9 +494,11 @@ def report(findings, baseline, show_all, dict_note=''):
     print(f"\n{C['bold']}{len(new)} new{C['off']}   "
           f"{len(known)} baselined   {len(supp)} suppressed   "
           f"{len(findings)} total")
+    if len(blocking) != len(new):
+        print(f"  {len(new) - len(blocking)} of the new are advisory (slop) and never block.")
     for f in supp:
         print(f"  {C['dim']}suppressed {f.path}:{f.line} {f.term} — {f.suppressed}{C['off']}")
-    return len(new)
+    return len(blocking)
 
 
 def to_html(findings, baseline, out: Path, root_label: str):
@@ -559,7 +585,7 @@ function render(){
   const rows = D.rows.filter(r => onlyNew ? r.state === 'new' : true);
   const m = document.getElementById('main');
   if(!rows.length){ m.innerHTML = '<p class="empty">Nothing to show.</p>'; return; }
-  const order = ['substitute','obligation','evidence'];
+  const order = ['substitute','obligation','evidence','slop'];
   m.innerHTML = order.map(rule => {
     const hits = rows.filter(r => r.rule === rule);
     if(!hits.length) return '';
@@ -648,6 +674,10 @@ def print_dict(voc):
 SELF_CASES = [
     # (text, rule, must_fire, document class)
     ('Utilize the helper.',                      'substitute', True,  'instruction'),
+    ('The file serves as the baseline.',        'slop',       True,  'report'),
+    ('The file is the baseline.',                'slop',       False, 'report'),
+    ('It works \u2014 mostly.',                   'slop',       True,  'other'),
+    ('Use `a \u2014 b` as the separator.',        'slop',       False, 'other'),
     ('Use the helper.',                          'substitute', False, 'instruction'),
     ('Run it prior to the migration.',           'substitute', True,  'instruction'),
     ('Run it before the migration.',             'substitute', False, 'instruction'),
@@ -813,7 +843,8 @@ def main(argv) -> int:
             return 0
         base = Baselines()
         fs = [f for f in collect([target], voc, strict)
-              if not base.covers(f) and not f.suppressed]
+              if not base.covers(f) and not f.suppressed
+              and f.rule not in ADVISORY]
         if not fs:
             return 0
         head = (f'[bendit] controlled vocabulary — {len(fs)} new in {target.name}:')

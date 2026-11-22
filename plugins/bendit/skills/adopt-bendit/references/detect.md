@@ -99,7 +99,7 @@ needs only its test suite as the harness.
 
 ## 8. Features
 
-Four optional features exist, and only these (`FEATURES` in
+Five optional features exist, and only these (`FEATURES` in
 `KIT/scripts/features.py`). Each is on when its signal is found, and its `why`
 is that signal's source, written as you would cite it in the report.
 
@@ -109,6 +109,7 @@ is that signal's source, written as you would cite it in the report.
 | `ux-design-laws` | web app (same signal) | same as `browser-driver` | the `bendit-web` add-on (SKILL.md step 3b installs it) |
 | `session-brief` | a git project | `git project (git rev-parse --show-toplevel)` | nothing |
 | `ls-guard` | `ls` is not the real `ls` in the user's shell | `type ls in <shell>: ls is a shell function` or `…: ls is an alias` (`<shell>` is the basename of `$SHELL`) | nothing |
+| `primary-checkout-guard` | never from detection: only a yes to interview.md question 7 (`--detailed`) | `off unless chosen in /bendit:adopt --detailed` | a git project |
 
 A feature whose signal is absent is off, and its `why` says what was not found
 (`no web framework in package.json`, `not a git repository`, `type ls in zsh: ls is the real ls`).

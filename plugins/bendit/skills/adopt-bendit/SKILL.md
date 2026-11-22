@@ -97,6 +97,7 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
    python3 "$KIT/scripts/features.py" set "$ROOT" ux-design-laws on "package.json:5 next" &&
    python3 "$KIT/scripts/features.py" set "$ROOT" session-brief on "git project (git rev-parse --show-toplevel)" &&
    python3 "$KIT/scripts/features.py" set "$ROOT" ls-guard off "type ls in zsh: ls is the real ls" &&
+   python3 "$KIT/scripts/features.py" set "$ROOT" primary-checkout-guard off "off unless chosen in /bendit:adopt --detailed" &&
    python3 "$KIT/scripts/features.py" show "$ROOT"
    ```
    The lines above are an example: substitute the state you detected and the
@@ -138,6 +139,7 @@ FEATURES (.claude/bendit.json)    | on/off | why             | measured?
 ENFORCED (refuses, exit 2)        | proved by
 <guard>                           | prove.sh rows + live check
 ls guard (if ls-guard is on)      | prove.sh feature: ls-guard row; not yet measured
+primary-checkout guard (if on)    | prove.sh feature: primary-checkout-guard row; not yet measured
 Stop gate + .claude/verify-harness| prove.sh Stop gate + harness rows
 browser scenarios (if the harness runs verify and browser-driver is on) | prove.sh feature: browser-driver row; not yet measured
 

@@ -561,6 +561,60 @@ has "  ...and the report says where the route was found" "smoke path: /health (r
 hasnt "CONTROL: an app with no health route keeps the root probe" "expect_ok /health" "$(/bin/cat "$R/.claude/skills/verify-repo/scenarios/smoke.sh")"
 has "CONTROL:   ...it probes /" "expect_ok /" "$(/bin/cat "$R/.claude/skills/verify-repo/scenarios/smoke.sh")"
 
+echo
+echo "THE GENERATED SKILL HAS A PROOF BAR, NAMED GAPS AND TESTING RULES"
+# Adapted from poteto/verification-skill-example. A skill that says how to
+# launch the app but not what counts as proof lets "it opens" pass as done.
+SKM="$(/bin/cat "$R/.claude/skills/verify-repo/SKILL.md")"
+for h in '## Coverage' '## Proof bar' '## What this harness cannot drive' '## Gotchas'; do
+  has "SKILL.md has the section $h" "$h" "$SKM"
+done
+ord=$(grep -n '^## ' "$R/.claude/skills/verify-repo/SKILL.md" | sed 's/^[0-9]*:## //' | tr '\n' '|')
+has "the new sections come in order, after Coverage" "Coverage|Proof bar|What this harness cannot drive|Gotchas|" "$ord"
+has "proof bar: opens is not proof" '"It opens" is not proof.' "$SKM"
+has "proof bar: names the trigger AND the end state" "name the trigger AND the end state" "$SKM"
+has "proof bar: check one side effect" "check one side effect" "$SKM"
+has "proof bar: evalJs inspects only" "evalJs inspects only" "$SKM"
+has "blocked rule: path, blocker, nearest covered path" "blocked: name the path, the blocker, and the nearest covered path" "$SKM"
+has "cannot drive: OS file drops" "OS file drops" "$SKM"
+has "cannot drive: native dialogs" "native dialogs" "$SKM"
+has "cannot drive: third-party sign-in" "third-party sign-in" "$SKM"
+has "mock boundary sentence" "A stub counts only at the boundary the real outage would cross." "$SKM"
+has "prefer expectVisible over waitMs" "prefer expectVisible over waitMs" "$SKM"
+has "gotcha: assert absence on the element really absent" "assert absence on the element that is really absent" "$SKM"
+has "gotcha: count by two attributes" "count by two attributes" "$SKM"
+FM="$R/.claude/skills/verify-repo/references/features/README.md"
+JM="$R/.claude/skills/verify-repo/references/journeys.md"
+for h in '## What it does' '## How to reach it' '## What proves it works' '## Known gaps'; do
+  has "features index stub has $h" "$h" "$(/bin/cat "$FM" 2>/dev/null)"
+done
+has "journeys.md stub has a cross-surface case" "cross-surface" "$(/bin/cat "$JM" 2>/dev/null)"
+has "SKILL.md points at the features index" "references/features/README.md" "$SKM"
+# A re-scaffold keeps hand-written skill files byte for byte.
+G="$T/keepskill"; mkdir -p "$G"; git -C "$G" init -q
+printf '{"name":"keepskill","scripts":{"dev":"node srv.js --port 1"},"dependencies":{"express":"1"}}\n' > "$G/package.json"
+gcommit "$G"; bash "$SCAF" "$G" >/dev/null 2>&1
+GS="$G/.claude/skills/verify-keepskill"
+echo "my own words" >> "$GS/SKILL.md"; echo "my own map" >> "$GS/references/features/README.md"
+echo "my own journeys" >> "$GS/references/journeys.md"
+cp "$GS/SKILL.md" "$T/sk.a"; cp "$GS/references/features/README.md" "$T/fm.a"; cp "$GS/references/journeys.md" "$T/jm.a"
+bash "$SCAF" "$G" --keep-harness >/dev/null 2>&1
+chk "--keep-harness leaves a hand-edited SKILL.md byte-identical" "$(cmp "$T/sk.a" "$GS/SKILL.md" 2>&1; echo $?)" "0"
+chk "--keep-harness leaves a hand-edited features/README.md byte-identical" "$(cmp "$T/fm.a" "$GS/references/features/README.md" 2>&1; echo $?)" "0"
+chk "--keep-harness leaves a hand-edited journeys.md byte-identical" "$(cmp "$T/jm.a" "$GS/references/journeys.md" 2>&1; echo $?)" "0"
+# Partial app harness (no bin/): references are written only when absent.
+rm -f "$GS/bin/verify-keepskill" "$GS/references/journeys.md"
+bash "$SCAF" "$G" --keep-harness >/dev/null 2>&1
+chk "partial resume keeps a hand-edited SKILL.md" "$(cmp "$T/sk.a" "$GS/SKILL.md" 2>&1; echo $?)" "0"
+chk "partial resume keeps a hand-edited features/README.md" "$(cmp "$T/fm.a" "$GS/references/features/README.md" 2>&1; echo $?)" "0"
+has "partial resume writes a missing journeys.md" "cross-surface" "$(/bin/cat "$GS/references/journeys.md" 2>/dev/null)"
+# --force is the explicit "regenerate": it rewrites SKILL.md and the stubs.
+# Falsifiable: if --force were ignored, the run refuses (rc=2) and the edits stay.
+bash "$SCAF" "$G" --force >/dev/null 2>&1
+hasnt "--force regenerates SKILL.md (hand edit gone)" "my own words" "$(/bin/cat "$GS/SKILL.md")"
+hasnt "--force regenerates features/README.md (hand edit gone)" "my own map" "$(/bin/cat "$GS/references/features/README.md")"
+has "--force regenerates SKILL.md with the proof bar" "## Proof bar" "$(/bin/cat "$GS/SKILL.md")"
+
 expect_verify || fail=$((fail+1))
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"

@@ -1,0 +1,76 @@
+{
+  "_about": "One positive (must fire) and one negative (near miss, must stay silent) fixture per slop entry in vocabulary.json. controlled-vocabulary.test.sh fails if an entry has no fixture, or a fixture names no entry.",
+  "significance inflation": {
+    "pos": "This marks a pivotal moment for the project.",
+    "neg": "This is the commit where the build broke."
+  },
+  "trailing -ing phrase": {
+    "pos": "The guard refuses the edit, showcasing the idea.",
+    "neg": "The guard refuses the edit. Showing the idea is not its job."
+  },
+  "promotional language": {
+    "pos": "A vibrant, groundbreaking kit.",
+    "neg": "A small kit with five hooks."
+  },
+  "vague attribution": {
+    "pos": "Experts believe this is safer.",
+    "neg": "The 12-run eval found this safer."
+  },
+  "formulaic challenge": {
+    "pos": "Despite these challenges, it continues to thrive.",
+    "neg": "The challenge is the stop gate."
+  },
+  "ai vocabulary": {
+    "pos": "It is crucial to delve into the logs.",
+    "neg": "Read the logs first."
+  },
+  "copula avoidance": {
+    "pos": "The file serves as the baseline.",
+    "neg": "The file is the baseline."
+  },
+  "negative parallelism": {
+    "pos": "It's not just a linter, it's a guard.",
+    "neg": "It is a linter. It is not a formatter."
+  },
+  "em dash": {
+    "pos": "The guard refuses — then logs.",
+    "neg": "The guard refuses, then logs.",
+    "neg_code": "Use `a — b` as the separator."
+  },
+  "decorative emoji": {
+    "pos": "## 🚀 Install",
+    "neg": "## Install"
+  },
+  "curly quotes": {
+    "pos": "Don’t skip the gate.",
+    "neg": "Don't skip the gate."
+  },
+  "chatbot phrase": {
+    "pos": "I hope this helps.",
+    "neg": "Run the suite."
+  },
+  "sycophantic tone": {
+    "pos": "You're absolutely right about that.",
+    "neg": "The point stands on the evidence."
+  },
+  "cutoff disclaimer": {
+    "pos": "While specific details are limited, it works.",
+    "neg": "The details are in docs/reference.md."
+  },
+  "filler phrase": {
+    "pos": "It is important to note that the hook fails closed.",
+    "neg": "The hook fails closed."
+  },
+  "excessive hedging": {
+    "pos": "It could potentially refuse.",
+    "neg": "It refuses."
+  },
+  "generic conclusion": {
+    "pos": "The future looks bright.",
+    "neg": "The next release adds the fire log."
+  },
+  "inline-header list": {
+    "pos": "- **Speed:** Speed improved.",
+    "neg": "- **Cost:** in that sweep, 2 of 18 runs ran out of turns."
+  }
+}

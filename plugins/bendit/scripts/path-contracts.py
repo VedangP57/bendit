@@ -51,10 +51,17 @@ KNOWN FALSE POSITIVES: an inline object TYPE outside a declaration header
 PreToolUse on Write|Edit|MultiEdit: exit 2 refuses the write, and the reason on
 stderr goes back to the model.
 """
+import io
 import json
+import os
 import re
 import sys
 from pathlib import Path
+
+# The rule id each refusal is logged under (fire_log.py), and the list
+# /bendit:guard-report reads -- by PARSING this file, so it stays a literal.
+# A crash that refuses is logged as guard-error and kept out of the list.
+RULES = ['gen-file-edit', 'hot-file-allocation']
 
 HOT = re.compile(r'\.hot\.(?:[cm]?[jt]s|[jt]sx)$', re.IGNORECASE)
 GEN = re.compile(r'\.gen(?:\.[A-Za-z0-9]+)+$', re.IGNORECASE)
@@ -225,6 +232,7 @@ def main() -> int:
     if GEN.search(name):
         print(f'[bendit] {name} is generated (.gen.*): edit the generator, not its output.\n'
               f'If this file is no longer generated, rename it.', file=sys.stderr)
+        _record_fire(payload, 'gen-file-edit', path)
         return 2
 
     if HOT.search(name):
@@ -235,6 +243,7 @@ def main() -> int:
                   f'and this allocates — {shown}.\n'
                   f'Hoist it out of the hot path, reuse a preallocated object, or rename '
                   f'the file if it is not hot after all.', file=sys.stderr)
+            _record_fire(payload, 'hot-file-allocation', path)
             return 2
     return 0
 
@@ -242,14 +251,44 @@ def main() -> int:
 def run() -> int:
     # A crash must REFUSE: exit 1 from a traceback is a non-blocking error to
     # Claude Code, so the write would go through unchecked.
+    # A SystemExit or KeyboardInterrupt would exit 0 or 130: it refuses too.
     try:
         return main()
-    except Exception as exc:
+    except BaseException as exc:  # noqa: B036
+        try:
+            why = f'{type(exc).__name__}: {exc}'
+        except BaseException:
+            why = 'an error that could not be described'
         print(f'[bendit] BLOCKED: the path-contracts guard itself failed '
-              f'({type(exc).__name__}: {exc}), so this write could not be checked.',
+              f'({why}), so this write could not be checked.',
               file=sys.stderr)
+        _record_fire(None, 'guard-error', '')
         return 2
 
 
+def _record_fire(payload, rule: str, preview: str) -> None:
+    """Log this refusal (fire_log.py). Called only AFTER the decision is
+    printed, inside a net that catches everything -- a fire_log.py that is
+    missing, will not import, raises, exits or prints -- with stdout and
+    stderr held, so the exit code and every byte the guard printed are the
+    same whether or not the log was written."""
+    saved = sys.stdout, sys.stderr
+    try:
+        sys.stderr.flush()
+        sys.stdout.flush()
+        sys.stdout = sys.stderr = io.StringIO()
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import fire_log
+        fire_log.record(fire_log.project_root(payload), 'path-contracts', rule, preview)
+    except BaseException:
+        pass
+    finally:
+        sys.stdout, sys.stderr = saved
+
+
 if __name__ == '__main__':
-    sys.exit(run())
+    try:
+        _code = run()
+    except BaseException:   # last resort: the net itself failed
+        os._exit(2)
+    sys.exit(_code)

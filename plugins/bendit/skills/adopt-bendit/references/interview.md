@@ -43,21 +43,38 @@ Order matters: later defaults depend on earlier answers.
    say that it cannot be turned off on its own, and record it under "not
    possible here".
 
-7. **Generated files and hot paths?** The path-contracts guard refuses edits to
+7. **Edit only in a separate copy?** Only if this is a git project.
+   *"While this folder is on `<integration branch>`, should the AI be stopped
+   from editing files here, and told to make a separate working copy with
+   `git worktree add` instead? [no]"* Why it matters: with it on,
+   `<integration branch>` changes only by merge, and two AI sessions never
+   edit the same folder at once. Yes: `primary-checkout-guard` on, with why
+   `you chose it in /bendit:adopt --detailed`. No, or an empty reply: off,
+   with why `you said no in /bendit:adopt --detailed`. On a yes, record the
+   branch for the guard, after the feature's `set` line in SKILL.md step 3b,
+   when either applies: the plugin option `integrationBranch` is set (read it
+   as `/bendit:ship` step 0 does; it wins, so the guard protects the branch
+   `/bendit:ship` uses), or question 4 was asked (no `origin/HEAD`):
+   `python3 "$KIT/scripts/features.py" integration-branch "$ROOT" <name>`.
+   Show the person the name and where it came from. The guard reads only
+   that, else `origin/HEAD`; never the plugin option or `AGENTS.md`. With
+   neither it allows every edit, and prove.sh fails its row.
+
+8. **Generated files and hot paths?** The path-contracts guard refuses edits to
    files named `*.gen.*` and allocations in `*.hot.*`, and fires on nothing
    else. *"Any generated files or per-frame code you want protected? [no]"*. If
    yes, list them; renaming is the user's change to make, not this flow's.
 
-8. **Install route.** Only if both are possible. *[marketplace, project scope]*.
+9. **Install route.** Only if both are possible. *[marketplace, project scope]*.
    See `install.md`.
 
-9. **CI.** Only if detection found none, or found one that never runs the gates
+10. **CI.** Only if detection found none, or found one that never runs the gates
    on the integration branch. *[add a workflow that runs the gates on pull
    requests and on pushes to the integration branch]*. If the lint gate is red
    today, ask whether to land it non-blocking first and say how long: a gate
    that is red on day one gets `continue-on-error` and stays a badge.
 
-10. **Project invariants.** *"Name up to three things that must never happen in
+11. **Project invariants.** *"Name up to three things that must never happen in
     this project (e.g. an unauthenticated route, a secret in client code).
     [skip]"*. They go into `AGENTS.md` under Invariants; `/bendit:ship` and
     `/bendit:review-diff` check every change against them.

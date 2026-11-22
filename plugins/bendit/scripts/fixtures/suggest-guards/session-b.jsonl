@@ -1,0 +1,9 @@
+{"type":"summary","summary":"an earlier session"}
+{"type": "assistant", "cwd": "__ROOT__/app", "sessionId": "b", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "u1", "name": "Bash", "input": {"command": "cd app && git push -f"}}]}}
+{"type": "user", "cwd": "__ROOT__", "sessionId": "b", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "u1", "content": "ok"}]}}
+{"type": "assistant", "cwd": "__ROOT__", "sessionId": "b", "message": {"role": "assistant", "content": [{"type": "text", "text": "Done."}]}}
+{"type": "user", "cwd": "__ROOT__", "sessionId": "b", "message": {"role": "user", "content": "stop force pushing again, open a PR instead"}}
+{"type": "user", "cwd": "__ROOT__", "sessionId": "b", "isSidechain": true, "message": {"role": "user", "content": "never force push, you are a subagent prompt and not the person"}}
+{"type": "user", "cwd": "__ROOT__", "sessionId": "b", "isMeta": true, "message": {"role": "user", "content": "never force push: a meta line, not typed by the person"}}
+{"type": "user", "cwd": "__ROOT__", "sessionId": "b", "message": {"role": "user", "content": "<command-name>/clear</command-name> never again"}}
+{"type": "user", "cwd": "__ROOT__", "sessionId": "b", "message": {"role": "user", "content": "Thanks, that looks good."}}

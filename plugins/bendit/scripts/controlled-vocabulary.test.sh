@@ -314,6 +314,73 @@ for f in "--init ." "--fix ." "--baseline ." "--html out.html ." "."; do
   allowed_cmd "$V $f"; check "/bendit:vocabulary does NOT pre-approve '$f' (it asks the person)" "1" "$?"
 done
 
+echo '--- slop: plain-writing patterns (adapted from the noodle unslop list)'
+# Every slop entry has a positive and a negative fixture; an entry with no
+# fixture, or a fixture with no entry, fails. Data-driven, so a new entry
+# cannot ship untested.
+SLOPOUT="$("$PY" - "$HERE" <<'PYEOF'
+import importlib.util, json, sys
+here = sys.argv[1]
+spec = importlib.util.spec_from_file_location('cv', here + '/controlled-vocabulary.py')
+cv = importlib.util.module_from_spec(spec); spec.loader.exec_module(cv)
+voc = json.load(open(here + '/vocabulary.json'))
+fx = json.load(open(here + '/slop-fixtures.json'))
+entries = [k for k in voc.get('slop', {}) if not k.startswith('_')]
+fxs = [k for k in fx if not k.startswith('_')]
+print('entries=%d' % len(entries))
+for k in sorted(set(entries) ^ set(fxs)):
+    print('MISMATCH %s' % k)
+if not entries:
+    print('MISMATCH no slop entries')
+def hits(text, klass):
+    return [f for f in cv.scan_text(text, 't.md', voc, klass=klass) if f.rule == 'slop']
+for k in entries:
+    f = fx.get(k)
+    if not f:
+        continue
+    for klass in ('instruction', 'report', 'other'):
+        pos = hits(f['pos'], klass)
+        if not pos:
+            print('NOFIRE %s [%s]' % (k, klass))
+    neg = hits(f['neg'], 'instruction')
+    if neg:
+        print('FALSE-POSITIVE %s: %s' % (k, [h.term for h in neg]))
+    if 'neg_code' in f and hits(f['neg_code'], 'instruction'):
+        print('CODE-FLAGGED %s' % k)
+    fenced = '```\n' + f['pos'] + '\n```\nClean prose.'
+    if hits(fenced, 'instruction'):
+        print('FENCE-FLAGGED %s' % k)
+print('done')
+PYEOF
+)"
+case "$SLOPOUT" in
+  *MISMATCH*|*NOFIRE*|*FALSE-POSITIVE*|*FLAGGED*|*Traceback*|*Error*) bad "slop fixtures: every entry fires on its positive and stays silent on its negative" "$SLOPOUT" ;;
+  *entries=0*) bad "slop fixtures: there are entries" "$SLOPOUT" ;;
+  *done*) ok "slop fixtures: $(printf '%s' "$SLOPOUT" | head -1), each fires on pos, silent on neg, code and fences" ;;
+  *) bad "slop fixtures ran" "$SLOPOUT" ;;
+esac
+
+mkdir -p "$TMP/slop/docs"
+( cd "$TMP/slop" && git init -q . )
+printf '# Notes\n\nIt serves as the baseline.\n' > "$TMP/slop/docs/notes.md"
+out="$(NO_COLOR=1 "$PY" "$CV" --report "$TMP/slop" 2>&1)"
+case "$out" in *SLOP*"serves as"*) ok "report names the slop rule and the phrase" ;; *) bad "report names the slop rule and the phrase" "$out" ;; esac
+NO_COLOR=1 "$PY" "$CV" --check "$TMP/slop/docs/notes.md" >"$TMP/cv_out" 2>"$TMP/cv_err"
+check "slop alone never blocks (--check exits 0)" "0" "$?"
+check "slop alone prints nothing under --check" "0" "$(wc -c < "$TMP/cv_err" | tr -d ' ')"
+NO_COLOR=1 "$PY" "$CV" "$TMP/slop" >/dev/null 2>&1
+check "slop alone never blocks (default run exits 0)" "0" "$?"
+# POSITIVE CONTROL: a real substitute finding in the same file still blocks
+printf '\nRun it in order to finish.\n' >> "$TMP/slop/docs/notes.md"
+NO_COLOR=1 "$PY" "$CV" --check "$TMP/slop/docs/notes.md" >/dev/null 2>"$TMP/cv_err"
+check "control: a substitute beside slop still exits 2" "2" "$?"
+case "$(cat "$TMP/cv_err")" in *"serves as"*) bad "--check output must not list slop" "$(cat "$TMP/cv_err")" ;; *) ok "--check output lists only the blocking finding" ;; esac
+j="$(NO_COLOR=1 "$PY" "$CV" --json "$TMP/slop" 2>&1)"
+check "--json carries the slop rule" "1" "$(printf '%s' "$j" | grep -c '"rule": "slop"')"
+before="$(cat "$TMP/slop/docs/notes.md")"
+NO_COLOR=1 "$PY" "$CV" --fix "$TMP/slop" >/dev/null 2>&1
+case "$(cat "$TMP/slop/docs/notes.md")" in *"serves as"*) ok "--fix leaves slop for a human" ;; *) bad "--fix leaves slop for a human" "$(cat "$TMP/slop/docs/notes.md")" ;; esac
+
 echo '--- --self-test ignores a local dictionary'
 printf '{"substitute":{}}\n' > "$I/.claude/vocabulary.json"
 ( cd "$I" && NO_COLOR=1 "$PY" "$CV" --self-test >/dev/null 2>&1 )

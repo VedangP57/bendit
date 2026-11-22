@@ -10,13 +10,16 @@
 #   shell     every plugins/bendit/scripts/*.test.sh suite (only bendit has
 #             scripts; a plugin that gains some means changing $PLUGIN below),
 #             several at once (BENDIT_CI_JOBS=1 runs them one at a time),
-#             those that open ports one at a time after, each under a time
-#             limit (BENDIT_CI_SUITE_TIMEOUT, default 240 s)
+#             those that pick their own ports one at a time after, each under
+#             a time limit (BENDIT_CI_SUITE_TIMEOUT, default 240 s)
 #   imports   byte-compiles every scripts/*.py under python3, and again under
 #             /usr/bin/python3 when it exists (3.9 on macOS: the oldest Python
 #             the kit supports), so syntax or an annotation 3.9 rejects fails
 #   privacy   scripts/privacy-scan.py over every file git would publish
 #   validate  for EVERY plugins/*/ : `claude plugin validate`, then
+#             scripts/plugin-lint.py (every hook path resolves, every description
+#             is non-empty and <= 300 chars: the gaps validate leaves; ~50 ms,
+#             so it lives in the stage that already visits each plugin), then
 #             scripts/skill-budget.py over its skills and commands. A plugin with
 #             no skills and no commands is skipped by the budget with a printed
 #             note (an add-on that is still a skeleton); validate never skips.
@@ -27,16 +30,22 @@
 #
 # Every stage runs even if an earlier one failed (one red run shows every
 # regression, not the first), and the exit status is non-zero if ANY did.
+# Asked for more than one stage, the others run AT THE SAME TIME as shell (each
+# under the same wrapper and time limit as a suite); each stage's output is
+# still printed whole, between its own "=== <stage>" and "=== <stage>: ok" or
+# "FAILED" lines, in the order the stages were asked for.
 # Each stage asserts that it actually ran something (suites found, files
 # compiled, files scanned), because a check that passes on an empty input is
 # the defect this kit exists to prevent.
 set -uo pipefail
+SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"   # re-run per stage, below
 cd "$(dirname "$0")/../.." || exit 2
 PLUGIN=./plugins/bendit              # the plugin that has scripts/ (shell, imports, privacy)
 PLUGINS=(./plugins/*/)               # every plugin: validate and budget
 OUT="$(mktemp -d)"
 failed=()
 RUNNING=()                           # suite wrappers still running (cleanup kills them)
+STAGE_PIDS=()                        # stage wrappers running beside shell (cleanup kills them too)
 
 fail() { echo "FAIL: $*" >&2; }
 
@@ -46,9 +55,9 @@ fail() { echo "FAIL: $*" >&2; }
 # signalled -- or when it sees this script is gone, which covers SIGKILL.
 cleanup() {
   local p
-  for p in "${RUNNING[@]+"${RUNNING[@]}"}"; do kill -TERM "$p" 2>/dev/null; done
-  for p in "${RUNNING[@]+"${RUNNING[@]}"}"; do wait "$p" 2>/dev/null; done
-  RUNNING=()
+  for p in "${RUNNING[@]+"${RUNNING[@]}"}" "${STAGE_PIDS[@]+"${STAGE_PIDS[@]}"}"; do kill -TERM "$p" 2>/dev/null; done
+  for p in "${RUNNING[@]+"${RUNNING[@]}"}" "${STAGE_PIDS[@]+"${STAGE_PIDS[@]}"}"; do wait "$p" 2>/dev/null; done
+  RUNNING=(); STAGE_PIDS=()
   rm -rf "$OUT"
 }
 trap cleanup EXIT
@@ -69,23 +78,53 @@ ci_jobs() {
   echo "$n"
 }
 
-# The suites that open ports or start apps: ports.test.sh needs :3100 free,
-# and the others bind or serve (drive.test.sh also runs Chrome). They run ONE
-# AT A TIME, after the pool, so no two of them -- and no pool suite -- ever
-# share a moment. ci.test.sh fails if a suite that binds is missing from this
-# list.
-SERIAL_SUITES=(drive install-route ports scaffold-verification-skill session-brief verify-readiness)
+# Every suite that opens a port is in exactly one of these two lists (ci.test.sh
+# fails if a suite that binds is in neither), each for a reason read from it:
+#
+# SERIAL_SUITES pick their OWN ports, so they run ONE AT A TIME, after the pool,
+# and never share a moment with any other suite:
+#   ports                        needs :3100 free (a fresh registry's first
+#                                block) and serves an app on it
+#   scaffold-verification-skill  takes random ports in 20000-40000, checks each
+#                                is free, then serves on it later; its fresh
+#                                registries also hand out the 3100 block
+#
+# KERNEL_PORT_SUITES bind only port 0, so the kernel picks a port no other live
+# socket holds, and two of them cannot collide. They run in the POOL. None names
+# :3100 outside a comment, so none can take ports.test.sh's port (ci.test.sh
+# checks that).
+#   drive              python -m http.server 0, and Chrome
+#   install-route      http.server on ("127.0.0.1", 0)
+#   session-brief      listeners on (host, 0); one bound-and-closed port 0 must
+#                      read as refused
+#   verify-readiness   asks the kernel for a free port (bind 0), then serves on it
+# (The last two release a kernel-chosen port and use it again, as every program
+# on the machine that asks for an ephemeral port can race them; the lane would
+# not change that.)
+SERIAL_SUITES=(ports scaffold-verification-skill)
+KERNEL_PORT_SUITES=(drive install-route session-brief verify-readiness)
 is_serial() { local n; for n in "${SERIAL_SUITES[@]}"; do [ "$(basename "$1" .test.sh)" = "$n" ] && return 0; done; return 1; }
 
-# One suite per wrapper: its own session (so its whole process group can be
-# killed), a time limit (BENDIT_CI_SUITE_TIMEOUT, default 240 s; the slowest
-# suite takes about 60 s alone), exit 124 on timeout. Python, not timeout(1):
-# macOS has no timeout(1), and python3 is already required by the imports stage.
+# The pool STARTS these first: the slowest suites (13-60 s each alone, measured
+# 2026-11-21). Started last, in name order, one of them alone set the pool's
+# finishing time while the other slots sat idle. Start order only: output is
+# still printed in suite order, and a name missing here just starts in turn.
+# Slowest first, in this order.
+POOL_FIRST=(prove install session-brief drive block-dangerous-bash require-verification verify-readiness selfcheck block-primary-checkout ci)
+is_first() { local n; for n in "${POOL_FIRST[@]}"; do [ "$(basename "$1" .test.sh)" = "$n" ] && return 0; done; return 1; }
+
+# One suite (or one stage run beside shell) per wrapper: its own session (so its
+# whole process group can be killed), a time limit (BENDIT_CI_SUITE_TIMEOUT,
+# default 240 s; the slowest suite takes about 60 s alone), exit 124 on timeout.
+# Python, not timeout(1): macOS has no timeout(1), and python3 is already
+# required by the imports stage.
+#   runsuite.py <limit> <log> <parent pid> <command...>
 cat > "$OUT/runsuite.py" <<'PY'
 import os, signal, subprocess, sys, time
-limit, log, suite, parent = float(sys.argv[1]), sys.argv[2], sys.argv[3], int(sys.argv[4])
+limit, log, parent, cmd = float(sys.argv[1]), sys.argv[2], int(sys.argv[3]), sys.argv[4:]
+suite = " ".join(cmd)
 with open(log, "w") as out:
-    p = subprocess.Popen(["bash", suite], stdin=subprocess.DEVNULL, stdout=out,
+    p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=out,
                          stderr=subprocess.STDOUT, start_new_session=True)
 def kill_group():
     for sig, grace in ((signal.SIGTERM, 3.0), (signal.SIGKILL, 0)):
@@ -122,12 +161,21 @@ stage_shell() {
   local -a pool=() lane=() idx=() codes=()
   for s in "$PLUGIN"/scripts/*.test.sh; do [ -f "$s" ] && suites+=("$s"); done
   if [ "${#suites[@]}" -eq 0 ]; then fail "no $PLUGIN/scripts/*.test.sh found, so NOTHING was run"; return 1; fi
-  for i in "${!suites[@]}"; do if is_serial "${suites[$i]}"; then lane+=("$i"); else pool+=("$i"); fi; done
+  local n
+  for n in "${POOL_FIRST[@]}"; do
+    for i in "${!suites[@]}"; do
+      [ "$(basename "${suites[$i]}" .test.sh)" = "$n" ] && ! is_serial "${suites[$i]}" && pool+=("$i")
+    done
+  done
+  for i in "${!suites[@]}"; do
+    if is_serial "${suites[$i]}"; then lane+=("$i")
+    elif ! is_first "${suites[$i]}"; then pool+=("$i"); fi
+  done
   jobs="$(ci_jobs)"
-  echo "--- ${#suites[@]} suites: ${#pool[@]} up to $jobs at a time, then ${#lane[@]} one at a time (they open ports); ${limit}s limit each"
+  echo "--- ${#suites[@]} suites: ${#pool[@]} up to $jobs at a time, then ${#lane[@]} one at a time (they pick their own ports); ${limit}s limit each"
   # start <i> -- suite i in the background, under its wrapper
   start() {
-    python3 "$OUT/runsuite.py" "$limit" "$OUT/suite-$1.log" "${suites[$1]}" "$$" </dev/null &
+    python3 "$OUT/runsuite.py" "$limit" "$OUT/suite-$1.log" "$$" bash "${suites[$1]}" </dev/null &
     RUNNING+=("$!"); idx+=("$1")
   }
   # reap -- wait until ANY running suite has finished, record its exit code and
@@ -208,6 +256,9 @@ stage_validate() {
     elif ! grep -q 'Validation passed' "$OUT/validate.txt"; then fail "validate $p exited 0 but never said 'Validation passed'"; rc=1
     else validated=$((validated+1)); fi
 
+    echo "--- plugin-lint.py $p"
+    if ! python3 "$PLUGIN/scripts/plugin-lint.py" "$p"; then fail "plugin-lint for $p"; rc=1; fi
+
     # budget: skills and commands, per plugin. Nothing to measure is a printed
     # skip, not a failure -- but see below: skipping EVERY plugin is one.
     if ! compgen -G "$p/skills/*/SKILL.md" >/dev/null && ! compgen -G "$p/commands/*.md" >/dev/null; then
@@ -226,11 +277,59 @@ stage_validate() {
   return $rc
 }
 
+# A stage run beside shell: this file again, told to run just that one stage
+# and print only its own output (no headers: the parent prints those).
+if [ -n "${BENDIT_CI_STAGE_CHILD:-}" ]; then
+  case "${1:-}" in shell|imports|privacy|validate) [ "$#" -eq 1 ] || exit 2 ;; *) echo "unknown stage: ${1:-}" >&2; exit 2 ;; esac
+  "stage_$1"; exit $?
+fi
+
 stages=("$@"); [ "${#stages[@]}" -gt 0 ] || stages=(shell imports privacy validate)
 for st in "${stages[@]}"; do
   case "$st" in shell|imports|privacy|validate) ;; *) echo "unknown stage: $st" >&2; exit 2 ;; esac
-  echo "=== $st"
-  if "stage_$st"; then echo "=== $st: ok"; else echo "=== $st: FAILED"; failed+=("$st"); fi
 done
+# result <stage> <exit code> -- its result line, and remember a failure
+result() {
+  case "$2" in
+    0) echo "=== $1: ok" ;;
+    124) fail "stage $1 timed out after ${BENDIT_CI_SUITE_TIMEOUT:-240}s (killed)"; echo "=== $1: FAILED"; failed+=("$1") ;;
+    *) echo "=== $1: FAILED"; failed+=("$1") ;;
+  esac
+}
+if [ "${#stages[@]}" -eq 1 ]; then
+  st="${stages[0]}"; echo "=== $st"; "stage_$st"; result "$st" $?
+else
+  # Every stage but shell starts now, in the background, under the suite
+  # wrapper (own process group, time limit, dies with this script). shell runs
+  # here meanwhile: live when it was asked for first, otherwise into a log.
+  # Then every stage is printed whole, in the order asked.
+  i=0
+  for st in "${stages[@]}"; do
+    if [ "$st" != shell ]; then
+      BENDIT_CI_STAGE_CHILD=1 python3 "$OUT/runsuite.py" "${BENDIT_CI_SUITE_TIMEOUT:-240}" "$OUT/stage-$i.log" "$$" \
+        bash "$SELF" "$st" </dev/null &
+      STAGE_PIDS+=("$!"); spid[$i]=$!
+    fi
+    i=$((i+1))
+  done
+  shell_done=""
+  if [ "${stages[0]}" = shell ]; then
+    echo "=== shell"; stage_shell; result shell $?; shell_done=0
+  else
+    for st in "${stages[@]}"; do [ "$st" = shell ] || continue
+      stage_shell >"$OUT/stage-shell.log" 2>&1; shell_rc=$?; break; done
+  fi
+  i=0
+  for st in "${stages[@]}"; do
+    if [ "$st" = shell ]; then
+      if [ -z "$shell_done" ]; then echo "=== shell"; cat "$OUT/stage-shell.log"; result shell "$shell_rc"; shell_done=0; fi
+    else
+      wait "${spid[$i]}"; rc=$?
+      echo "=== $st"; cat "$OUT/stage-$i.log"; result "$st" "$rc"
+    fi
+    i=$((i+1))
+  done
+  STAGE_PIDS=()
+fi
 if [ "${#failed[@]}" -gt 0 ]; then echo "CI FAILED: ${failed[*]}" >&2; exit 1; fi
 echo "CI passed: ${stages[*]}"

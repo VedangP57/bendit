@@ -62,6 +62,10 @@ KIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PER_HOOK = 3.0     # seconds; a healthy guard answers in well under 0.2
 SELF = ('selfcheck.py', ('--hook',))
 
+# What a guard prints when its own helper modules will not load (it then exits 2
+# on every call). Literal in each guard; guard-startup.test.sh pins both ends.
+STARTUP_FAILED = 'could not start: '
+
 FIX_TCC = ('macOS is blocking access to the plugin folder: give your terminal app (Terminal, iTerm, '
            'your editor) Full Disk Access in System Settings > Privacy & Security, then restart it')
 FIX_PERM = 'the file is not readable: reinstall (claude plugin install bendit@bendit) or restore its permissions'
@@ -69,6 +73,8 @@ FIX_PY = 'python3 is not on the PATH Claude Code runs hooks with: install Python
 FIX_MISSING = 'a file of the plugin is missing: reinstall (claude plugin install bendit@bendit)'
 FIX_CRASH = 'the hook crashes: reinstall; if it persists, report it (SECURITY.md)'
 FIX_OPEN = 'it runs but lets a known-bad call through: reinstall, or revert a local edit to it'
+FIX_START = ('its own code did not load, so it refuses EVERY call it sees: reinstall '
+             '(claude plugin install bendit@bendit), or revert a local edit to its helper modules')
 FIX_HANG = 'it did not answer in time: check the machine is not overloaded, then reinstall'
 
 
@@ -122,7 +128,11 @@ def run_one(key, event, matcher, cmd, timeout, probe, work):
             return res
         rc, out, err = p.returncode, p.stdout, p.stderr
         if probe.expect == 'refuses':
-            if rc == 2 and err.lstrip().startswith(_probes.PREFIXES):
+            if rc == 2 and STARTUP_FAILED in err:
+                # Refused, but not because of the probe: a guard whose helpers
+                # did not load refuses everything. That is not a working guard.
+                res.update(error=first_line(err), fix=FIX_START)
+            elif rc == 2 and err.lstrip().startswith(_probes.PREFIXES):
                 res['ok'] = True
             elif rc == 0:
                 res.update(error='exit 0 on its known-bad probe: it no longer '

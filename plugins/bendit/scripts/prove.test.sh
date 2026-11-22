@@ -118,9 +118,9 @@ echo
 echo "PER-PROJECT FEATURES"
 expect_capture "no bendit.json" bash "$SD/prove.sh" "$G"
 chk "no bendit.json: exit 0 (UNUSED is not a failure)" "$EXPECT_CODE" "0"
-chk "  ...four features read UNUSED" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -c '^feature: .*| UNUSED ')" "4"
+chk "  ...five features read UNUSED" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -c '^feature: .*| UNUSED ')" "5"
 has "  ...saying why" "UNUSED  not set up by /bendit:adopt yet" "$EXPECT_STDOUT"
-has "  ...and the summary counts them" "checks passed (4 unused)" "$EXPECT_STDOUT"
+has "  ...and the summary counts them" "checks passed (5 unused)" "$EXPECT_STDOUT"
 has "  ...readable row passes" "features: .claude/bendit.json readable" "$EXPECT_STDOUT"
 
 BENDIT_JSON='{"version":1,"features":{"browser-driver":{"on":false,"why":"you declined Chrome"}}}'
@@ -177,6 +177,30 @@ F2b="$T/feat-ls"; repo "$F2b" 'exit 0'
 expect_capture "ls-guard on" bash "$SD/prove.sh" "$F2b"
 chk "ls-guard on: the check runs the hook and prove passes" "$EXPECT_CODE" "0"
 chk "  ...its row says PASS" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^feature: ls-guard +\| PASS ')" "1"
+
+# primary-checkout-guard: PASS means the guard, run as hooks.json runs it, refused
+# an edit in a scratch primary checkout on THIS repo's integration branch, and
+# allowed the same edit from a linked worktree. No branch resolvable: not PASS.
+BENDIT_JSON='{"version":1,"features":{"primary-checkout-guard":{"on":true,"why":"chosen in --detailed"}}}'
+F2d="$T/feat-pcg"; repo "$F2d" 'exit 0'
+git -C "$F2d" update-ref refs/remotes/origin/trunk HEAD
+git -C "$F2d" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/trunk
+expect_capture "primary-checkout-guard on (origin/HEAD)" bash "$SD/prove.sh" "$F2d"
+chk "primary-checkout-guard on, origin/HEAD set: prove passes" "$EXPECT_CODE" "0"
+chk "  ...its row says PASS" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^feature: primary-checkout-guard +\| PASS ')" "1"
+git -C "$F2d" symbolic-ref --delete refs/remotes/origin/HEAD
+expect_capture "primary-checkout-guard on, no integration branch" bash "$SD/prove.sh" "$F2d"
+chk "on, but no integration branch resolves: prove fails (exit 1)" "$EXPECT_CODE" "1"
+chk "  ...its row says FAIL, not PASS" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^feature: primary-checkout-guard +\| FAIL ')" "1"
+has "  ...saying why" "no integration branch" "$(printf '%s\n' "$EXPECT_STDOUT" | sed -n '/^failures:/,$p')"
+python3 "$SD/features.py" integration-branch "$F2d" release >/dev/null
+expect_capture "primary-checkout-guard on (integrationBranch)" bash "$SD/prove.sh" "$F2d"
+chk "on, integrationBranch recorded: prove passes" "$EXPECT_CODE" "0"
+chk "  ...its row says PASS" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^feature: primary-checkout-guard +\| PASS ')" "1"
+BENDIT_JSON='{"version":1,"features":{"primary-checkout-guard":{"on":false,"why":"you said no"}}}'
+F2e="$T/feat-pcg-off"; repo "$F2e" 'exit 0'
+expect_capture "primary-checkout-guard off" bash "$SD/prove.sh" "$F2e"
+chk "off: its row says UNUSED" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^feature: primary-checkout-guard +\| UNUSED ')" "1"
 
 BENDIT_JSON='{"version":1,"features":{"session-brief":{"on":true,"why":"git project","brief":{"local_ports":[]}}}}'
 F2c="$T/feat-brief"; repo "$F2c" 'exit 0'

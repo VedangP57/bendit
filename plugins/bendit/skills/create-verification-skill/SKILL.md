@@ -107,7 +107,20 @@ where Synced is the commit at which someone last read that code and confirmed
 the check still describes it -- not when it last passed.
 `git log --oneline <synced>..HEAD -- <covers>` empty means the row is current.
 
-### 7. Run it end to end
+### 7. Keep the proof bar
+
+The generated `SKILL.md` carries three sections after Coverage, adapted from
+poteto's verification-skill-example: **Proof bar** ("It opens" is not proof: name
+the trigger and the end state, check one side effect, `evalJs` inspects only, a
+stub counts only at the boundary the real outage would cross, prefer
+`expectVisible` over `waitMs`), **What this harness cannot drive** (OS file
+drops, native dialogs, third-party sign-in: report as `blocked` with the path,
+the blocker and the nearest covered path) and **Gotchas** (add one each time a
+check lied). It also writes `references/features/README.md` and
+`references/journeys.md` stubs: fill them as you learn the app. Without `--force` a re-scaffold overwrites
+nothing that exists (`SKILL.md` and references included); `--force` regenerates them.
+
+### 8. Run it end to end
 
 Run `/bendit:verify` (or `sh .claude/verify-harness`), read the output, and open the
 evidence (`artifacts/<scenario>-<timestamp>/` for a web app). **A harness that

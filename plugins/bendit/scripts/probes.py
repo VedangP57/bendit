@@ -152,6 +152,31 @@ def feature_on(name, build):
     return go
 
 
+def primary_checkout(branch):
+    """A payload builder for block-primary-checkout: a repository made by hand
+    (HEAD, objects/, refs/ are all git needs to recognise one, so building it
+    runs nothing) in its own sub-folder, checked out on `branch`, with
+    primary-checkout-guard on and integrationBranch `main`; then an Edit of a
+    file in it. The project is that sub-folder (the payload's cwd; the probe's
+    env drops CLAUDE_PROJECT_DIR), so the probe dir itself stays no repo."""
+    def go(d):
+        repo = os.path.join(d, 'primary-' + branch)
+        git = os.path.join(repo, '.git')
+        for sub in ('objects', os.path.join('refs', 'heads')):
+            os.makedirs(os.path.join(git, sub), exist_ok=True)
+        write_file(git, 'HEAD', 'ref: refs/heads/%s\n' % branch)
+        features.write(repo, {'primary-checkout-guard': {'on': True, 'why': 'bendit probe',
+                                                         'integrationBranch': 'main'}})
+        return payload(repo, 'PreToolUse', 'Edit',
+                       {'file_path': os.path.join(repo, 'app.py'), 'old_string': 'a', 'new_string': 'b'})
+    return go
+
+
+# The project comes from the payload's cwd (the probe's own repo), never from
+# a real session's CLAUDE_PROJECT_DIR.
+OWN_PROJECT = {'CLAUDE_PROJECT_DIR': None}
+
+
 # --- the table, one entry per hooks.json entry -----------------------------------
 PROBES = {
     ('block-dangerous-bash.py', ()): [
@@ -170,6 +195,12 @@ PROBES = {
               feature_on('ls-guard', bash('ls | wc -l')), env=IN_PROBE_DIR),
         Probe('allows', 'block-ls-parsing: allows `ls -la` (ls-guard on)',
               feature_on('ls-guard', bash('ls -la')), env=IN_PROBE_DIR),
+    ],
+    ('block-primary-checkout.py', ()): [
+        Probe('refuses', 'block-primary-checkout: refuses an edit on main (feature on)',
+              primary_checkout('main'), env=OWN_PROJECT),
+        Probe('allows', 'block-primary-checkout: allows one on another branch',
+              primary_checkout('feature'), env=OWN_PROJECT),
     ],
     ('path-contracts.py', ()): [
         Probe('refuses', 'path-contracts: refuses a write to x.gen.ts', writing('x.gen.ts', 'export const a = 1')),

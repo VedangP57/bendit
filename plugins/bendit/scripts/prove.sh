@@ -47,7 +47,7 @@ trap 'exit 130' INT TERM
 export PYTHONDONTWRITEBYTECODE=1
 
 python3 - "$KIT" "$REPO" "$W" <<'PY'
-import json, os, signal, subprocess, sys, tempfile
+import json, os, shlex, signal, subprocess, sys, tempfile
 
 kit, repo, w = sys.argv[1:4]
 rows = []          # (check, state, rung, detail); state is PASS, FAIL or UNUSED
@@ -456,11 +456,86 @@ def _check_browser_driver(repo, kit):
     return False, f'the driver selftest failed (exit {p.returncode}): {short(why, 300)}'
 
 
+def _check_primary_checkout_guard(repo, kit):
+    """ON means block-primary-checkout.py, run as hooks.json runs it, REFUSES an
+    edit in a primary checkout on THIS repo's integration branch and ALLOWS the
+    same edit from a linked worktree. The branch is resolved as the guard
+    resolves it (integrationBranch in bendit.json, else origin/HEAD); none is
+    not a PASS, because then the guard allows every edit. The two edits are
+    made in a scratch repo under the temp dir on that branch, so the person's
+    checkout is never touched and need not be on the branch right now."""
+    entry = (F.load(repo) or {'features': {}})['features'].get('primary-checkout-guard') or {}
+    branch, source = entry.get('integrationBranch'), 'integrationBranch in .claude/bendit.json'
+    if not branch:
+        source = 'origin/HEAD'
+        try:
+            r = subprocess.run(['git', '-C', repo, 'symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD'],
+                               capture_output=True, text=True, timeout=10, env=ENV)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            return False, f'could not read origin/HEAD: {type(e).__name__}: {e}'
+        if r.returncode == 1 or (r.returncode == 0 and not r.stdout.strip()):
+            return False, ('no integration branch: origin/HEAD is unset and .claude/bendit.json has no '
+                           'integrationBranch, so the guard cannot tell main from any other branch and allows '
+                           'every edit. Record one: python3 '
+                           + shlex.quote(os.path.join(kit, 'scripts', 'features.py'))
+                           + ' integration-branch ' + shlex.quote(repo) + ' <branch>')
+        if r.returncode != 0:
+            return False, f'could not read origin/HEAD: git exited {r.returncode}: {short(r.stderr, 200)}'
+        ref = r.stdout.strip()   # the full name, as the guard reads it (never --short)
+        if not ref.startswith('refs/remotes/origin/') or ref == 'refs/remotes/origin/':
+            return False, f'origin/HEAD points at {ref!r}, not a branch of origin: the guard cannot use it'
+        branch = ref[len('refs/remotes/origin/'):]
+    s, wt = os.path.join(w, 'pcg-primary'), os.path.join(w, 'pcg-worktree')
+
+    def git(*args):
+        p = subprocess.run(['git', '-c', 'user.email=probe@bendit.invalid', '-c', 'user.name=bendit probe',
+                            '-C', s, *args], capture_output=True, text=True, timeout=10, env=ENV)
+        if p.returncode != 0:
+            raise RuntimeError(f'git {" ".join(args)}: exit {p.returncode}: {short(p.stderr, 200)}')
+    try:
+        os.makedirs(s)
+        git('init', '-q')
+        git('symbolic-ref', 'HEAD', f'refs/heads/{branch}')
+        probe_entry = {'on': True, 'why': 'bendit probe'}
+        if source != 'origin/HEAD':
+            probe_entry['integrationBranch'] = branch
+        F.write(s, {'primary-checkout-guard': probe_entry})
+        git('add', '-A')
+        git('commit', '-qm', 'probe')
+        if source == 'origin/HEAD':
+            git('update-ref', f'refs/remotes/origin/{branch}', 'HEAD')
+            git('symbolic-ref', 'refs/remotes/origin/HEAD', f'refs/remotes/origin/{branch}')
+        git('worktree', 'add', '-q', wt, '-b', 'bendit-probe-worktree')
+    except (OSError, RuntimeError, subprocess.TimeoutExpired, F.FeaturesError) as e:
+        return False, f'could not build the scratch repo: {type(e).__name__}: {e}'
+
+    def hook(where):
+        data = json.dumps({'session_id': 'bendit-prove', 'cwd': where, 'hook_event_name': 'PreToolUse',
+                           'tool_name': 'Edit', 'tool_input': {'file_path': os.path.join(where, 'app.py'),
+                                                              'old_string': 'a', 'new_string': 'b'}})
+        return subprocess.run(['python3', os.path.join(kit, 'scripts', 'block-primary-checkout.py')], input=data,
+                              capture_output=True, text=True, timeout=10, cwd=where,
+                              env=dict(ENV, CLAUDE_PROJECT_DIR=where))
+    try:
+        no, yes = hook(s), hook(wt)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f'could not run the hook: {type(e).__name__}: {e}'
+    if no.returncode != 2 or not no.stderr.lstrip().startswith(P.PREFIXES) or 'worktree add' not in no.stderr:
+        return False, (f'exit {no.returncode} on an edit in the primary checkout on {branch}, wanted 2 with a '
+                       f'message naming bendit and `git worktree add`'
+                       + (f'; stderr: {short(no.stderr, 200)}' if no.stderr.strip() else ''))
+    if yes.returncode != 0:
+        return False, (f'exit {yes.returncode} on the same edit from a linked worktree, wanted 0'
+                       + (f'; stderr: {short(yes.stderr, 200)}' if yes.stderr.strip() else ''))
+    return True, f'refuses an edit on {branch} ({source}) in a primary checkout; allows it in a worktree'
+
+
 FEATURE_CHECKS = {
     'browser-driver': _check_browser_driver,
     'ux-design-laws': _check_ux_design_laws,
     'ls-guard': _check_ls_guard,
     'session-brief': _check_session_brief,
+    'primary-checkout-guard': _check_primary_checkout_guard,
 }
 label = 'features: .claude/bendit.json readable'
 try:

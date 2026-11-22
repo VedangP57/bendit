@@ -4,6 +4,45 @@ All notable changes. Dates are UTC.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-21
+
+Ideas adapted from poteto's public repos (brainmaxxing, verification-skill-example,
+noodle, how). See Credits in the README and NOTICE.
+
+### Added
+- **`/bendit:suggest-guards`**: reads this project's past Claude Code sessions
+  (only sessions that ran in this folder), finds corrections you made more than
+  once, and offers each as a guard. Read-only; builds nothing without your yes.
+  Secrets are redacted before anything else touches the text.
+- **`/bendit:guard-report`**: every refusal is now recorded in
+  `.claude/.bendit-state/fires.jsonl` (secrets redacted, never written through a
+  symlink, the folder ignores itself in git); the report shows what fires and
+  which rules never have.
+- **Opt-in `primary-checkout-guard`**: refuses edits on the integration branch in
+  the primary checkout and gives the `git worktree add` command instead. Off by
+  default; `/bendit:adopt --detailed` asks.
+- **Verify skill**: every new `verify-<name>` skill gets a proof bar ("it opens"
+  is not proof), a list of what the harness cannot drive, testing rules (mock at
+  the outage boundary, no fixed waits), Gotchas, and feature-map/journeys stubs.
+- **`/bendit:review-diff`**: findings sorted into Act on / Consider / Noted /
+  Dismissed, each with evidence and impact, then a lead judgment.
+- **Plain-writing check**: a `slop` category in the controlled vocabulary
+  (advisory, never blocks).
+- **`INSTALL.md`**: a runbook an agent can follow, each step with a "Skip if"
+  check; one summary and the conflict check come before anything is installed.
+- **Homebrew**: `brew install vedangp57/tap/bendit`.
+- **CI**: `plugin-lint.py` checks every hook path resolves and every description
+  is capped.
+
+### Fixed
+- A guard whose own code cannot load, or that exits early inside a helper, now
+  refuses (exit 2) instead of letting the command run.
+- `install-route.sh conflict` no longer reports a false conflict for the same repo
+  written another way, and treats Unicode lookalikes as a different source.
+
+### Changed
+- Local CI runs independent suites and stages in parallel (about 150 s).
+
 ### Changed
 - README rebuilt around one command, one question and one approval line: what
   a refusal looks like first, then the quick start, evidence, limits and undo.

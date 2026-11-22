@@ -50,7 +50,9 @@ When you report what you verified, use the evidence rungs:
 
 ## Releasing
 
-1. Bump the version in all five places, to the same value: `BENDIT_VERSION` in
+1. Bump the version in all five places, to the same value (the Homebrew template
+   has no version of its own; step 6 passes it in, and the suite renders it and
+   compares it with `BENDIT_VERSION`): `BENDIT_VERSION` in
    `install.sh`, `version` in `plugins/bendit/.claude-plugin/plugin.json` and
    `plugins/bendit-web/.claude-plugin/plugin.json`, `packages/npm/package.json`
    and `packages/pypi/pyproject.toml` (`scripts/packages.test.sh` fails if they
@@ -65,6 +67,13 @@ When you report what you verified, use the evidence rungs:
    `python3 -m pip install build twine`, then `rm -rf dist`,
    `python3 -m build`, check the wheel holds the installer
    (`unzip -l dist/*.whl | grep bendit/install.sh`), and `twine upload dist/*`.
+6. Homebrew, after the tag is pushed (the formula needs the tag tarball). The
+   template is `packages/homebrew/bendit.rb.tmpl`; it takes the version and the
+   tarball's sha256, never a copy of `install.sh`:
+   `curl -fsSL https://github.com/VedangP57/bendit/archive/refs/tags/vX.Y.Z.tar.gz | shasum -a 256`,
+   then `bash packages/homebrew/render.sh X.Y.Z <sha256> > bendit.rb`, push it
+   to `VedangP57/homebrew-tap` as `Formula/bendit.rb`, and verify with
+   `brew install vedangp57/tap/bendit && bendit --version`.
 
 ## Reporting bugs and ideas
 

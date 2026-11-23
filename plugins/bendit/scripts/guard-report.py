@@ -8,8 +8,16 @@ appends to when it refuses (fire_log.py). The root is the git toplevel of
 --root, else of CLAUDE_PROJECT_DIR, else of the current folder (the folder
 itself when it is not in a git repo).
 
-Prints a table of guard, rule and count for the window, then one line:
-"never fired in N days: <guard>/<rule>, ...".
+Prints a table of guard, rule, count and the most recent example for the
+window, then one line: "never fired in N days: <guard>/<rule>, ...".
+
+THE EXAMPLE is the preview of the newest line for that rule in the window. It
+was redacted when it was written (fire_log.record), and is redacted again here
+with fire_log.preview_of -- the same redact() and the same 120-character cut --
+because the log may come from an older bendit or a cloned repo. Then control
+characters are made safe. bendit's own self-tests (prove.sh, selfcheck, the
+live `bendit-probe` push) are never written to the log, so they are never
+counted here.
 
 THE RULE INVENTORY is each guard's RULES list, read by PARSING the guard's
 source (ast.literal_eval), never by importing it: importing a guard runs its
@@ -31,6 +39,7 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
 PLUGIN = os.path.dirname(HERE)
 TS_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 # C0, DEL, C1 and bidi controls: a log in a cloned repo is someone else's
@@ -40,6 +49,18 @@ _CONTROL = re.compile('[\x00-\x1f\x7f-\x9f\u061c\u200e\u200f\u202a-\u202e\u2066-
 
 def safe(text: str) -> str:
     return _CONTROL.sub('?', text)
+
+
+def example(preview) -> str:
+    """A log line's preview, redacted again, cut, and made safe to print."""
+    if not isinstance(preview, str):
+        return '(none)'
+    try:
+        import fire_log
+        text = fire_log.preview_of(preview)
+    except Exception:
+        return '(preview withheld: could not redact it)'
+    return safe(text) or '(none)'
 
 
 def git_toplevel(start: str) -> str:
@@ -82,9 +103,10 @@ def inventory():
 
 
 def read_log(path: str, since: datetime.datetime):
-    """(Counter-like dict {(guard, rule): n}, lines skipped). Raises OSError
-    when the log cannot be read."""
-    counts, skipped = {}, 0
+    """({(guard, rule): n}, {(guard, rule): newest raw preview}, lines
+    skipped). Of two lines with the same time, the later one in the file is
+    the newer. Raises OSError when the log cannot be read."""
+    counts, latest, skipped = {}, {}, 0
     with open(path, encoding='utf-8', errors='replace') as f:
         for line in f:
             if not line.strip():
@@ -102,7 +124,9 @@ def read_log(path: str, since: datetime.datetime):
             if ts >= since:
                 guard, rule = safe(guard), safe(rule)
                 counts[(guard, rule)] = counts.get((guard, rule), 0) + 1
-    return counts, skipped
+                if (guard, rule) not in latest or ts >= latest[(guard, rule)][0]:
+                    latest[(guard, rule)] = (ts, rec.get('preview'))
+    return counts, {k: v[1] for k, v in latest.items()}, skipped
 
 
 def main(argv) -> int:
@@ -123,7 +147,7 @@ def main(argv) -> int:
         return 0
     since = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=args.days)
     try:
-        counts, skipped = read_log(path, since)
+        counts, latest, skipped = read_log(path, since)
     except (OSError, UnicodeError) as exc:
         print(f'guard-report: cannot read the refusal log {path}: '
               f'{type(exc).__name__}: {exc}. Fires are UNKNOWN, not zero.', file=sys.stderr)
@@ -140,9 +164,9 @@ def main(argv) -> int:
         rows = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
         w0 = max(len('guard'), *(len(g) for (g, _r), _n in rows))
         w1 = max(len('rule'), *(len(r) for (_g, r), _n in rows))
-        print(f'{"guard":<{w0}}  {"rule":<{w1}}  count')
+        print(f'{"guard":<{w0}}  {"rule":<{w1}}  {"count":<5}  most recent')
         for (g, r), n in rows:
-            print(f'{g:<{w0}}  {r:<{w1}}  {n}')
+            print(f'{g:<{w0}}  {r:<{w1}}  {n:<5}  {example(latest.get((g, r)))}')
     else:
         print(f'none in the last {args.days} days.')
     never = [f'{g}/{r}' for g, r in rules if (g, r) not in counts]

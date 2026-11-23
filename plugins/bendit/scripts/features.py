@@ -17,6 +17,18 @@ beats .env), and probe_env_vars must name variables whose values are URLs.
 primary-checkout-guard may carry "integrationBranch" (a branch name, see
 _branch_name): the branch its guard protects when origin/HEAD cannot say.
 
+A file from a NEWER bendit may name features this one does not know. One
+that is "on": false changes nothing here, so it is kept as written (a later
+`set` preserves it) and reported by ignored() / ignored_note(). One that is
+on, or whose "on" is not plainly false, is a guard someone chose that this
+bendit cannot run: load() raises UnknownFeatureOn (a FeaturesError), naming
+the running version and UNKNOWN_ON_ADVICE: update bendit, never edit or delete
+the file to get past it. It must never silently not run.
+
+No new top-level key, ever: bendit.json is committed, and bendit 0.5.0 and
+older refuse any top-level key but "version" and "features", so one would
+break every teammate still on an older bendit.
+
 A malformed file is never read as "everything off": load() raises
 FeaturesError naming the file, and every caller must refuse (fail closed).
 Absent is different: it means the project never chose, and is_on() is False.
@@ -30,6 +42,7 @@ CLI:
   features.py integration-branch <root> <branch>
                                               records primary-checkout-guard's
                                               integrationBranch (set the feature first)
+  features.py version                         prints the running bendit version
 """
 import json
 import os
@@ -38,12 +51,31 @@ import tempfile
 
 FEATURES = ('browser-driver', 'ux-design-laws', 'session-brief', 'ls-guard', 'primary-checkout-guard')
 VERSION = 1
+UPDATE_COMMAND = 'claude plugin update bendit@bendit --scope project'
+# ../.claude-plugin/plugin.json, relative to this file: the running bendit.
+_PLUGIN_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.claude-plugin', 'plugin.json')
 # The one extra object a feature may carry, keyed by what it is called.
 _CONFIG_KEY = {'session-brief': 'brief'}
 
 
 class FeaturesError(Exception):
     pass
+
+
+class UnknownFeatureOn(FeaturesError):
+    """A newer bendit's feature that is on. Not a broken file: a teammate on a
+    newer bendit turned that guard on. The only fix is to update bendit here;
+    editing or deleting the file to get past it turns that guard off for the
+    whole team, silently. Every reader says so (UNKNOWN_ON_ADVICE)."""
+
+
+# What every reader tells the person or agent about UnknownFeatureOn. One
+# string, so no reader can drift into "fix the file".
+UNKNOWN_ON_ADVICE = (
+    'Update bendit in this project: %s, then close Claude and open it again; if bendit is already '
+    'up to date, ask the person. '
+    'Do not edit or delete .claude/bendit.json to get past this: a teammate turned that guard on, '
+    'and changing the file turns it off for everyone.' % UPDATE_COMMAND)
 
 
 def _str_list(v):
@@ -86,6 +118,48 @@ def path(root):
     return os.path.join(root, '.claude', 'bendit.json')
 
 
+def _version_str(v):
+    """A version as plugin.json writes one: short, one line, no spaces."""
+    return (isinstance(v, str) and 0 < len(v) <= 64
+            and all(c.isalnum() or c in '.+-_' for c in v))
+
+
+def plugin_version():
+    """The running bendit's version, from ../.claude-plugin/plugin.json."""
+    try:
+        with open(_PLUGIN_JSON, encoding='utf-8') as f:
+            v = json.load(f).get('version')
+    except (OSError, ValueError, AttributeError) as e:
+        raise FeaturesError('%s: cannot read the running version: %s' % (_PLUGIN_JSON, e))
+    if not _version_str(v):
+        raise FeaturesError('%s: "version" is not a version: %r' % (_PLUGIN_JSON, v))
+    return v
+
+
+def _running_version():
+    try:
+        return plugin_version()
+    except FeaturesError:
+        return 'unknown'
+
+
+def ignored(data):
+    """The features in a loaded file that this bendit does not know (each is
+    off, or load() would have refused), sorted."""
+    return sorted(n for n in ((data or {}).get('features') or {}) if n not in FEATURES)
+
+
+def ignored_note(data):
+    """One line naming what ignored() found, or '' when it found nothing."""
+    names = ignored(data)
+    if not names:
+        return ''
+    return ('note: ignored %s %s (off; this bendit %s does not know %s, a newer bendit may have written %s)'
+            % ('feature' if len(names) == 1 else 'features',
+               ', '.join(n if n.isprintable() else repr(n) for n in names), _running_version(),
+               'it' if len(names) == 1 else 'them', 'it' if len(names) == 1 else 'them'))
+
+
 def _validate(data, where):
     if not isinstance(data, dict):
         raise FeaturesError('%s: top level must be an object' % where)
@@ -99,7 +173,13 @@ def _validate(data, where):
         raise FeaturesError('%s: "features" must be an object' % where)
     for name, entry in feats.items():
         if name not in FEATURES:
-            raise FeaturesError('%s: unknown feature %r (known: %s)' % (where, name, ', '.join(FEATURES)))
+            # A newer bendit's feature. Off: nothing to run, keep it as
+            # written. Anything else: a chosen guard this bendit cannot run.
+            if isinstance(entry, dict) and entry.get('on') is False:
+                continue
+            raise UnknownFeatureOn(
+                '%s: unknown feature %r is not off, and this bendit (%s) cannot run it: most likely '
+                'a newer bendit\'s guard. %s' % (where, name, _running_version(), UNKNOWN_ON_ADVICE))
         if not isinstance(entry, dict):
             raise FeaturesError('%s: feature %r must be an object' % (where, name))
         if not isinstance(entry.get('on'), bool):
@@ -233,11 +313,18 @@ def project_root(payload):
 
 def _main(argv):
     usage = ('usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <root>'
-             ' | integration-branch <root> <branch>')
+             ' | integration-branch <root> <branch> | version')
     try:
         cmd = argv[1] if len(argv) > 1 else ''
         if cmd == 'get' and len(argv) == 4:
+            if argv[3] not in FEATURES:
+                raise FeaturesError('unknown feature %r (known: %s)' % (argv[3], ', '.join(FEATURES)))
+            note = ignored_note(load(argv[2]))
             print('on' if is_on(argv[2], argv[3]) else 'off')
+            if note:
+                print('features: %s' % note, file=sys.stderr)
+        elif cmd == 'version' and len(argv) == 2:
+            print(plugin_version())
         elif cmd == 'set' and len(argv) == 6 and argv[4] in ('on', 'off'):
             root, name, state, why = argv[2], argv[3], argv[4], argv[5]
             if name not in FEATURES:
@@ -261,7 +348,8 @@ def _main(argv):
             feats['primary-checkout-guard'] = entry
             write(root, feats)
         elif cmd == 'show' and len(argv) == 3:
-            feats = (load(argv[2]) or {'features': {}})['features']
+            data = load(argv[2]) or {'features': {}}
+            feats = data['features']
             rows = [('feature', 'on/off', 'why')]
             for n in FEATURES:
                 e = feats.get(n)
@@ -270,6 +358,9 @@ def _main(argv):
             w1 = max(len(r[1]) for r in rows)
             for r in rows:
                 print('%-*s | %-*s | %s' % (w0, r[0], w1, r[1], r[2]))
+            note = ignored_note(data)
+            if note:
+                print(note)
         else:
             print(usage, file=sys.stderr)
             return 2

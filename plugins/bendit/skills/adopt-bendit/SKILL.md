@@ -117,7 +117,10 @@ base directory (it contains `hooks/`, `scripts/`, `templates/`).
    the project, and prints `check | result | evidence rung`. Then do the one
    live check by hand: a harmless force push this session must refuse with a
    message naming bendit (another kit refusing first is
-   "inconclusive", not a pass).
+   "inconclusive", not a pass). It is a PASS only when
+   `selfcheck.py --session` says `copy: installed`; with any other `copy:`
+   the copy that refused is not this project's install, so the hand-over
+   ends with the reopen step, as in quick mode.
    *Stop* on any FAIL: adoption is **not done**. Report what failed, its
    output, and the next step. Do not soften it into a pass.
 6. **Hand over.** Print the report below, then point at `references/grow.md`

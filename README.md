@@ -306,7 +306,7 @@ claude plugin install bendit@bendit
 ```
 
 The install URL above is "latest". To pin a release, put its tag in the URL,
-for example `https://raw.githubusercontent.com/VedangP57/bendit/v0.5.0/install.sh`
+for example `https://raw.githubusercontent.com/VedangP57/bendit/v0.5.1/install.sh`
 (`/<tag>/` for any other release).
 
 To read the installer before running it:
@@ -365,6 +365,10 @@ project, and any mistakes in the adaptation are bendit's.
   `primary-checkout-guard`, and the lead judgment in `/bendit:review-diff`.
 - [how](https://github.com/poteto/how): the act on, consider, noted and
   dismissed buckets in `/bendit:review-diff`.
+- [pstack](https://github.com/cursor/plugins/tree/main/pstack) (by poteto, in
+  Cursor's plugins repo): `/bendit:suggest-guards --git` is adapted from its `correct`
+  skill: read recent commits and reverts for the mistakes agents repeat, and
+  count a class once it has happened twice.
 
 ## Contributing, security, license
 

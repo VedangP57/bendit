@@ -80,7 +80,7 @@ whose values are URLs (a value without `://` is reported as not probed).
 | integration branch | `AGENTS.md`: `- Integration branch: \`<name>\`` | `/bendit:ship`, `/bendit:review-diff` |
 | production branch(es) | `AGENTS.md`: `- Production branch(es): ...` | `/bendit:ship` |
 | test / lint / typecheck / dev commands, package manager | `.claude/verify-harness` and the app harness the scaffold generated | the Stop gate, `/bendit:verify` |
-| port | the machine's port registry (`scripts/ports.py`), allocated by the scaffold, or by the first `verify` on a machine that has not seen the repo | `verify.sh` |
+| port | the machine's port registry (`scripts/ports.py`), allocated by the scaffold, or by the first `verify` on a machine that has not seen the repo; each worktree gets its own port in the repo's block; a repo under the system temp folder is never registered | `verify.sh` |
 | which features are on, and why | `.claude/bendit.json` | `prove.sh` (its `feature:` rows, and so `/bendit:doctor`); the ls-guard hook; the session-brief hook (from the main checkout, so worktrees share it); the primary-checkout-guard hook (and its `integrationBranch`) |
 | vendored kit's source + commit | `.claude/vendor/bendit/VENDORED_FROM` (route B only) | people, via the README's check |
 

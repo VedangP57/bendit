@@ -21,6 +21,8 @@ export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER
 # inside a Claude session that names the REAL project, so it must not leak in.
 unset CLAUDE_PROJECT_DIR
 expect_scrub_dir "$T" '<tmp>'
+# The running version changes every release; the snapshot must not.
+expect_scrub "$(python3 "$SD/features.py" version)" '<running>'
 
 # Every case runs the script's real functions through this prelude, which
 # prints one fact per line so assertions can match whole lines.
@@ -593,6 +595,16 @@ valid "config-unreadable"
 contains "invalid config -> unknown alarm" "| [files] Brief config: unknown (<tmp>/b-plain/.claude/bendit.json: not valid JSON"
 contains "  ...saying the defaults are used" "); this brief uses the defaults"
 has "config alarm reaches the toast" "toast: brief: main · 1 uncommitted · bendit.json is malformed"
+# A file from a newer bendit: an unknown feature written OFF is no alarm; one
+# written ON is (features.py refuses it), never a silent default.
+conf "$T/b-plain" 'raw:{"version":1,"features":{"session-brief":{"on":true,"why":"t"},"teleport-guard":{"on":false,"why":"later"}}}'
+brief "config-newer-feature-off" --cwd "$T/b-plain"
+valid "config-newer-feature-off"
+count "a newer bendit's feature, off -> no config alarm" 'Brief config: unknown' 0
+conf "$T/b-plain" 'raw:{"version":1,"features":{"session-brief":{"on":true,"why":"t"},"teleport-guard":{"on":true,"why":"chosen"}}}'
+brief "config-newer-feature-on" --cwd "$T/b-plain"
+valid "config-newer-feature-on"
+contains "a newer bendit's feature, ON -> alarm naming it" "unknown feature 'teleport-guard' is not off"
 conf "$T/b-plain" '{"local_ports": ["3000"]}'
 brief "config-wrong-type" --cwd "$T/b-plain"
 valid "config-wrong-type"

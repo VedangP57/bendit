@@ -44,6 +44,13 @@ older than 30 days are removed. No id, or no marker: never "live"; a marker
 folder that cannot be written is named ("can't write <folder>"). A second line,
 `live test: run|skip`, says whether `git push --force bendit-probe HEAD` is
 harmless here: only while no git remote, file or folder is named bendit-probe.
+Between those two, `copy: installed|installer copy|other copy (...)` says
+whether the bendit running is the one Claude Code recorded for THIS project at
+project scope (installPath the same folder, same version) -- the only copy a
+reopened window is known to run -- or the installer's download (under
+${BENDIT_CACHE:-${XDG_CACHE_HOME:-~/.cache}/bendit}/, loaded with --plugin-dir
+as bendit@inline) or any folder outside Claude's plugin cache (`installer
+copy`), or some other copy in that cache (`other copy`).
 
 Exit (table mode): 0 every hook answered, 1 something is OFF or unchecked.
 """
@@ -288,6 +295,22 @@ def project_root(given):
     return given
 
 
+def features_fix(root):
+    """The `fix:` line for a bendit.json features.py refused. A newer bendit's
+    guard that is on is not a broken file: update bendit, never edit or delete
+    the file (that turns a teammate's guard off). Anything else: repair it."""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import features
+        features.load(root)
+    except Exception as e:  # noqa: BLE001 -- classify only; the error is already printed
+        if type(e).__name__ == 'UnknownFeatureOn':
+            return (f'fix: update bendit: {features.UPDATE_COMMAND}, then close Claude and open it again. '
+                    'Do not edit or delete .claude/bendit.json to get past this: a teammate turned that '
+                    'guard on, and changing the file turns it off for everyone.')
+    return 'fix: repair .claude/bendit.json (the error above names the problem), then run /bendit:adopt'
+
+
 def features_report(given):
     """The features table for the project root of <given>, then the add-on
     scope line. 1 when bendit.json is unreadable (reported, never read as
@@ -299,7 +322,7 @@ def features_report(given):
     if p.returncode != 0:
         msg = first_line(p.stderr) or f'{path}: could not read it'
         print(msg if msg.startswith('features:') else f'features: {msg}')
-        print('fix: repair or delete .claude/bendit.json, then run /bendit:adopt')
+        print(features_fix(root))
         print()
         print(addon_scope_line())
         return 1
@@ -370,7 +393,8 @@ PROBE = 'bendit-probe'
 
 def live_test_line():
     """Is `git push --force bendit-probe HEAD` harmless HERE? Only while that
-    name reaches nothing: no git remote of that name, no file or folder."""
+    name reaches nothing: no git remote of that name, no file or folder, and
+    no git url rule (insteadOf, pushInsteadOf; local or global) rewriting it."""
     try:
         p = subprocess.run(['git', 'remote', 'get-url', PROBE], capture_output=True, text=True,
                            timeout=10, stdin=subprocess.DEVNULL)
@@ -384,7 +408,120 @@ def live_test_line():
     if os.path.lexists(PROBE):
         return (f'live test: skip -- there is a file or folder named {PROBE} in this folder, '
                 'so the test push could reach it')
+    # A url.<base>.insteadOf rule (this repo's config or the global one) can
+    # turn the name into a real address: git then pushes THERE. ls-remote
+    # --get-url applies those rules, so anything but the bare name means skip.
+    # It does not apply pushInsteadOf, which only pushes use: read those
+    # rules directly. Both match by prefix, so a rule for `bendit` counts.
+    try:
+        p = subprocess.run(['git', 'ls-remote', '--get-url', PROBE], capture_output=True, text=True,
+                           timeout=10, stdin=subprocess.DEVNULL)
+        if p.returncode != 0:
+            return (f'live test: skip -- git could not say where {PROBE} points '
+                    f'(exit {p.returncode}), so the test push might reach something')
+        if p.stdout.strip() != PROBE:
+            return (f'live test: skip -- a git url rule (insteadOf) turns {PROBE} into a real address, '
+                    'so the test push could reach it')
+        p = subprocess.run(['git', 'config', '--get-regexp', r'^url\..*\.pushinsteadof$'], capture_output=True,
+                           text=True, timeout=10, stdin=subprocess.DEVNULL)
+        if p.returncode not in (0, 1):
+            return (f'live test: skip -- could not read git\'s url rules (exit {p.returncode}), '
+                    'so the test push might reach something')
+        for line in p.stdout.splitlines():
+            value = line.split(' ', 1)[1] if ' ' in line else ''
+            if PROBE.startswith(value):
+                return (f'live test: skip -- a git url rule (pushInsteadOf) turns {PROBE} into a real '
+                        'address for pushes, so the test push could reach it')
+    except FileNotFoundError:
+        pass    # no git: the push cannot run either
+    except (OSError, subprocess.SubprocessError) as e:
+        return f'live test: skip -- could not check where {PROBE} points ({type(e).__name__})'
     return f'live test: run -- nothing here is named {PROBE}, so the test push cannot reach anything'
+
+
+def _under(path, folder):
+    """Is <path> inside <folder>, comparing whole path components after
+    resolving symlinks (so `cache-other` is not inside `cache`)?"""
+    path, folder = os.path.realpath(path), os.path.realpath(folder)
+    return path == folder or path.startswith(folder.rstrip(os.sep) + os.sep)
+
+
+def _this_project():
+    """The project folder this window is about: $CLAUDE_PROJECT_DIR, else the
+    git toplevel of the current folder, else the current folder."""
+    env = os.environ.get('CLAUDE_PROJECT_DIR', '')
+    if env and os.path.isdir(env):
+        return env
+    try:
+        p = subprocess.run(['git', 'rev-parse', '--show-toplevel'], capture_output=True, text=True,
+                           timeout=10, stdin=subprocess.DEVNULL)
+        if p.returncode == 0 and p.stdout.strip():
+            return p.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return os.getcwd()
+
+
+def copy_line():
+    """Which copy of bendit is running. `installed` ONLY when it is the very
+    copy Claude Code recorded for THIS project at project scope (the entry's
+    installPath is the same folder as the running root) and that entry's
+    version is the running version: that is what a reopened window runs.
+    Also `installed` (user scope) when this project records NO project-scope
+    bendit and the running root is the recorded user-scope install at the
+    running version: Claude Code loads that one here too. A project-scope
+    install always wins, so with one recorded the user install never counts.
+    Anything else keeps "reopen Claude": `installer copy` (the installer's
+    download, which `bendit` starts with `claude --plugin-dir`, loading as
+    bendit@inline, or any folder outside Claude's plugin cache) or `other copy`
+    (in Claude's plugin cache, but not what this project loads: a user-scope
+    copy where a project install exists, another project's, another version,
+    or the record could not be read)."""
+    root = os.environ.get('CLAUDE_PLUGIN_ROOT') or KIT
+    home = os.path.expanduser('~')
+    claude_dir = os.environ.get('CLAUDE_CONFIG_DIR') or os.path.join(home, '.claude')
+    installed = os.path.join(claude_dir, 'plugins', 'cache')
+    installer = os.environ.get('BENDIT_CACHE') or os.path.join(
+        os.environ.get('XDG_CACHE_HOME') or os.path.join(home, '.cache'), 'bendit')
+    reopen = ('this window is not running the bendit installed for this project; '
+              'close Claude and open it again to run that one')
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import features
+        running = features.plugin_version()
+        version = 'bendit ' + running
+    except Exception as e:  # noqa: BLE001 -- the line still says which copy
+        running, version = None, f'bendit, version unreadable ({type(e).__name__})'
+    if _under(root, installer):
+        return f"copy: installer copy ({version}, the installer's download at {root}) -- {reopen}"
+    if not _under(root, installed):
+        return f"copy: installer copy ({version}, loaded from {root}, not from Claude's plugin folder) -- {reopen}"
+    project = _this_project()
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            '_installed_versions', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'installed-versions.py'))
+        iv = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(iv)
+        everything = iv.load_all(iv.default_plugins_file())
+        mine = iv.installs_for([e for e in everything if e['scope'] == 'project'], project, 'bendit')
+        users = [e for e in everything if e['scope'] == 'user' and e['name'] == 'bendit']
+    except Exception as e:  # noqa: BLE001 -- unreadable: never "installed"
+        return (f'copy: other copy ({version}, {root}; which bendit this project records could not be read: '
+                f'{type(e).__name__}) -- {reopen}')
+    for e in mine:
+        if e['install'] and running and e['version'] == running and iv.same_path(e['install'], root):
+            return f'copy: installed ({version}, {root}; project scope)'
+    # No project-scope install here: Claude Code loads the user-scope one, so
+    # a reopened window runs this same copy. A project install always wins.
+    if not mine:
+        for e in users:
+            if e['install'] and running and e['version'] == running and iv.same_path(e['install'], root):
+                return (f'copy: installed ({version}, {root}; user scope: this project ({project}) records no '
+                        f'project-scope bendit, so a reopened window runs this same copy)')
+    recorded = ', '.join(sorted({e['version'] for e in mine})) or 'none'
+    return (f'copy: other copy ({version}, {root}; this project ({project}) records bendit {recorded} at '
+            f'project scope) -- {reopen}')
 
 
 def session_report():
@@ -406,6 +543,7 @@ def session_report():
         else:
             print(f"window: not live -- bendit's hooks did not start in this Claude window (session {sid}): "
                   'it was opened before bendit was set up, or bendit is not installed for this project')
+    print(copy_line())
     print(live_test_line())
     return rc
 

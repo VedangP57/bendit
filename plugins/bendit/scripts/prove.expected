@@ -1338,6 +1338,110 @@ not proved by this script: live wiring -- that Claude Code runs these hooks in a
 session. Do the in-session check in references/prove.md (a refused force push whose
 message names bendit).
 
+=== bendit.json from a newer bendit, unknown feature off
+exit 0
+--- stdout
+bendit prove: feat-newer
+kit:  <kit>
+repo: <tmp>/feat-newer
+
+check                                                                  | result | evidence rung
+-----------------------------------------------------------------------+--------+--------------
+block-dangerous-bash: refuses `git push --force`                       | PASS   | 4
+block-dangerous-bash: allows `git status`                              | PASS   | 4
+block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
+block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
+require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
+path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
+path-contracts: allows a write to x.ts                                 | PASS   | 4
+post-edit-review --pre: allows a write (snapshot only)                 | PASS   | 4
+block-primary-checkout: refuses an edit on main (feature on)           | PASS   | 4
+block-primary-checkout: allows one on another branch                   | PASS   | 4
+post-edit-review: flags a catch that returns success (advice)          | PASS   | 4
+post-edit-review: silent on a clean edit                               | PASS   | 4
+warn-suppressed-stderr: flags `2>/dev/null` with empty output (advice) | PASS   | 4
+warn-suppressed-stderr: silent without the redirect                    | PASS   | 4
+selfcheck --hook: silent when every guard answers                      | PASS   | 4
+session-brief --hook: silent with the feature off                      | PASS   | 4
+Stop gate: --mark records a code edit                                  | PASS   | 4
+Stop gate: refuses when the harness exits 1                            | PASS   | 4
+Stop gate: allows when the harness exits 0                             | PASS   | 4
+harness: .claude/verify-harness exits 0                                | PASS   | 4
+harness: approved by you for the Stop gate                             | PASS   | 4
+privacy: agent-layer files carry no home path or email                 | PASS   | 4
+features: .claude/bendit.json readable                                 | PASS   | 4
+feature: browser-driver                                                | UNUSED | 4
+feature: ux-design-laws                                                | UNUSED | 4
+feature: session-brief                                                 | UNUSED | 4
+feature: ls-guard                                                      | UNUSED | 4
+feature: primary-checkout-guard                                        | UNUSED | 4
+
+unused features (not failures):
+  feature: browser-driver
+    UNUSED  not listed in .claude/bendit.json
+  feature: ux-design-laws
+    UNUSED  not listed in .claude/bendit.json
+  feature: session-brief
+    UNUSED  not listed in .claude/bendit.json
+  feature: ls-guard
+    UNUSED  plain ls
+  feature: primary-checkout-guard
+    UNUSED  not listed in .claude/bendit.json
+
+notes (not failures):
+  note: ignored feature teleport-guard (off; this bendit <running> does not know it, a newer bendit may have written it)
+
+prove: all 30 checks passed (5 unused)
+not proved by this script: live wiring -- that Claude Code runs these hooks in a real
+session. Do the in-session check in references/prove.md (a refused force push whose
+message names bendit).
+
+=== bendit.json from a newer bendit, unknown feature ON
+exit 1
+--- stdout
+bendit prove: feat-newer-on
+kit:  <kit>
+repo: <tmp>/feat-newer-on
+
+check                                                                  | result | evidence rung
+-----------------------------------------------------------------------+--------+--------------
+block-dangerous-bash: refuses `git push --force`                       | PASS   | 4
+block-dangerous-bash: allows `git status`                              | PASS   | 4
+block-zsh-wordsplit: refuses `for f in $files` (SHELL=zsh)             | PASS   | 4
+block-zsh-wordsplit: allows `for f in "${arr[@]}"`                     | PASS   | 4
+block-ls-parsing: refuses `ls | wc -l` (ls-guard on)                   | PASS   | 4
+block-ls-parsing: allows `ls -la` (ls-guard on)                        | PASS   | 4
+require-verification --pre: allows a Bash call (stamp only)            | PASS   | 4
+path-contracts: refuses a write to x.gen.ts                            | PASS   | 4
+path-contracts: allows a write to x.ts                                 | PASS   | 4
+post-edit-review --pre: allows a write (snapshot only)                 | PASS   | 4
+block-primary-checkout: refuses an edit on main (feature on)           | PASS   | 4
+block-primary-checkout: allows one on another branch                   | PASS   | 4
+post-edit-review: flags a catch that returns success (advice)          | PASS   | 4
+post-edit-review: silent on a clean edit                               | PASS   | 4
+warn-suppressed-stderr: flags `2>/dev/null` with empty output (advice) | PASS   | 4
+warn-suppressed-stderr: silent without the redirect                    | PASS   | 4
+selfcheck --hook: silent when every guard answers                      | PASS   | 4
+session-brief --hook: silent with the feature off                      | PASS   | 4
+Stop gate: --mark records a code edit                                  | PASS   | 4
+Stop gate: refuses when the harness exits 1                            | PASS   | 4
+Stop gate: allows when the harness exits 0                             | PASS   | 4
+harness: .claude/verify-harness exits 0                                | PASS   | 4
+harness: approved by you for the Stop gate                             | PASS   | 4
+privacy: agent-layer files carry no home path or email                 | PASS   | 4
+features: .claude/bendit.json readable                                 | FAIL   | 4
+
+failures:
+  features: .claude/bendit.json readable
+    <tmp>/feat-newer-on/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it: most likely a newer bendit's guard. Update bendit in this project: claude plugin update bendit@bendit --scope project, then close Claude and open it again; if bendit is already up to date, ask the person. Do not edit or delete .claude/bendit.json to get past this: a teammate turned that guard on, and changing the file turns it off for everyone.
+
+prove: 1 of 25 checks FAILED -- adoption is NOT complete
+not proved by this script: live wiring -- that Claude Code runs these hooks in a real
+session. Do the in-session check in references/prove.md (a refused force push whose
+message names bendit).
+
 === malformed bendit.json
 exit 1
 --- stdout

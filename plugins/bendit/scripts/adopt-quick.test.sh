@@ -58,6 +58,38 @@ has "step 9 asks whether this window is already live" 'scripts/selfcheck.py" --s
 has "  ...and then leaves step 2 out" "then last step 2 is left out" "$Q_TXT"
 has "step 9 always runs the live test (unless --session says to skip it)" "Always run the live force-push check" "$Q_TXT"
 hasnt "the person is never asked to type a force push" "run: git push" "$Q_TXT"
+# 2026-11-22: setup ran the installer's own copy (bendit@inline), its refusal
+# dropped "reopen Claude", and the reopened window ran an older INSTALLED bendit.
+# A refusal counts only when --session's copy: line says the installed copy ran.
+has "step 9 reads the copy: line" '`copy:` line' "$Q_TXT"
+has "  ...step 2 is left out only for the installed copy, refused by bendit" \
+    'A refusal by bendit with `copy: installed` means this window already runs the bendit installed for this project: then last step 2 is left out.' "$Q_TXT"
+has "  ...the installer's copy, or any other copy, keeps step 2" '`copy: installer copy` or `copy: other copy`, step 2 stays' "$Q_TXT"
+echo
+echo "DETAILED: PROVE.MD FOLLOWS THE SAME REOPEN RULE"
+P_TXT="$(cat "$KIT/skills/adopt-bendit/references/prove.md")"
+has "PASS needs the installed copy" 'and `python3 "$KIT/scripts/selfcheck.py" --session` says `copy: installed` | **PASS**, rung 5 |' "$P_TXT"
+has "  ...any other copy is not a PASS, and the reopen step stays" '`copy: installer copy` or `copy: other copy` | **passed in the setup copy, not this project' "$P_TXT"
+has "  ...SKILL.md step 5 says it too" 'It is a PASS only when' "$(cat "$KIT/skills/adopt-bendit/SKILL.md")"
+hasnt "  ...the old row (any bendit refusal is PASS) is gone" '`[bendit] ...`) | **PASS**, rung 5 |' "$P_TXT"
+hasnt "  ...the old rule (any refusal drops step 2) is gone" 'A refusal by bendit means this window is
+   already protected' "$Q_TXT"
+has "the report's 'everything passed' needs the installed copy too" 'refused by bendit in this window with `copy: installed`' "$Q_TXT"
+echo
+echo "QUICK: STEP 2b SAYS WHICH BENDIT EACH CHECKOUT WILL LOAD"
+S5="$(sed -n '/^## 5\. Do it/,/^## 6\./p' "$QUICK")"
+has "step 2b exists" '2b. **Which bendit each checkout will load.**' "$S5"
+has "  ...runs installed-versions on ROOT" 'scripts/installed-versions.py" --root "$ROOT"' "$S5"
+has "  ...updates THIS folder only" 'only the command for the line marked `(this folder)`' "$S5"
+has "  ...never another checkout" 'Never run the command for another checkout' "$S5"
+l2="$(printf '%s\n' "$S5" | grep -n '^2\. \*\*Install bendit' | cut -d: -f1)"
+l2b="$(printf '%s\n' "$S5" | grep -n '^2b\. ' | cut -d: -f1)"
+l3="$(printf '%s\n' "$S5" | grep -n '^3\. ' | cut -d: -f1)"
+chk "  ...between step 2 and step 3" "$([ -n "$l2" ] && [ -n "$l2b" ] && [ -n "$l3" ] && [ "$l2" -lt "$l2b" ] && [ "$l2b" -lt "$l3" ] && echo y || echo n)" y
+has "  ...and its result is in the report's record" 'Versions:' \
+    "$(printf '%s\n' "$REPORT" | sed -n '/What I did (for the record/,/^Two last steps:/p')"
+has "the summary lists the update when this folder has an older bendit" 'Update bendit for this project to' \
+    "$(block "$QUICK" '^## 2\. The one question' 1)"
 
 echo
 echo "QUICK: THE SUMMARY IS IN EVERYDAY WORDS"
@@ -151,6 +183,9 @@ echo "DOCTOR: THE ENDING IS PLAIN, AND LAST"
 D_TXT="$(cat "$DOCTOR")"
 has "it asks which window this is" 'selfcheck.py" --session' "$D_TXT"
 has "it may run the live test without a permission prompt" "Bash(git push --force bendit-probe HEAD)" "$(sed -n '1,/^---$/{/^allowed-tools/p;}' "$DOCTOR")"
+has "doctor: the live test is not one of the project's refusals" "This test is not recorded as a refusal" "$D_TXT"
+has "quick.md: neither the live test nor prove/selfcheck probes are recorded" "bendit never records its own self-tests as refusals" "$(cat "$QUICK")"
+has "prove.md: the live test is not recorded either" "bendit never records its own self-tests as refusals" "$(cat "$KIT/skills/adopt-bendit/references/prove.md")"
 has "it ALWAYS runs the live test (a missing marker must not loop 'restart' forever)" "Always run the live test" "$D_TXT"
 hasnt "  ...never skips it because the window looks not live" "do not run it" "$D_TXT"
 has "  ...except when --session says the name reaches something" "live test: skip" "$D_TXT"
@@ -165,6 +200,58 @@ last="$(grep -n '^\*\*The ending\.\*\*' "$DOCTOR" | cut -d: -f1)"
 after="$(sed -n "$((${last:-1}+1)),\$p" "$DOCTOR" | grep -c '^#\|^\*\*' | tr -d ' ')"
 chk "  ...the ending is the last section of doctor.md" "${last:+found}|$after" "found|0"
 hasnt "the old ending is gone" "None of the scripts proves Claude Code actually runs the hooks" "$D_TXT"
+
+echo
+echo "QUICK: THE TEST CHECK IS WRITTEN ONCE (step 6, run as written)"
+# 2026-11-22: step 6 ran the scaffold, which wrote a harness (lint + type-check
+# + test + the app's verify call), and the agent then rewrote it to the decided
+# check: two writes, a confusing diff. Step 6 now prints the commands: write the
+# decided check, THEN the scaffold with --keep-harness. This extracts that block
+# from quick.md (like the undo command) and RUNS it. quick.md is prose, so how an
+# agent follows it needs an eval; this pins what the printed commands do.
+S6="$(sed -n '/^6\. \*\*The test check/,/^7\. \*\*Project files/p' "$QUICK")"
+chk "step 6 was found" "$([ -n "$S6" ] && echo y || echo n)" y
+has "step 6 says written once" 'The test check, written once.' "$S6"
+S6CMDS="$(printf '%s\n' "$S6" | awk '/^[[:space:]]*```bash/{on=1;next} on&&/^[[:space:]]*```/{exit} on{sub(/^   /,"");print}')"
+chk "step 6 prints a command block" "$([ -n "$S6CMDS" ] && echo y || echo n)" y
+lw="$(printf '%s\n' "$S6CMDS" | grep -n '^cat > .*/verify-harness' | head -1 | cut -d: -f1)"
+ls_="$(printf '%s\n' "$S6CMDS" | grep -n 'scaffold-verification-skill\.sh' | head -1 | cut -d: -f1)"
+chk "  ...the line writing the harness comes BEFORE the scaffold line" "$([ -n "$lw" ] && [ -n "$ls_" ] && [ "$lw" -lt "$ls_" ] && echo y || echo n)" y
+has "  ...the scaffold is told to keep it" '--keep-harness' "$(printf '%s\n' "$S6CMDS" | grep 'scaffold-verification-skill\.sh')"
+chk "  ...the block makes .claude itself, before the write" "$(printf '%s\n' "$S6CMDS" | grep -n '^mkdir -p ".*/\.claude"' | head -1 | cut -d: -f1)" 1
+hasnt "  ...no rewrite of the harness after the scaffold" 'rewrite `.claude/verify-harness`' "$S6"
+
+# run_step6 <quick.md> <dir>: extract that file's step-6 block, fill the
+# placeholders, run it in a fresh Next.js-shaped project. Leaves the output in
+# $T/s6.out and the exit in $S6RC. .claude is NOT made here: the block must.
+run_step6() {
+  local md="$1" P="$2" cmds
+  cmds="$(sed -n '/^6\. \*\*The test check/,/^7\. \*\*Project files/p' "$md" |
+    awk '/^[[:space:]]*```bash/{on=1;next} on&&/^[[:space:]]*```/{exit} on{sub(/^   /,"");print}')"
+  rm -rf "$P"; mkdir -p "$P"
+  printf '%s\n' '{"name":"demo","scripts":{"dev":"next dev","lint":"next lint","type-check":"tsc --noEmit","test":"vitest run"},"dependencies":{"next":"14.0.0"}}' > "$P/package.json"
+  : > "$P/pnpm-lock.yaml"; git -C "$P" init -q . 2>/dev/null
+  cmds="$(printf '%s\n' "$cmds" | sed -e 's/<name>/demo/' -e 's/<the decided check, in words>/type-check and tests/' \
+    -e 's/<the one command line>/pnpm run type-check \&\& pnpm run test/' -e 's/<pm>/pnpm/')"
+  ( ROOT="$P" KIT="$KIT" bash -c "$cmds" ) >"$T/s6.out" 2>&1; S6RC=$?
+}
+ONCE="$T/once"
+run_step6 "$QUICK" "$ONCE"
+H="$ONCE/.claude/verify-harness"
+chk "step 6 ran (0 or 3: TODOs are fine)" "$([ "$S6RC" = 0 ] || [ "$S6RC" = 3 ] && echo y || echo n)" y
+chk "the harness is exactly the decided check (no lint, no app line)" \
+"$(grep -v '^#' "$H")" "set -e
+pnpm run type-check && pnpm run test"
+chk "  ...the scaffold said it kept it" "$(grep -c 'kept as it was: --keep-harness' "$T/s6.out" | tr -d ' ')" 1
+chk "  ...and the app skill was still generated" "$([ -d "$ONCE/.claude/skills/verify-demo" ] && echo y || echo n)" y
+chk "  ...a retry (owner) keeps it" "$(bash "$KIT/scripts/scaffold-verification-skill.sh" "$ONCE" --harness-owner --pm pnpm 2>&1)" kept
+# The OLD quick.md (before this fix) must fail this row: it printed no block, and
+# its order was scaffold-then-rewrite. Only checked when the commit is reachable.
+OLDMD="$T/old-quick.md"
+if git -C "$KIT" show 9b1dfa2:plugins/bendit/skills/adopt-bendit/references/quick.md > "$OLDMD" 2>/dev/null; then
+  chk "the old quick.md prints no step-6 command block" \
+  "$(sed -n '/^6\. \*\*The test check/,/^7\. \*\*Project files/p' "$OLDMD" | grep -c '^[[:space:]]*```bash')" 0
+fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

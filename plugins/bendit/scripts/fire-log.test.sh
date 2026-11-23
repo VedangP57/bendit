@@ -430,5 +430,51 @@ broken_case ".gitignore is a symlink: still exit 2, same stderr" "$G4"
 chk "  nothing written through it" "$(cat "$T/gi-canary")" canary
 chk "  and no log either (a log git might not ignore is not written)" "$(lines "$G4/.claude/.bendit-state/fires.jsonl")" 0
 
+echo; echo "THE LIVE TEST IS NOT A REFUSAL; NO ENVIRONMENT VARIABLE SILENCES THE LOG"
+# The live test (/bendit:doctor, /bendit:adopt) pushes to the reserved name
+# `bendit-probe`. It is refused exactly as before; only its log line is
+# skipped, and only for that exact text.
+LIVE='git push --force bendit-probe HEAD'
+: >"$LOG"
+chk "the live test's push is refused"          "$(guard "$DB" "$(bash_payload "$LIVE" "$P")" "$T/lt")" 2
+case "$(cat "$T/lt.err")" in "BLOCKED by bendit"*) ok "  by bendit, with its message";; *) bad "  by bendit, with its message" "$(head -c 200 "$T/lt.err")";; esac
+chk "  and it is not logged"                   "$(lines "$LOG")" 0
+: >"$LOG"
+chk "git push -f bendit-probe (no refspec): refused, not logged" \
+    "$(guard "$DB" "$(bash_payload 'git push -f bendit-probe' "$P")" "$T/lt2") $(lines "$LOG")" "2 0"
+# Anything that could reach something other than bendit-probe is a real refusal.
+for c in 'git push --force origin bendit-probe' \
+         'git push --force bendit-probe HEAD && git push --force origin main' \
+         'git push --force bendit-probe HEAD; rm -rf ./build' \
+         'git push --force bendit-probe main:main' \
+         'git push --force --repo=origin bendit-probe HEAD' \
+         'git -C elsewhere push --force bendit-probe HEAD' \
+         "git push --force \$(echo origin) bendit-probe"; do
+  : >"$LOG"
+  code="$(guard "$DB" "$(bash_payload "$c" "$P")" "$T/lt3")"
+  chk "still logged: $c" "$code $(lines "$LOG")" "2 1"
+done
+
+# No environment variable silences the log: an agent could set one through
+# settings, and a quiet log reads as "this rule never fires". prove.sh and
+# selfcheck keep their probes out of the project's log by running them in a
+# throwaway project instead (prove.test.sh, selfcheck.test.sh pin that).
+probe_env_logs() {  # probe_env_logs <label> <command>
+  : >"$LOG"
+  local a b
+  a="$(guard "$DB" "$(bash_payload "$2" "$P")" "$T/np")"
+  chk "$1: refused and logged" "$a $(lines "$LOG")" "2 1"
+  : >"$LOG"
+  b="$(GUARD_ENV="BENDIT_PROBE=1" guard "$DB" "$(bash_payload "$2" "$P")" "$T/wp")"
+  chk "  with BENDIT_PROBE=1: still exit 2"     "$b" 2
+  chk "  ...stderr byte for byte the same"      "$(cmp -s "$T/np.err" "$T/wp.err" && echo same || echo differs)" same
+  chk "  ...and STILL logged"                   "$(lines "$LOG") $(field "$LOG" preview)" "1 $2"
+}
+probe_env_logs "a real force-push to origin main" 'git push --force origin main'
+probe_env_logs "rm -rf ./build" "$RM"
+: >"$LOG"
+chk "the live test with BENDIT_PROBE=1 set: refused, and still not logged (by its exact text only)" \
+    "$(GUARD_ENV="BENDIT_PROBE=1" guard "$DB" "$(bash_payload "$LIVE" "$P")" "$T/lt4") $(lines "$LOG")" "2 0"
+
 echo; echo "fire-log.test.sh: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

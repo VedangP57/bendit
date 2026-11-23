@@ -37,17 +37,23 @@ unset CLAUDE_PROJECT_DIR
 # cache: every hook run below would leave one there).
 unset CLAUDE_CODE_SESSION_ID
 export BENDIT_LIVE_DIR="$T/live"
+# Hermetic too: which copy of bendit this is (--session's `copy:` line) is read
+# from these. Cases that need them set them inline.
+unset CLAUDE_PLUGIN_ROOT BENDIT_CACHE CLAUDE_CONFIG_DIR XDG_CACHE_HOME
 # A tmp dir of the suite's own, so "it cleaned up" is checkable.
 export TMPDIR="$T/tmpd"; mkdir -p "$TMPDIR"
 chk() { if [ "$2" = "$3" ]; then printf '  ok    %s\n' "$1"; pass=$((pass+1));
         else printf '  FAIL  %s (got [%s], wanted [%s])\n' "$1" "$2" "$3"; fail=$((fail+1)); fi; }
 has() { case "$3" in *"$2"*) chk "$1" y y;; *) chk "$1 (missing '$2' in: $3)" n y;; esac; }
+hasnt() { case "$3" in *"$2"*) chk "$1 (found '$2' in: $3)" n y;; *) chk "$1" y y;; esac; }
 
 . "$SD/expect.sh"
 if [ -z "$PY_GIVEN" ]; then
   expect_init "$SD/selfcheck.expected"
   expect_scrub_dir "$T" '<tmp>'
   expect_scrub "$KIT" '<kit>'
+  # The copy: line names the running version; a release bump must not churn the snapshot.
+  expect_scrub "bendit $("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$KIT/.claude-plugin/plugin.json")" 'bendit <version>'
 fi
 
 # Every `python3` -- selfcheck's and each guard's -- resolves to $PY.
@@ -324,6 +330,17 @@ has "  ...naming the file" "bendit.json" "$FE_OUT"
 has "  ...and still says the add-on scope" "add-on scope:" "$FE_OUT"
 case "$FE_OUT" in *"features: features:"*) o=doubled ;; *) o=once ;; esac
 chk "  ...and does not print the 'features:' prefix twice" "$o" once
+has "  ...and says to repair it (a malformed file)" "fix: repair" "$FE_OUT"
+# Review I1: a newer bendit's feature that is ON. A teammate turned that guard
+# on: the fix is to update bendit, never to edit or delete the file.
+NB="$T/newerproj"; mkdir -p "$NB/.claude"
+printf '{"version":1,"features":{"teleport-guard":{"on":true,"why":"chosen"}}}' > "$NB/.claude/bendit.json"
+fe "$T/stub-user" "$NB"
+chk "an unknown feature that is ON: exit 1" "$FE_RC" 1
+has "  ...the fix: line gives the update command" "fix: update bendit: claude plugin update bendit@bendit --scope project" "$FE_OUT"
+has "  ...and says plainly not to edit or delete the file" "Do not edit or delete .claude/bendit.json" "$FE_OUT"
+has "  ...because a teammate turned it on" "a teammate turned that guard on" "$FE_OUT"
+hasnt "  ...and never to repair or delete it" "repair or delete" "$FE_OUT"
 # From a SUBDIRECTORY of a git repo whose ROOT file is malformed: the root is
 # resolved like prove.sh does, so this fails (not four "off | (not set)" rows).
 SR="$T/subrepo"; mkdir -p "$SR/.claude" "$SR/pkg/deep"; git -C "$SR" init -q
@@ -437,6 +454,108 @@ has "a folder named bendit-probe here: skipped" "live test: skip" "$(lt "$LF")"
 has "  ...saying why" "named bendit-probe in this folder" "$(lt "$LF")"
 LN="$T/lt-nogit"; mkdir -p "$LN"
 has "not a git repository: the push fails anyway, may run" "live test: run" "$(lt "$LN")"
+# A url rule can turn the bare name into a real repository: git would then
+# force-push THERE if bendit were not wired. Each is a skip, saying why.
+LI="$T/lt-insteadof"; mkdir -p "$LI"; git -C "$LI" init -q; git -C "$LI" config url."$T/real".insteadOf bendit-probe
+has "an insteadOf rule for bendit-probe: skipped" "live test: skip" "$(lt "$LI")"
+has "  ...saying why" "url rule (insteadOf)" "$(lt "$LI")"
+LU="$T/lt-pushinsteadof"; mkdir -p "$LU"; git -C "$LU" init -q; git -C "$LU" config url."$T/real".pushInsteadOf bendit
+has "a pushInsteadOf rule (prefix bendit): skipped" "live test: skip" "$(lt "$LU")"
+has "  ...saying why" "url rule (pushInsteadOf)" "$(lt "$LU")"
+printf '[url "%s/real"]\n\tinsteadOf = bendit-probe\n' "$T" >"$T/lt-global.cfg"
+has "a GLOBAL insteadOf rule: skipped" "live test: skip" "$(GIT_CONFIG_GLOBAL="$T/lt-global.cfg" lt "$LP")"
+printf '[url "%s/real"]\n\tpushInsteadOf = bendit-probe\n' "$T" >"$T/lt-globalp.cfg"
+has "a GLOBAL pushInsteadOf rule: skipped" "live test: skip" "$(GIT_CONFIG_GLOBAL="$T/lt-globalp.cfg" lt "$LP")"
+has "  ...and without them the plain repo may still run" "live test: run" "$(lt "$LP")"
+
+# The `copy:` line: is the bendit running here the one installed for this
+# project, or the installer's own copy (`claude --plugin-dir ~/.cache/bendit/v<v>/
+# plugins/bendit`, which loads as bendit@inline)? On 2026-11-22 the installer's
+# copy passed the live test, setup dropped "reopen Claude", and the reopened
+# window ran an older installed bendit. Only Claude Code's plugin cache
+# (~/.claude/plugins/cache/) holds an installed copy.
+cp_line() {  # cp_line <plugin root> [env assignments...] -- the copy: line --session prints
+  local root="$1"; shift
+  (cd "$LP" && env "$@" CLAUDE_PLUGIN_ROOT="$root" CLAUDE_CODE_SESSION_ID=win-started-here \
+     "$PY" "$KIT/scripts/selfcheck.py" --session 2>&1) | grep '^copy:'
+}
+RV="$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$KIT/.claude-plugin/plugin.json")"
+# record <plugins dir> <scope> <project path> <version> <installPath> -- a
+# one-entry installed_plugins.json, in the shape Claude Code writes.
+record() {
+  mkdir -p "$1"
+  "$PY" -c 'import json,sys
+d, scope, proj, v, inst = sys.argv[1:6]
+e = {"scope": scope, "version": v, "installPath": inst}
+if scope != "user": e["projectPath"] = proj
+json.dump({"version": 2, "plugins": {"bendit@bendit": [e]}}, open(d + "/installed_plugins.json", "w"))' "$@"
+}
+H="$T/cphome"; C="$H/.claude/plugins/cache/bendit/bendit"
+mkdir -p "$C/$RV" "$C/0.0.1" "$H/.cache/bendit/v1.0.0/plugins/bendit"
+record "$H/.claude/plugins" project "$LP" "$RV" "$C/$RV"
+has "this project's recorded install, at the running version: copy: installed" "copy: installed" \
+    "$(cp_line "$C/$RV" HOME="$H")"
+has "  ...names the running version" "bendit $RV" "$(cp_line "$C/$RV" HOME="$H")"
+# Review P5: a cache folder this project does not record is not "installed".
+has "another version's cache folder (P5): copy: other copy" "copy: other copy" \
+    "$(cp_line "$C/0.0.1" HOME="$H")"
+has "  ...says what this project records" "records bendit $RV" "$(cp_line "$C/0.0.1" HOME="$H")"
+has "  ...and says to reopen Claude" "open it again" "$(cp_line "$C/0.0.1" HOME="$H")"
+record "$H/.claude/plugins" project "$LP" 0.0.1 "$C/$RV"
+has "the recorded path, but the record's version is not the running one: other copy" "copy: other copy" \
+    "$(cp_line "$C/$RV" HOME="$H")"
+record "$H/.claude/plugins" project "$T/elsewhere" "$RV" "$C/$RV"
+has "another project's install: other copy" "copy: other copy" "$(cp_line "$C/$RV" HOME="$H")"
+# Review I2: a user-scope install, and no project-scope one for this project,
+# is what a reopened window runs: `installed`, saying which scope. Calling it
+# `other copy` sent the doctor into an endless "reopen Claude" loop.
+record "$H/.claude/plugins" user - "$RV" "$C/$RV"
+has "a user-scope install, no project install here: copy: installed" "copy: installed" "$(cp_line "$C/$RV" HOME="$H")"
+has "  ...saying user scope" "user scope" "$(cp_line "$C/$RV" HOME="$H")"
+hasnt "  ...and never to reopen Claude" "open it again" "$(cp_line "$C/$RV" HOME="$H")"
+has "a user-scope install, but another version is running: other copy" "copy: other copy" "$(cp_line "$C/0.0.1" HOME="$H")"
+# user + project for this project: the project install wins.
+"$PY" -c 'import json,sys
+d, proj, rv, inst = sys.argv[1:5]
+json.dump({"version": 2, "plugins": {"bendit@bendit": [
+  {"scope": "user", "version": rv, "installPath": inst},
+  {"scope": "project", "projectPath": proj, "version": "0.0.1", "installPath": d + "/old"}]}},
+  open(d + "/installed_plugins.json", "w"))' "$H/.claude/plugins" "$LP" "$RV" "$C/$RV"
+has "user scope at the running version, but this project records an older project install: other copy" \
+    "copy: other copy" "$(cp_line "$C/$RV" HOME="$H")"
+has "  ...naming what the project records" "records bendit 0.0.1" "$(cp_line "$C/$RV" HOME="$H")"
+has "  ...and saying to reopen Claude" "open it again" "$(cp_line "$C/$RV" HOME="$H")"
+record "$H/.claude/plugins" project "$LP" "$RV" "$C/$RV"
+has "the project install says project scope" "project scope" "$(cp_line "$C/$RV" HOME="$H")"
+record "$H/.claude/plugins" user - "$RV" "$C/$RV"
+has "a user-scope install does not make the installer's copy installed" "copy: installer copy" \
+    "$(cp_line "$H/.cache/bendit/v1.0.0/plugins/bendit" HOME="$H")"
+printf '{"version": 2, "plugins": ' > "$H/.claude/plugins/installed_plugins.json"
+has "the record unreadable: other copy, never installed" "copy: other copy" "$(cp_line "$C/$RV" HOME="$H")"
+record "$H/.claude/plugins" project "$LP" "$RV" "$C/$RV"
+has "the installer's download (~/.cache/bendit/): copy: installer copy" "copy: installer copy" \
+    "$(cp_line "$H/.cache/bendit/v1.0.0/plugins/bendit" HOME="$H")"
+has "  ...and says what that means: reopen Claude" "open it again" \
+    "$(cp_line "$H/.cache/bendit/v1.0.0/plugins/bendit" HOME="$H")"
+mkdir -p "$T/xdg/bendit/v1.0.0/plugins/bendit"
+has "\$XDG_CACHE_HOME/bendit/ is the installer's too" "copy: installer copy" \
+    "$(cp_line "$T/xdg/bendit/v1.0.0/plugins/bendit" HOME="$H" XDG_CACHE_HOME="$T/xdg")"
+mkdir -p "$T/dev/plugins/bendit"
+has "anywhere else (a --plugin-dir checkout): installer copy" "copy: installer copy" \
+    "$(cp_line "$T/dev/plugins/bendit" HOME="$H")"
+mkdir -p "$H/.claude/plugins/cache-other/bendit"
+has "a folder that only starts with the cache's name is not in it" "copy: installer copy" \
+    "$(cp_line "$H/.claude/plugins/cache-other/bendit" HOME="$H")"
+ln -s "$H" "$T/cphome-link"
+has "the cache reached through a symlinked home: still installed" "copy: installed" \
+    "$(cp_line "$C/$RV" HOME="$T/cphome-link")"
+mkdir -p "$T/cfg/plugins/cache/bendit/bendit/$RV"
+record "$T/cfg/plugins" project "$LP" "$RV" "$T/cfg/plugins/cache/bendit/bendit/$RV"
+has "CLAUDE_CONFIG_DIR moves Claude's folder: installed there" "copy: installed" \
+    "$(cp_line "$T/cfg/plugins/cache/bendit/bendit/$RV" HOME="$H" CLAUDE_CONFIG_DIR="$T/cfg")"
+startup "win-copy" startup
+win "win-copy"
+chk "the copy: line never changes --session's exit (still 0 when live)" "$WIN_RC" 0
 
 # Old markers are removed, so they cannot pile up: 30 days.
 mkdir -p "$BENDIT_LIVE_DIR"; : > "$BENDIT_LIVE_DIR/old-win"; : > "$BENDIT_LIVE_DIR/recent-win"
@@ -453,6 +572,17 @@ if [ -z "$PY_GIVEN" ]; then
   expect_capture "--session, no session id from Claude Code" env -u CLAUDE_CODE_SESSION_ID "$PY" "$KIT/scripts/selfcheck.py" --session
   cd "$HERE" || exit 2   # back: the rerun below starts "$0", which may be a relative path
 fi
+
+echo
+echo "ITS OWN PROBES ARE NOT REFUSALS"
+# In a session CLAUDE_PROJECT_DIR names the user's project. Each probe that
+# does not name its own project inherits it, and its refusal used to land in
+# that project's fires.jsonl: guard-report then counted bendit's self-test.
+SP="$T/sc-proj"; mkdir -p "$SP/.claude"; git -C "$SP" init -q
+CLAUDE_PROJECT_DIR="$SP" "$PY" "$KIT/scripts/selfcheck.py" >"$T/sp.out" 2>&1
+chk "selfcheck in a project with .claude/: exit 0" "$?" 0
+chk "  ...and the project's refusal log has no line from it" \
+    "$(if [ -f "$SP/.claude/.bendit-state/fires.jsonl" ]; then wc -l <"$SP/.claude/.bendit-state/fires.jsonl" | tr -d ' '; else echo 0; fi)" 0
 
 echo
 echo "IT CLEANS UP"

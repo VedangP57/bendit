@@ -42,7 +42,7 @@ bendit                 # run in your project folder
 ```
 
 That URL is "latest". To pin a release, put its tag in the URL, for example
-`https://raw.githubusercontent.com/VedangP57/bendit/v0.5.0/install.sh`
+`https://raw.githubusercontent.com/VedangP57/bendit/v0.5.1/install.sh`
 (`/<tag>/` for any other release).
 
 **What it does.** The installer checks that your machine has what bendit needs
@@ -213,6 +213,38 @@ bash <plugin folder>/scripts/prove.sh .
 `prove.sh` is a health check, one payload per hook. The full behaviour of each
 guard is pinned by its test suite (`plugins/bendit/scripts/*.test.sh`).
 
+**Which bendit is running.** `/bendit:doctor` also runs `selfcheck.py
+--session` and `scripts/installed-versions.py`. The `copy:` line says which
+copy of bendit runs in this window:
+
+- `copy: installed`: what a reopened window runs too, at the running version.
+  That is the copy Claude Code recorded for this project at project scope, or,
+  when this project records no project-scope bendit, the user scope install
+  (`claude plugin install bendit@bendit` with no `--scope`). A project-scope
+  install always wins over a user-scope one.
+- `copy: installer copy`: the installer's own download (started with
+  `claude --plugin-dir`), or a folder outside Claude's plugin folder.
+- `copy: other copy`: another copy in Claude's plugin folder (a user-scope one
+  where this project has its own install, another project's, another
+  version), or the record of installs could not be read.
+
+Only `copy: installed` together with a live-test refusal naming bendit drops
+"close Claude and open it again" from the end of `/bendit:adopt` and
+`/bendit:doctor`. Any other copy keeps that step, because a reopened window
+would run a different bendit.
+
+`installed-versions.py` prints `running: bendit <version>`, then, for every
+checkout of the repo (the main one and each `git worktree`), the bendit and
+bendit-web versions recorded for it at project scope, then a `user scope:`
+line. Exit 1 means another checkout will load a different version (a worktree
+has been seen loading the main checkout's install), with the exact `cd <path>
+&& claude plugin update <id> --scope project` for each checkout behind. Exit 2
+means it could not read the versions, never "all fine". It reads
+`installed_plugins.json` directly, never runs `claude plugin list`, and changes
+nothing. Local-scope installs are not read, and the user scope line changes no
+exit code. The doctor shows it as a `version` row, WARN when a checkout
+differs.
+
 ## Enforced and advice in full
 
 | | What | How |
@@ -235,7 +267,7 @@ guard is pinned by its test suite (`plugins/bendit/scripts/*.test.sh`).
 | Advice | skill `ux-design-laws`, in the add-on `bendit-web`: 20 UX laws (Hick, Fitts, Jakob, Miller, Doherty and more) applied to any interface the agent builds or reviews; not yet measured | only in a project where `/bendit:adopt` installed `bendit-web` with `--scope project` (a web app); the agent may ignore it |
 | Advice | a controlled vocabulary for agent prose (`scripts/controlled-vocabulary.py`, `/bendit:vocabulary`): flags inflated wording, requirements phrased as advice, and completion claims that name no observation; its `slop` category flags phrasing that reads as machine-written (puffery, promotional words, vague attribution, chatbot phrases, em dashes), adapted from the unslop list in poteto's noodle; no hook is wired; not yet measured | `/bendit:vocabulary` or `--check FILE` in your own CI; it reports and never blocks. `slop` findings never fail `--check` and `--fix` never edits them |
 | Advice | the refusal log, `.claude/.bendit-state/fires.jsonl`, and `/bendit:guard-report` (see [What fires](#what-fires-the-refusal-log)) | each guard appends a line after it refuses; the report only reads |
-| Advice | `/bendit:suggest-guards`: repeated corrections in this project's past sessions, each with a proposed layer (see [Grow your own guard](#grow-your-own-guard)); not yet measured | read-only; it writes nothing unless you pick rows to build |
+| Advice | `/bendit:suggest-guards`: repeated corrections in this project's past sessions (and, with `--git`, its fix and revert commits), each with a proposed layer (see [Grow your own guard](#grow-your-own-guard)); not yet measured | read-only; it writes nothing unless you pick rows to build |
 | Advice | commands: `/bendit:ship`, `/bendit:review-diff` (each finding sorted into Act on, Consider, Noted or Dismissed, then a lead judgment that accepts or rejects each with a reason and names every check that ran), `/bendit:verify`, `/bendit:doctor`, `/bendit:vocabulary`, `/bendit:guard-report`, `/bendit:suggest-guards` | checklists the agent runs when asked |
 
 Every hook runs as `python3 <plugin>/scripts/<name>.py` with a 10-second timeout
@@ -347,8 +379,14 @@ the `verify-<name>` skill (`doctor`, `up`, `drive`, `verify`, and
 `TODO` line that fails, and the scaffold exits 3.
 
 **`/bendit:verify` on a web app** takes this checkout's port from a registry
-(`~/.config/bendit/ports.json`; each worktree gets the next free port), starts
-the app, waits until it serves (a 5xx is not ready), runs every
+(`~/.config/bendit/ports.json`). Ports are per checkout: each repo owns a
+block, the main checkout takes its base, and each worktree is assigned the
+next free port in the block and keeps it (recorded in `.git/bendit-ports.json`).
+The generated harness defaults to the port of the checkout it was scaffolded
+in. A repo under the system temp folder is never registered (`$TMPDIR`, `/tmp`,
+`/var/tmp`, and on macOS `/var/folders`): a scaffold preview or a scratch clone
+gets a block for that run only, with a line saying so, and the registry is left
+as it was. It then starts the app, waits until it serves (a 5xx is not ready), runs every
 `scenarios/*.sh`, and tears it down. A named scenario is a partial run and does
 not clear the gate; zero scenarios is a failure.
 
@@ -382,8 +420,20 @@ it), one line per feature: on or off, and why, citing what it found
   scratch primary checkout and allowing it from a worktree.
   `/bendit:doctor` prints the table.
 - **A malformed `bendit.json` is never read as "all off"**: every reader
-  refuses and names the file. The one exception: the primary-checkout guard
-  allows an edit to `bendit.json` itself, because that is how it is fixed.
+  refuses and names the file; repair it. The one exception: the
+  primary-checkout guard allows an edit to `bendit.json` itself, because that
+  is how it is fixed.
+- **A `bendit.json` from a newer bendit.** A feature this bendit does not know,
+  written `"on": false`, is read past, with a note (`note: ignored feature
+  ...`), and kept as written when `features.py set` rewrites the file. One that
+  is on (or not plainly off) is a guard a teammate on a newer bendit chose, and
+  this one cannot run it. Every reader refuses and says to update bendit:
+  `claude plugin update bendit@bendit --scope project`, then reopen Claude. The
+  ls guard refuses `ls` parsing, the primary-checkout guard refuses every edit
+  (an edit to `bendit.json` too), and `prove.sh` and `/bendit:doctor` fail the
+  row. Do not edit or delete `.claude/bendit.json` to get past it: that turns
+  the teammate's guard off for everyone. Update together. `bendit.json` never
+  gains a new top-level key, because bendit 0.5.0 and older refuse one.
 - **The primary-checkout guard in detail.** The integration branch is
   `integrationBranch` on the feature in `.claude/bendit.json` (record it with
   `features.py integration-branch <project> <branch>`), else `origin/HEAD`;
@@ -418,14 +468,33 @@ To find candidates, run `/bendit:suggest-guards` (adapted from the `ruminate`
 idea in poteto's brainmaxxing). Its script, `scripts/suggest-guards.py`,
 reads this project's Claude Code transcripts under `~/.claude/projects/`, and
 only lines whose `cwd` is this project, so a different project that maps to
-the same folder name is left out. It finds the messages where you corrected
-the agent ("no,", "don't", "I told you", "wrong", and similar), pairs each
-with the tool call before it, and groups repeats. Each cluster has a count,
-the tool and command, and one example, with secrets redacted before anything
-else happens. A correction seen once is left out (`--min 2`). The command then
+the same folder name is left out. It works in two steps, so that meaning is
+read by Claude, never guessed from keywords. First it lists every reply you
+typed right after an agent tool call (a stable id, the tool, the command
+head, the redacted text cut to 160 characters; newest sessions first, at
+most 200). Claude reads every row and picks the ids that correct the agent,
+saying how many it read, confirmed and dropped. Then `--confirm <ids>`
+clusters only those ids, by the command they corrected (never by their
+words), or by Claude's own groups (`label=id,id;label=id`) when that key is
+too coarse or too fine, and shows every example (a duplicate or unknown id
+is refused, exit 2; with `--git` and no confirmed reply, `--confirm ""`
+still shows the git rows), with secrets redacted
+before anything else happens. A message recorded in two session files counts
+once. A correction seen once is left out (`--min 2`). The command then
 proposes the cheapest layer for each cluster (delete, structure, guard or
 prose, from [the ladder](#the-ladder)), asks once which rows to build, and
-runs `/bendit:new-guard` only for the guard rows you pick. The script writes
+runs `/bendit:new-guard` only for the guard rows you pick, one PR per row.
+
+`--git` adds this repo's own history (adapted from the `correct` skill in
+poteto's pstack): one read-only `git log` of the last 2,000 commits. A commit
+is a candidate when its subject starts with fix or revert, or when it touches
+a file again within an hour of the last commit to it. Candidates group by
+file (files fixed by nearly the same commits, Jaccard 0.6 or more, are one
+row), marked `source: git`, with one redacted subject as the example. Git
+rows rank by 3 per revert, 2 per fix and 1 per follow-up, scaled by how much
+of the file's history is fixes; docs-only rows come last, session rows always
+come first, and text mode prints the top 8 git rows (`--json` has all). Only
+commits under the project folder count (`git log -- .`). The script writes
 nothing. What it prints, already redacted, is read by the agent like any other
 command output.
 
@@ -456,8 +525,14 @@ refuse, so they log nothing:
 - **Nothing is created where there was nothing.** A folder with no `.claude/`
   gets none, and outside a git repository nothing is logged.
 
+bendit's own self-tests are never logged. `selfcheck.py`'s and `prove.sh`'s
+probes run against a throwaway project, and the doctor's live test (exactly
+`git push --force bendit-probe HEAD`) is skipped by the log, so none of them
+counts as a refusal.
+
 `/bendit:guard-report` runs `scripts/guard-report.py --days 30`: a table of
-guard, rule and count for the window, then every rule that never fired in
+guard, rule, count and `most recent` (the newest example in the window,
+redacted again before it is printed), then every rule that never fired in
 it. The list of rules is read from each guard's source, without running it.
 Exit 2 means the log exists but cannot be read, and the report says fires
 are unknown, never zero. The command suggests what is worth a look (rules
@@ -586,13 +661,15 @@ Per-user state never lives in the plugin folder.
 | `~/.cache/bendit/drive/<version>/` | Playwright, if you accepted it |
 | `~/.cache/bendit/verify-sessions/`, `live-sessions/` | per-session index, and markers that let `/bendit:doctor` say whether bendit is live in this window (live markers removed after 30 days; stale verify entries after 7) |
 | `~/.config/bendit/trusted-harnesses.json` | your check approvals |
-| `~/.config/bendit/ports.json` | each web project's port |
+| `~/.config/bendit/ports.json` | each web project's port block (a repo under the system temp folder is never registered) |
 | `.git/bendit-ports.json` in your project | which port each worktree holds |
 
 Paths follow `XDG_CACHE_HOME` and `XDG_CONFIG_HOME`; other overrides:
 `BENDIT_CACHE`, `BENDIT_CONFIG_DIR`, `BENDIT_VERIFY_INDEX`, `BENDIT_LIVE_DIR`,
 `BENDIT_HARNESS_TIMEOUT`, `BENDIT_KIT_ROOT`, `BENDIT_BROWSER_CHANNEL`,
-`BENDIT_VOCAB`; for CI, `BENDIT_CI_JOBS` and `BENDIT_CI_SUITE_TIMEOUT`.
+`BENDIT_VOCAB`; for CI, `BENDIT_CI_JOBS` and `BENDIT_CI_SUITE_TIMEOUT`; for
+tests only, `BENDIT_PORTS_REGISTER_TEMP=1` (with `BENDIT_CONFIG_DIR` set) lets a
+scratch repo under the temp folder register.
 
 ## Repository layout
 

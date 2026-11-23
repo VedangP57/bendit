@@ -4,6 +4,35 @@ All notable changes. Dates are UTC.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-22
+
+Fixes from the first live v0.5.0 test on a real project.
+
+### Fixed
+- **The right bendit loads.** Setup and `/bendit:doctor` now say which bendit
+  version each checkout of the repo will load (a git worktree loads the main
+  checkout's install), and give the exact `claude plugin update` command when
+  one is older. New `scripts/installed-versions.py`.
+- **"Reopen Claude" is skipped only when this project's installed copy is the
+  one running**, never the installer's temporary copy (`copy:` line in
+  `selfcheck.py --session`). User-scope installs count when no project install
+  exists.
+- **A `bendit.json` from a newer bendit stays readable**: an unknown feature that
+  is off is ignored with a note; one that is on still refuses and says to update
+  bendit, never to edit or delete the file.
+- **Ports**: a worktree's files no longer show the main checkout's port; temp
+  folders never write the port registry.
+- **The test check is written once** during `/bendit:adopt`.
+- **`/bendit:guard-report` ignores bendit's own self-tests** (they run in a
+  throwaway project) and shows the latest example for each rule. The live
+  force-push test is skipped when git would send `bendit-probe` to a real repo.
+
+### Changed
+- **`/bendit:suggest-guards`** lists every reply that followed an agent action;
+  Claude confirms which are corrections; only confirmed ones are grouped, by the
+  command they correct, each message counted once. New `--git` reads your fix and
+  revert commits (ranked, top 8 shown). Adapted from poteto's pstack.
+
 ## [0.5.0] - 2026-11-21
 
 Ideas adapted from poteto's public repos (brainmaxxing, verification-skill-example,

@@ -8,34 +8,44 @@ Guards record each refusal from now on; run this again after some work.
 exit 0
 --- stdout
 refusals in the last 30 days (<tmp>/proj/.claude/.bendit-state/fires.jsonl):
-guard                 rule           count
-block-dangerous-bash  rm-recursive   3
-block-dangerous-bash  force-push     1
-block-dangerous-bash  guard-error    1
-path-contracts        gen-file-edit  1
+guard                 rule           count  most recent
+block-dangerous-bash  rm-recursive   3      x
+block-dangerous-bash  force-push     1      x
+block-dangerous-bash  guard-error    1      x
+path-contracts        gen-file-edit  1      x
 never fired in 30 days: block-dangerous-bash/deletes-own-cwd, block-dangerous-bash/trust-approval, block-dangerous-bash/trust-file-write, block-dangerous-bash/installer-preanswer, block-dangerous-bash/find-delete, block-dangerous-bash/destructive-sql, block-dangerous-bash/supabase-push-reset, block-dangerous-bash/prisma-reset, block-dangerous-bash/push-deletes-remote-refs, block-dangerous-bash/git-clean-force, block-dangerous-bash/git-reset-hard, block-dangerous-bash/git-discard-all, block-dangerous-bash/script-deletes-tree, block-dangerous-bash/stripe-live-key, block-dangerous-bash/stripe-restricted-key, block-dangerous-bash/supabase-access-token, block-dangerous-bash/supabase-secret-key, block-dangerous-bash/github-token, block-dangerous-bash/github-fine-grained-token, block-dangerous-bash/private-key, block-zsh-wordsplit/zsh-bare-scalar-loop, block-ls-parsing/parses-ls-output, path-contracts/hot-file-allocation, block-primary-checkout/edit-on-integration-branch, block-primary-checkout/cannot-tell-checkout
 
 === fixture: --days 50 takes in the old one
 exit 0
 --- stdout
 refusals in the last 50 days (<tmp>/proj/.claude/.bendit-state/fires.jsonl):
-guard                 rule            count
-block-dangerous-bash  rm-recursive    3
-block-dangerous-bash  force-push      1
-block-dangerous-bash  git-reset-hard  1
-block-dangerous-bash  guard-error     1
-path-contracts        gen-file-edit   1
+guard                 rule            count  most recent
+block-dangerous-bash  rm-recursive    3      x
+block-dangerous-bash  force-push      1      x
+block-dangerous-bash  git-reset-hard  1      x
+block-dangerous-bash  guard-error     1      x
+path-contracts        gen-file-edit   1      x
 never fired in 50 days: block-dangerous-bash/deletes-own-cwd, block-dangerous-bash/trust-approval, block-dangerous-bash/trust-file-write, block-dangerous-bash/installer-preanswer, block-dangerous-bash/find-delete, block-dangerous-bash/destructive-sql, block-dangerous-bash/supabase-push-reset, block-dangerous-bash/prisma-reset, block-dangerous-bash/push-deletes-remote-refs, block-dangerous-bash/git-clean-force, block-dangerous-bash/git-discard-all, block-dangerous-bash/script-deletes-tree, block-dangerous-bash/stripe-live-key, block-dangerous-bash/stripe-restricted-key, block-dangerous-bash/supabase-access-token, block-dangerous-bash/supabase-secret-key, block-dangerous-bash/github-token, block-dangerous-bash/github-fine-grained-token, block-dangerous-bash/private-key, block-zsh-wordsplit/zsh-bare-scalar-loop, block-ls-parsing/parses-ls-output, path-contracts/hot-file-allocation, block-primary-checkout/edit-on-integration-branch, block-primary-checkout/cannot-tell-checkout
+
+=== most recent example per rule
+exit 0
+--- stdout
+refusals in the last 30 days (<tmp>/examples/.claude/.bendit-state/fires.jsonl):
+guard                 rule              count  most recent
+block-dangerous-bash  force-push        3      git push --force origin main
+block-dangerous-bash  rm-recursive      1      rm -rf ./b && curl -u admin:*** https://x.test
+block-ls-parsing      parses-ls-output  1      ls | wc -l ?[31m
+never fired in 30 days: block-dangerous-bash/deletes-own-cwd, block-dangerous-bash/trust-approval, block-dangerous-bash/trust-file-write, block-dangerous-bash/installer-preanswer, block-dangerous-bash/find-delete, block-dangerous-bash/destructive-sql, block-dangerous-bash/supabase-push-reset, block-dangerous-bash/prisma-reset, block-dangerous-bash/push-deletes-remote-refs, block-dangerous-bash/git-clean-force, block-dangerous-bash/git-reset-hard, block-dangerous-bash/git-discard-all, block-dangerous-bash/script-deletes-tree, block-dangerous-bash/stripe-live-key, block-dangerous-bash/stripe-restricted-key, block-dangerous-bash/supabase-access-token, block-dangerous-bash/supabase-secret-key, block-dangerous-bash/github-token, block-dangerous-bash/github-fine-grained-token, block-dangerous-bash/private-key, block-zsh-wordsplit/zsh-bare-scalar-loop, path-contracts/gen-file-edit, path-contracts/hot-file-allocation, block-primary-checkout/edit-on-integration-branch, block-primary-checkout/cannot-tell-checkout
 
 === corrupt lines: skipped and counted
 exit 0
 --- stdout
 refusals in the last 30 days (<tmp>/proj/.claude/.bendit-state/fires.jsonl):
-guard                 rule           count
-block-dangerous-bash  rm-recursive   3
-block-dangerous-bash  force-push     1
-block-dangerous-bash  guard-error    1
-path-contracts        gen-file-edit  1
+guard                 rule           count  most recent
+block-dangerous-bash  rm-recursive   3      x
+block-dangerous-bash  force-push     1      x
+block-dangerous-bash  guard-error    1      x
+path-contracts        gen-file-edit  1      x
 never fired in 30 days: block-dangerous-bash/deletes-own-cwd, block-dangerous-bash/trust-approval, block-dangerous-bash/trust-file-write, block-dangerous-bash/installer-preanswer, block-dangerous-bash/find-delete, block-dangerous-bash/destructive-sql, block-dangerous-bash/supabase-push-reset, block-dangerous-bash/prisma-reset, block-dangerous-bash/push-deletes-remote-refs, block-dangerous-bash/git-clean-force, block-dangerous-bash/git-reset-hard, block-dangerous-bash/git-discard-all, block-dangerous-bash/script-deletes-tree, block-dangerous-bash/stripe-live-key, block-dangerous-bash/stripe-restricted-key, block-dangerous-bash/supabase-access-token, block-dangerous-bash/supabase-secret-key, block-dangerous-bash/github-token, block-dangerous-bash/github-fine-grained-token, block-dangerous-bash/private-key, block-zsh-wordsplit/zsh-bare-scalar-loop, block-ls-parsing/parses-ls-output, path-contracts/hot-file-allocation, block-primary-checkout/edit-on-integration-branch, block-primary-checkout/cannot-tell-checkout
 skipped 3 unreadable lines in the log.
 

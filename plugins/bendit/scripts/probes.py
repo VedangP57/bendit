@@ -61,13 +61,20 @@ def hook_entries(kit):
 def prepare(w):
     """Make the probe and temp dirs under w; return (probe_dir, env). Guards
     may keep state (post-edit-review's pre-edit snapshot, the Stop gate's
-    session index): all of it goes under w, never into a real cache or repo."""
+    session index): all of it goes under w, never into a real cache or repo.
+    CLAUDE_PROJECT_DIR is the probe dir: inside a session it names the real
+    project, and a probe that inherited it would log its refusal there
+    (fire_log.py) as if the project's own. The probe dir is no git repo
+    (GIT_CEILING_DIRECTORIES), so nothing is logged at all; a probe that
+    builds a repo of its own under it logs into that, deleted with w. A
+    probe's env (IN_PROBE_DIR, OWN_PROJECT) still overrides it."""
     probe = os.path.join(w, 'probe')
     os.makedirs(probe, exist_ok=True)
     os.makedirs(os.path.join(w, 'tmp'), exist_ok=True)
     env = dict(os.environ, TMPDIR=os.path.join(w, 'tmp'),
                BENDIT_VERIFY_INDEX=os.path.join(w, 'index'),
-               GIT_CEILING_DIRECTORIES=w, PYTHONDONTWRITEBYTECODE='1')
+               GIT_CEILING_DIRECTORIES=w, PYTHONDONTWRITEBYTECODE='1',
+               CLAUDE_PROJECT_DIR=probe)
     return probe, env
 
 

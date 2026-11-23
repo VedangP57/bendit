@@ -22,9 +22,15 @@ PY_GIVEN="${PY:-}"
 PY="${PY:-python3}"
 VERIFY="$D/verify.sh"
 TMP="$(mktemp -d)"; TMP="$(cd "$TMP" && pwd -P)"
-trap 'rm -rf "$TMP"' EXIT
+# A second scratch folder directly under /tmp, for the temp-folder case.
+TMP2="$(mktemp -d /tmp/bendit-ports-test.XXXXXX)"; TMP2="$(cd "$TMP2" && pwd -P)"
+trap 'rm -rf "$TMP" "$TMP2"' EXIT
 export XDG_CONFIG_HOME="$TMP/xdg-unused"
 unset BENDIT_CONFIG_DIR
+# Every repo in this suite lives in a temp folder, and a root under the system
+# temp folder is never registered (see "A ROOT UNDER THE SYSTEM TEMP FOLDER").
+# The cases about registering opt back in; that section opts out again.
+export BENDIT_PORTS_REGISTER_TEMP=1
 pass=0; fail=0
 ok()  { pass=$((pass+1)); printf '  ok    %s\n' "$1"; }
 bad() { fail=$((fail+1)); printf '  FAIL  %s\n     %s\n' "$1" "${2:-}"; }
@@ -170,6 +176,57 @@ if [ -f "$M/.git/bendit-ports.json" ]; then ok "assignments live in the main che
 else bad "assignments live in the main checkout's .git" "no $M/.git/bendit-ports.json"; fi
 
 echo
+echo "TWO CHECKOUTS, EACH SCAFFOLDED, BOTH RUN THROUGH verify AT ONCE"
+# The end-to-end question, asked of the real path rather than of ports.py: a
+# main checkout and a worktree, each with its own scaffolded harness, both
+# started through `bin/verify-<name> verify` together. Which port does each
+# app get started on? The dev command binds nothing -- it only writes down the
+# PORT it was handed -- so this case needs no free port of its own.
+# Two ports in a row that nothing answers on, below the ephemeral range.
+twbase=$("$PY" -c '
+import random, socket
+for p in random.sample(range(20000, 40000), 200):
+    ok = True
+    for q in (p, p + 1):
+        s = socket.socket()
+        try: s.bind(("127.0.0.1", q))
+        except OSError: ok = False
+        finally: s.close()
+    if ok: print(p); break
+')
+TW="$TMP/twin"; newgit "$TW"
+git -C "$TW" worktree add -q "$TMP/twinB" -b twin-b 2>/dev/null
+TB="$TMP/twinB"
+reg "$TMP/twreg" 100 "$TW:$twbase"
+for c in "$TW" "$TB"; do
+  BENDIT_CONFIG_DIR="$TMP/twreg" bash "$D/scaffold-verification-skill.sh" "$c" \
+    --name twin --kind web --dev 'printf "%s\n" "$PORT" > .port-seen' >/dev/null 2>&1
+done
+twv() { ( cd "$1" && BENDIT_CONFIG_DIR="$TMP/twreg" BENDIT_KIT_ROOT="$D/.." \
+          BENDIT_VERIFY_LOCKDIR="$TMP/slots-twin" BENDIT_APP_WAIT=2 \
+          "$1/.claude/skills/verify-twin/bin/verify-twin" verify ) >"$2" 2>&1; }
+twv "$TW" "$TMP/twin-main.out" & twv "$TB" "$TMP/twin-wt.out" & wait
+sm=$(cat "$TW/.port-seen" 2>/dev/null); sw=$(cat "$TB/.port-seen" 2>/dev/null)
+check "the main checkout's app was started on the block base" "$twbase" "$sm"
+if [ -n "$sw" ] && [ "$sw" != "$sm" ]; then ok "the worktree's app was started on a DIFFERENT port (main=$sm worktree=$sw)"
+else bad "the worktree's app was started on a different port" "main=[$sm] worktree=[$sw]: $(tail -3 "$TMP/twin-wt.out")"; fi
+inblock "the worktree's port" "${sw:-0}" "$twbase" "$((twbase + 99))"
+case "$(cat "$TMP/twin-wt.out")" in *"app :$sw"*) ok "  ...and verify said that port for the worktree";;
+     *) bad "  ...and verify said that port for the worktree" "$(head -3 "$TMP/twin-wt.out")";; esac
+# The harness's own default (used when it is run by hand, with no PORT) must be
+# the port of the checkout it was scaffolded in -- not the main checkout's.
+dflt() { sed -n 's/^export PORT="\${PORT:-\([0-9]*\)}"$/\1/p' "$1/.claude/skills/verify-twin/bin/verify-twin"; }
+check "the main checkout's harness defaults to the main checkout's port" "$sm" "$(dflt "$TW")"
+check "the worktree's harness defaults to the WORKTREE's port, not the main checkout's" "$sw" "$(dflt "$TB")"
+hasnt_text() { case "$2" in *"$3"*) bad "$1" "found [$3]";; *) ok "$1";; esac; }
+hasnt_text "the worktree's SKILL.md does not call the main checkout's port its own" \
+  "$(cat "$TB/.claude/skills/verify-twin/SKILL.md")" "port **$sm**"
+out=$(BENDIT_CONFIG_DIR="$TMP/twreg" bash "$D/scaffold-verification-skill.sh" "$TB" \
+  --name twin --kind web --dev 'printf "%s\n" "$PORT" > .port-seen' --force 2>&1)
+case "$out" in *"port $sw"*) ok "re-scaffolding the worktree reports the worktree's port";;
+     *) bad "re-scaffolding the worktree reports the worktree's port" "$(printf '%s' "$out" | grep -i port)";; esac
+
+echo
 echo "A BLOCK THAT RUNS OUT IS REFUSED, NOT WRAPPED"
 M2="$TMP/main2"; newgit "$M2"
 git -C "$M2" worktree add -q "$TMP/w2A" -b a 2>/dev/null
@@ -269,6 +326,74 @@ check "scaffolding a web app registers it in BENDIT_CONFIG_DIR" "3100" "$got"
 if [ -e "$D/../ports.json" ]; then bad "  ...and creates nothing in the plugin folder" "ports.json appeared"
 else ok "  ...and creates nothing in the plugin folder"; fi
 check "  ...and nothing under XDG_CONFIG_HOME" "0" "$(/bin/ls -A "$TMP/xdg-unused" 2>/dev/null | wc -l | tr -d ' ')"
+
+echo
+echo "A ROOT UNDER THE SYSTEM TEMP FOLDER NEVER WRITES THE REGISTRY"
+# A preview scaffolded in a scratch folder left a block in the owner's real
+# registry for a folder that was gone an hour later. A temp root gets a port
+# for the run and is never written down -- by the scaffold or by verify.
+NT() { env -u BENDIT_PORTS_REGISTER_TEMP "$@"; }
+webrepo() { mkdir -p "$1"; git -C "$1" init -q .
+  printf '{"name":"tmpapp","scripts":{"dev":"next dev"},"dependencies":{"next":"1"}}\n' > "$1/package.json"; }
+fsum() { if [ -e "$1" ]; then cksum < "$1"; else echo absent; fi; }
+# (1) under $TMPDIR (where mktemp -d put $TMP), with a registry that exists.
+TR="$TMP/tmpdir-app"; webrepo "$TR"
+reg "$TMP/treg" 100 "/elsewhere/kept:3100"
+before=$(fsum "$TMP/treg/ports.json")
+NT env BENDIT_CONFIG_DIR="$TMP/treg" bash "$D/scaffold-verification-skill.sh" "$TR" >"$TMP/tr.out" 2>&1
+check "scaffolding under \$TMPDIR still succeeds" "0" "$?"
+check "  ...and leaves the registry byte-for-byte as it was" "$before" "$(fsum "$TMP/treg/ports.json")"
+tp=$(sed -n 's/^export PORT="\${PORT:-\([0-9]*\)}"$/\1/p' "$TR/.claude/skills/verify-tmpapp/bin/verify-tmpapp")
+case "$tp" in ''|*[!0-9]*) bad "  ...and the harness still gets a numeric default port" "[$tp]";;
+     *) ok "  ...and the harness still gets a numeric default port ($tp)";; esac
+case "$(cat "$TMP/tr.out")" in *"temp folder"*) ok "  ...and the scaffold says why it registered nothing";;
+     *) bad "  ...and the scaffold says why it registered nothing" "$(grep -i port "$TMP/tr.out")";; esac
+# (2) directly under /tmp, with NO registry yet: not even an empty one is created.
+TR2="$TMP2/tmp-app"; webrepo "$TR2"
+NT env BENDIT_CONFIG_DIR="$TMP/treg2" bash "$D/scaffold-verification-skill.sh" "$TR2" >/dev/null 2>&1
+check "scaffolding under /tmp still succeeds" "0" "$?"
+check "  ...and creates no registry file" "absent" "$(fsum "$TMP/treg2/ports.json")"
+check "  ...and no lock file beside it" "0" "$(/bin/ls -A "$TMP/treg2" 2>/dev/null | wc -l | tr -d ' ')"
+# (3) verify.sh's call, `ensure`, on a temp root: a port, and nothing written.
+before=$(fsum "$TMP/treg/ports.json")
+ep=$(NT env BENDIT_CONFIG_DIR="$TMP/treg" "$PY" "$PORTS" ensure "$TR2" 2>/dev/null); rc=$?
+check "ensure on a temp root answers (exit 0)" "0" "$rc"
+case "$ep" in 3100|''|*[!0-9]*) bad "  ...with a port outside every registered block" "[$ep]";;
+     *) ok "  ...with a port outside every registered block ($ep)";; esac
+check "  ...and leaves the registry as it was" "$before" "$(fsum "$TMP/treg/ports.json")"
+# (4) a temp root that IS registered keeps its block (read, not rewritten).
+reg "$TMP/treg3" 100 "$TR:3700"
+before=$(fsum "$TMP/treg3/ports.json")
+check "a temp root already in the registry keeps its block" "3700" "$(NT env BENDIT_CONFIG_DIR="$TMP/treg3" "$PY" "$PORTS" add "$TR" 2>/dev/null)"
+check "  ...and the registry is not rewritten" "$before" "$(fsum "$TMP/treg3/ports.json")"
+# (5) macOS: the per-user temp folder under /var/folders counts with TMPDIR
+# unset (a hook or launchd job often has none).
+if [ "$(uname)" = Darwin ]; then
+  UT="$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null)"
+  if [ -n "$UT" ]; then
+    VR="$(mktemp -d "${UT%/}/bendit-ports-vf.XXXXXX")"; VR="$(cd "$VR" && pwd -P)"
+    git -C "$VR" init -q .
+    NT env -u TMPDIR -u TMP -u TEMP BENDIT_CONFIG_DIR="$TMP/treg5" "$PY" "$PORTS" ensure "$VR" >/dev/null 2>&1
+    check "macOS, TMPDIR unset: a repo in the per-user temp folder is not registered" "absent" "$(fsum "$TMP/treg5/ports.json")"
+    rm -rf "$VR"
+  else bad "macOS: getconf DARWIN_USER_TEMP_DIR answers" "empty"; fi
+  # Without getconf's answer, /var/folders itself is still a root.
+  got=$(env -u TMPDIR -u TMP -u TEMP -u BENDIT_PORTS_REGISTER_TEMP "$PY" -c '
+import sys; sys.path.insert(0, sys.argv[1]); import ports
+ports._darwin_user_temp = lambda: None
+print(ports.is_temp("/var/folders/zz/abc/T/repo"), ports.is_temp("/Users/someone/repo"))' "$D" 2>&1)
+  check "macOS, no TMPDIR and no getconf: /var/folders is still temp, a home folder is not" "True False" "$got"
+fi
+# (6) the opt-in is ignored without an explicit test registry: a stray export
+# must never write a temp key into the real (default-location) registry.
+NT env BENDIT_PORTS_REGISTER_TEMP=1 XDG_CONFIG_HOME="$TMP/xdgopt" "$PY" "$PORTS" ensure "$TR" >/dev/null 2>&1
+check "BENDIT_PORTS_REGISTER_TEMP=1 with no BENDIT_CONFIG_DIR registers nothing" "absent" "$(fsum "$TMP/xdgopt/bendit/ports.json")"
+# CONTROL: the same scaffold, opted in, DOES write -- so the checks above can
+# see a write when there is one.
+TR4="$TMP2/tmp-app4"; webrepo "$TR4"
+BENDIT_CONFIG_DIR="$TMP/treg4" bash "$D/scaffold-verification-skill.sh" "$TR4" >/dev/null 2>&1
+check "CONTROL: opted in (BENDIT_PORTS_REGISTER_TEMP=1), the scaffold registers it" "3100" \
+  "$("$PY" -c "import json,sys;print(json.load(open(sys.argv[1]))['repos'].get(sys.argv[2],'MISSING'))" "$TMP/treg4/ports.json" "$TR4" 2>&1)"
 
 if [ -z "$PY_GIVEN" ] && [ -x /usr/bin/python3 ]; then
   echo

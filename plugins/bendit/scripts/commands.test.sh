@@ -53,6 +53,8 @@ pin "$GR" 'Never remove, turn off or edit a guard or a rule here'
 pin "$GR" "Removing a rule is the person's call"
 pin "$GR" '/bendit:adopt --detailed'
 hasnt "$GR" 'rm .claude'
+pin "$GR" 'The `most recent` column'
+pin "$GR" "bendit's own self-tests are never recorded"
 hasnt "$GR" 'Bash(rm'
 
 echo; echo "SUGGEST-GUARDS: READ-ONLY, CHEAPEST LAYER, ASK ONCE"
@@ -69,6 +71,22 @@ pin "$SG" 'Only on a yes, run `/bendit:new-guard <name>`'
 pin "$SG" 'Write nothing otherwise'
 pin "$SG" 'never open the transcripts to read more'
 pin "$SG" "Adapted from the \`ruminate\` idea in poteto's brainmaxxing"
+pin "$SG" 'one PR per row'
+pin "$SG" '| # | source | pattern | count | layer | proposal |'
+pin "$SG" '`No pattern repeats`'
+pin "$SG" '**Step 1: list.**'
+pin "$SG" 'lists every reply the person typed right after'
+pin "$SG" '**Step 2: you judge.** Read every listed row.'
+pin "$SG" 'Then say in one line how many rows you read, how many you confirmed and how many you dropped.'
+pin "$SG" 'Never confirm a row you have not read, and never guess an id.'
+pin "$SG" '**Step 3: cluster what you confirmed.**'
+pin "$SG" 'scripts/suggest-guards.py" --min 2 --confirm <id,id,...>'
+pin "$SG" 'nothing unconfirmed can count toward'
+pin "$SG" 'never by their words'
+pin "$SG" '**Group them yourself when the command is the wrong key.**'
+pin "$SG" '`--confirm "label=id,id;label=id"`. Each label is one cluster.'
+pin "$SG" 'an id in two groups is refused (exit 2)'
+hasnt "$SG" 'maybe'
 hasnt "$SG" 'Bash(rm'
 hasnt "$SG" '.claude/settings.json'
 pin "$KIT/skills/adopt-bendit/references/grow.md" '/bendit:suggest-guards'
@@ -94,9 +112,57 @@ rm -f "$QS"
 pin "$KIT/../../README.md" '`primary-checkout-guard`'
 pin "$KIT/../../docs/reference.md" '| `primary-checkout-guard` |'
 
+echo; echo "DOCTOR: WHICH BENDIT IS RUNNING, AND WHICH EACH CHECKOUT WILL LOAD"
+DR="$CMD/doctor.md"
+pin "$DR" 'python3 "${CLAUDE_PLUGIN_ROOT}/scripts/installed-versions.py" --root .'
+pin "$DR" 'Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/installed-versions.py *)'
+pin "$DR" 'one `version` row: the `running: bendit <version>` line'
+pin "$DR" 'another checkout of this repo will load a different bendit'
+pin "$DR" 'give each update command exactly as printed'
+pin "$DR" 'Exit 2 means the versions could not be read'
+pin "$DR" '> bendit is running in this window, but not the copy installed for this project.'
+pin "$DR" 'anything other than `installed`'
+pin "$DR" 'Only project-scope installs are compared between checkouts'
+hasnt "$DR" 'claude plugin list'
+pin "$DR" 'This test is not recorded as a refusal'
+pin "$DR" '`/bendit:guard-report` never counts it'
+# Review I1: a newer bendit's guard that is ON. Update bendit; never edit the file.
+pin "$DR" 'update bendit: `claude plugin update bendit@bendit --scope project`'
+pin "$DR" 'Do not edit or delete `.claude/bendit.json` to get past it'
+pin "$DR" 'a teammate turned that guard on'
+PM="$KIT/skills/adopt-bendit/references/prove.md"
+pin "$PM" 'an unknown feature that is on'
+pin "$PM" 'Do not edit or delete `.claude/bendit.json` to get past it'
+pin "$PM" 'claude plugin update bendit@bendit --scope project'
+# Review I2: a user-scope install with no project install here is `installed`;
+# the reinstall lines name the scope.
+pin "$DR" '`installed` at user scope'
+pin "$DR" '`/bendit:adopt` sets bendit up for this project'
+pin "$DR" '`claude plugin install bendit@bendit --scope project`'
+pin "$DR" 'paste claude plugin install bendit@bendit --scope project into a Terminal window'
+hasnt "$DR" 'install bendit@bendit`.'
+hasnt "$DR" 'install bendit@bendit into'
+# Review M1: the report template names every copy: state.
+pin "$REF/quick.md" 'copy: <installed / installer copy / other copy>'
+# Review M2: the step 6 block itself says --pm is for Node only.
+pin "$REF/quick.md" '# --pm <pm> only for a Node project (leave it out otherwise)'
+
 echo; echo "DOCS: AN INSTALL RUNBOOK AN AGENT CAN RESUME, CREDITS, NEW COMMANDS"
 ROOT="$(cd "$KIT/../.." && pwd)"
 IN="$ROOT/INSTALL.md"; RM="$ROOT/README.md"; RF="$ROOT/docs/reference.md"
+# Review I3: reference.md says what v0.5.1 changed.
+pin "$RF" 'installed-versions.py'
+pin "$RF" '`copy: installed`'
+pin "$RF" 'user scope'
+pin "$RF" 'Do not edit or delete `.claude/bendit.json` to get past it'
+pin "$RF" 'is read past, with a note'
+pin "$RF" 'BENDIT_PORTS_REGISTER_TEMP'
+pin "$RF" 'under the system temp folder is never registered'
+pin "$RF" 'per checkout'
+pin "$RF" '`most recent`'
+pin "$RF" "bendit's own self-tests"
+pin "$RF" '--confirm'
+pin "$RF" '--git'
 # Every numbered step (a "## <n>." heading) has its own "Skip if:" line, so an
 # agent that stopped half way can rerun the runbook and resume. Counted per
 # section, never in total: one step with two lines must not cover one with none.

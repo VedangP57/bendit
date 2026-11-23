@@ -35,6 +35,9 @@ trap cleanup EXIT
 # The registry the driver may ask (its fourth base-URL source) is a throwaway,
 # never the person's, and a Claude session's project dir is not this suite's.
 export BENDIT_CONFIG_DIR="$W/cfg"
+# Its scratch repos live in a temp folder, which ports.py never registers
+# unless told to; the registry case below needs one registered.
+export BENDIT_PORTS_REGISTER_TEMP=1
 unset CLAUDE_PROJECT_DIR BENDIT_BROWSER_CHANNEL
 pass=0; fail=0
 chk() { if [ "$2" = "$3" ]; then printf '  ok    %s\n' "$1"; pass=$((pass+1));

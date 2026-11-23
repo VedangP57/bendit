@@ -44,6 +44,17 @@ are each opened with O_NOFOLLOW (the folders with O_DIRECTORY, the next one
 relative to the last), and each must be owned by this user, or nothing is
 written. A new log is created owner-only (0600).
 
+BENDIT'S OWN SELF-TESTS ARE NOT REFUSALS. prove.sh and selfcheck.py fire
+their probes in a throwaway project under the system temp folder (probes.py
+prepare()), so those refusals never reach the real project's log. No
+environment variable silences logging: one could be set through settings,
+and a quiet log reads as "this rule never fires". The one skip is the live
+test, run by the agent through Claude Code: a command that is exactly
+`git push`, `-f`/`--force`, `bendit-probe` and an optional `HEAD`, with no
+shell syntax at all (is_live_test). Anything that could reach another remote
+is logged as usual. Only the log write looks at it: the guards decide and
+print before they call record().
+
 IGNORED BY GIT. The state folder gets a `.gitignore` of `*` when it has
 none, so the log is never committed in a project /bendit:adopt did not set
 up. A `.gitignore` there that is a link, or not this user's, means no log.
@@ -267,6 +278,24 @@ def _write(project_root: str, line: bytes) -> None:
             os.close(fd)
 
 
+PROBE_TARGET = 'bendit-probe'
+_LIVE_TEST_FLAGS = ('-f', '--force')
+
+
+def is_live_test(command) -> bool:
+    """The live test's push, whose only target is `bendit-probe`: exactly
+    `git push`, then force flags, `bendit-probe` and at most a `HEAD`, split on
+    whitespace. Any other character a shell would act on (quotes, `$`, `;`,
+    `&`, `|`, a redirect, a backslash, a newline) means it is not."""
+    if not isinstance(command, str) or re.search(r'[^A-Za-z0-9 \t._/-]', command):
+        return False
+    words = command.split()
+    if words[:2] != ['git', 'push']:
+        return False
+    rest = [w for w in words[2:] if w not in _LIVE_TEST_FLAGS]
+    return rest in ([PROBE_TARGET], [PROBE_TARGET, 'HEAD'])
+
+
 class _Timeout(Exception):
     pass
 
@@ -277,9 +306,15 @@ def _on_alarm(_signum, _frame):
 
 def record(project_root, guard: str, rule: str, command_preview: str) -> None:
     """Append one refusal to the project's fires.jsonl. Swallows every
-    exception, never prints, gives up after 1.5 s."""
+    exception, never prints, gives up after 1.5 s. Writes nothing for
+    the live test (is_live_test)."""
     if not project_root:
         return
+    try:
+        if is_live_test(command_preview):
+            return
+    except BaseException:
+        pass
     old = None
     try:
         if hasattr(signal, 'setitimer'):

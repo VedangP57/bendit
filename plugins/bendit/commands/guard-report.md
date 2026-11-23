@@ -20,6 +20,12 @@ Explain the result in plain words:
   what the rule guards against in one short phrase (for example
   `rm-recursive`: deleting a folder tree; `force-push`: overwriting remote
   history).
+- The `most recent` column is the newest command (or file) that rule
+  refused, with secrets already redacted. Quote it to say what was stopped;
+  never open the log to show more.
+- bendit's own self-tests are never recorded (the probes `/bendit:doctor` and
+  `/bendit:adopt` run, and the live `bendit-probe` push), so every row is a
+  refusal of real work.
 - `guard-error` or `payload-unreadable` means a guard could not check
   something and refused to be safe. Several of these point at a broken
   install: suggest `/bendit:doctor`.

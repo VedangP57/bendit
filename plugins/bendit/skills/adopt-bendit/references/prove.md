@@ -31,7 +31,7 @@ What its rows mean:
 | `Stop gate: ...` | a throwaway git repo: an edit is marked, a harness that exits 1 must be refused (exit 2), one that exits 0 must be allowed | the gate cannot refuse, or cannot be satisfied |
 | `harness: ...` | the project's `.claude/verify-harness`, as the Stop gate runs it | the harness is red, missing, only comments, too slow, or it changed the working tree |
 | `privacy: ...` | `privacy-scan.py` over the files bendit writes: `AGENTS.md`, `CLAUDE.md`, `.claude/verify-harness`, `.env.verify.example`, `.claude/bendit.json` (its `why` texts and the brief config are committed free text), `.claude/skills/verify-*/` (the generated verification skill). Findings in any other `.claude/skills/` file (another tool's) are printed under `notices (not failures):` as `file:line: finding` and never change the result or exit status; mention them to the user, do not fix them | a home path or a real email in a file bendit wrote (also a portability bug: it fails on every other machine) |
-| `features: .claude/bendit.json readable` | `features.py`'s reader over the project's `.claude/bendit.json` (absent is fine) | the file is malformed: the message names the file and the problem; repair or delete `.claude/bendit.json`, then re-run SKILL.md step 3b and the script |
+| `features: .claude/bendit.json readable` | `features.py`'s reader over the project's `.claude/bendit.json` (absent is fine) | the file is malformed: the message names the file and the problem; repair `.claude/bendit.json`, then re-run SKILL.md step 3b and the script. For an unknown feature that is on (`is not off`: a newer bendit's guard a teammate turned on), the fix is to update bendit, `claude plugin update bendit@bendit --scope project`, then reopen Claude. Do not edit or delete `.claude/bendit.json` to get past it |
 | `feature: <name>` | the feature's own check, only when it is on in `.claude/bendit.json` | the feature is on and its check failed, or there is no check for it yet |
 
 A row's result is **PASS**, **FAIL** or **UNUSED**. UNUSED is only for a
@@ -61,13 +61,16 @@ git push --force bendit-probe HEAD
 
 It is harmless either way: the remote does not exist, so if nothing refuses it,
 git fails with `'bendit-probe' does not appear to be a git repository`.
+bendit never records its own self-tests as refusals: not this push, and not
+prove.sh's or selfcheck's probes, so `/bendit:guard-report` never counts them.
 
 Read **who** refused it. Several kits can guard one session, and their messages
 look alike; the first hook to refuse is the one you see.
 
 | what came back | result |
 |---|---|
-| a refusal whose message names bendit (`BLOCKED by bendit ...`, `[bendit] ...`) | **PASS**, rung 5 |
+| a refusal whose message names bendit (`BLOCKED by bendit ...`, `[bendit] ...`), and `python3 "$KIT/scripts/selfcheck.py" --session` says `copy: installed` | **PASS**, rung 5 |
+| a refusal naming bendit, but `--session` says `copy: installer copy` or `copy: other copy` | **passed in the setup copy, not this project's install**: not a PASS for the install. The hand-over ends with "Close Claude and open it again in this project, then type /bendit:doctor." |
 | git's own "does not appear to be a git repository" error | **FAIL**: the guard is not wired. Check `claude plugin list` and that this session started after the install |
 | a refusal from a different kit or hook (its message names another plugin) | **inconclusive: another guard answered first**. Not a pass and not a fail: bendit's hook may be wired and simply never got the call. Report it as that, with the message you saw |
 | this session started before the install (`python3 "$KIT/scripts/selfcheck.py" --session` says `window: not live`) | **pending a new session**: say so, do not mark it either way |

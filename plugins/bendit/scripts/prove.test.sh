@@ -26,6 +26,8 @@ has() { case "$3" in *"$2"*) chk "$1" y y;; *) chk "$1 (missing '$2' in: $3)" n 
 expect_init "$SD/prove.expected"
 expect_scrub_dir "$T" '<tmp>'
 expect_scrub "$KIT" '<kit>'
+# The running version changes every release; the snapshot must not.
+expect_scrub "$(python3 "$SD/features.py" version)" '<running>'
 
 # repo <dir> <harness-body or ""> [unapproved] -- a committed scratch project.
 # BENDIT_JSON, if set, is the body of its .claude/bendit.json.
@@ -178,6 +180,20 @@ expect_capture "ls-guard on" bash "$SD/prove.sh" "$F2b"
 chk "ls-guard on: the check runs the hook and prove passes" "$EXPECT_CODE" "0"
 chk "  ...its row says PASS" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^feature: ls-guard +\| PASS ')" "1"
 
+echo
+echo "PROVE'S OWN PROBES ARE NOT REFUSALS"
+# Inside Claude Code, CLAUDE_PROJECT_DIR names the project being proved, and
+# every probe's refusal used to land in ITS fires.jsonl: /bendit:guard-report
+# then showed bendit's self-test as the project's refusals. This project has a
+# .claude/ (bendit.json), so a guard that logs would write there.
+FL="$F2b/.claude/.bendit-state/fires.jsonl"
+CLAUDE_PROJECT_DIR="$F2b" bash "$SD/prove.sh" "$F2b" >"$T/pl.out" 2>&1
+chk "prove.sh run as a session runs it: still exit 0" "$?" "0"
+chk "  ...and the project's refusal log has no line from it" \
+    "$(if [ -f "$FL" ]; then wc -l <"$FL" | tr -d ' '; else echo 0; fi)" "0"
+chk "  ...so guard-report says nothing was refused" \
+    "$(python3 "$SD/guard-report.py" --root "$F2b" | head -1 | cut -c1-27)" "no refusals recorded yet (n"
+
 # primary-checkout-guard: PASS means the guard, run as hooks.json runs it, refused
 # an edit in a scratch primary checkout on THIS repo's integration branch, and
 # allowed the same edit from a linked worktree. No branch resolvable: not PASS.
@@ -251,6 +267,21 @@ PV="$T/priv-verify"; repo "$PV" 'exit 0'; plantskill "$PV" verify-x
 expect_capture "finding in the generated verify-x skill" bash "$SD/prove.sh" "$PV"
 chk "a finding in .claude/skills/verify-x fails prove (exit 1)" "$EXPECT_CODE" "1"
 chk "  ...on the privacy row" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^privacy: .*\| FAIL ')" "1"
+
+# A file from a newer bendit: its feature written OFF is read past with a note;
+# one written ON fails the readable row (a chosen guard must never silently not run).
+BENDIT_JSON='{"version":1,"features":{"ls-guard":{"on":false,"why":"plain ls"},"teleport-guard":{"on":false,"why":"later"}}}'
+FN="$T/feat-newer"; repo "$FN" 'exit 0'
+expect_capture "bendit.json from a newer bendit, unknown feature off" bash "$SD/prove.sh" "$FN"
+chk "an unknown feature that is off: prove exits 0" "$EXPECT_CODE" "0"
+chk "  ...the readable row PASSES" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^features: \.claude/bendit\.json readable +\| PASS ')" "1"
+has "  ...with a note naming the feature" "note: ignored feature teleport-guard" "$EXPECT_STDOUT"
+BENDIT_JSON='{"version":1,"features":{"teleport-guard":{"on":true,"why":"chosen"}}}'
+FO="$T/feat-newer-on"; repo "$FO" 'exit 0'
+expect_capture "bendit.json from a newer bendit, unknown feature ON" bash "$SD/prove.sh" "$FO"
+chk "an unknown feature that is ON: prove fails" "$EXPECT_CODE" "1"
+has "  ...giving the update command" "claude plugin update bendit@bendit --scope project" "$EXPECT_STDOUT"
+has "  ...and saying not to edit or delete the file (review I1)" "Do not edit or delete .claude/bendit.json to get past this" "$EXPECT_STDOUT"
 
 BENDIT_JSON='{"version":1,'
 F3="$T/feat-bad"; repo "$F3" 'exit 0'

@@ -2803,6 +2803,94 @@ exit 0
 exit 0
 (silent)
 
+=== rebase --exec '<lease push>'
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git rebase` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== rebase -x '<lease push>'
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git rebase` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== rebase --exec='<lease push>'
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git rebase` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== submodule foreach '<lease push>'
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git submodule` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== submodule foreach --recursive
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git submodule` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== git -c alias.p=push p --force-with-lease
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git -c alias.p` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== git config alias.p '<lease push>' && git p
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git config` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== git config alias.p push && git p --force-with-lease
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git config alias.p` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== git config --global alias.p ... && git p
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git config` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== git -c alias.p=push p, no lease written
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git -c alias.p` expands to a shell command or a push that bendit cannot read ahead of time, so it cannot tell what it would discard — write the git command out in full, without the alias.
+If this is genuinely required, ask the human to run it.
+
+=== git -c a shell alias, then called
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git -c alias.s` expands to a shell command or a push that bendit cannot read ahead of time, so it cannot tell what it would discard — write the git command out in full, without the alias.
+If this is genuinely required, ask the human to run it.
+
+=== an unknown git command with a lease
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git p` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: git commit -m 'explain --force-with-lease'
+exit 0
+(silent)
+
+=== CONTROL: git -c alias.st=status st
+exit 0
+(silent)
+
+=== CONTROL: git config alias.st status && git st
+exit 0
+(silent)
+
+=== CONTROL: rebase --exec 'make test'
+exit 0
+(silent)
+
 === rm -rf /tmp/x 2> >(cat)
 exit 0
 (silent)

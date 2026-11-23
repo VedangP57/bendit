@@ -1009,6 +1009,28 @@ run_in 0 "CONTROL: echo text about a lease"      "$ME" 'echo "run git push --for
 run_in 0 "CONTROL: lease text in a heredoc to a file" "$ME" $'cat > /dev/null <<\'EOF\'\ngit push --force-with-lease origin feature/checkout\nEOF'
 
 echo
+echo "A LEASE PUSH RUN BY GIT ITSELF, OR BY A GIT ALIAS"
+# git runs commands too: `rebase --exec` after each commit, `submodule foreach`
+# in each submodule, and an alias expands to a push the guard never sees as
+# one. Each of the reviewer's repros discarded sam's commit for real.
+run_in 2 "rebase --exec '<lease push>'"          "$ME" "git rebase --exec 'git push --force-with-lease origin HEAD:feature/checkout' HEAD~1"
+run_in 2 "rebase -x '<lease push>'"              "$ME" "git rebase -x 'git push --force-with-lease origin HEAD:feature/checkout' HEAD~1"
+run_in 2 "rebase --exec='<lease push>'"          "$ME" "git rebase '--exec=git push --force-with-lease origin HEAD:feature/checkout' HEAD~1"
+run_in 2 "submodule foreach '<lease push>'"      "$ME" 'git submodule foreach '\''git -C $toplevel -c protocol.file.allow=always push --force-with-lease origin feature/checkout'\'
+run_in 2 "submodule foreach --recursive"         "$ME" "git submodule foreach --recursive 'git push --force-with-lease origin solo'"
+run_in 2 "git -c alias.p=push p --force-with-lease" "$ME" 'git -c alias.p=push p --force-with-lease origin feature/checkout'
+run_in 2 "git config alias.p '<lease push>' && git p" "$ME" "git config alias.p 'push --force-with-lease' && git p origin feature/checkout"
+run_in 2 "git config alias.p push && git p --force-with-lease" "$ME" 'git config alias.p push && git p --force-with-lease origin feature/checkout'
+run_in 2 "git config --global alias.p ... && git p" "$ME" "git config --global alias.p 'push --force-with-lease' && git p origin solo"
+run_in 2 "git -c alias.p=push p, no lease written" "$ME" 'git -c alias.p=push p origin solo'
+run_in 2 "git -c a shell alias, then called"     "$ME" "git -c 'alias.s=!echo hi' s"
+run_in 2 "an unknown git command with a lease"   "$ME" 'git p --force-with-lease origin solo'
+run_in 0 "CONTROL: git commit -m 'explain --force-with-lease'" "$ME" "git commit --allow-empty -m 'explain --force-with-lease'"
+run_in 0 "CONTROL: git -c alias.st=status st"    "$ME" 'git -c alias.st=status st'
+run_in 0 "CONTROL: git config alias.st status && git st" "$ME" 'git config alias.st status && git st'
+run_in 0 "CONTROL: rebase --exec 'make test'"    "$ME" "git rebase --exec 'make test' HEAD~1"
+
+echo
 echo "PROCESS SUBSTITUTION AS A REDIRECTION is not an argument"
 run 0 "rm -rf /tmp/x 2> >(cat)"                  'rm -rf /tmp/x 2> >(cat)'
 run 0 "sudo rm -rf /tmp/x 2> >(logger)"          'sudo rm -rf /tmp/x 2> >(logger)'

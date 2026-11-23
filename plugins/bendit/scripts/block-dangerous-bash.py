@@ -567,7 +567,9 @@ def push_deletes_remote_refs(s):
 # push --force-with-lease origin {}` lost sam's commit for real), find -exec,
 # parallel, eval, source/., `sh -c` and a shell fed by a pipe, here-string or
 # heredoc, env -S, watch, script, su, sudo -s/-i, a trap, a function or alias
-# defined in the line, and a git alias given with `git -c alias.*`. nohup,
+# defined in the line, `git rebase --exec`, `git submodule foreach`, and a git
+# alias (`git -c alias.*`, `git config alias.*` earlier in the line, or an
+# unknown git subcommand given a lease flag). nohup,
 # timeout, nice, stdbuf, time, command, exec, env and plain sudo with literal
 # words are read through, as before.
 #
@@ -576,6 +578,8 @@ def push_deletes_remote_refs(s):
 # fetch refspec). A cd inside `( )` before the push is read as if it moved the
 # push's shell. An alias in git's config on disk is not followed, and nor is a
 # lease flag that only a file or another command supplies (`xargs -a args`).
+# A plain force push from config (remote.<r>.mirror, a `+` remote.<r>.push
+# refspec, an alias to `push --force`) is not caught by any rule.
 _LEASE_DEADLINE_S = 6.0   # every git call for one command; the hook's timeout is 10 s
 _HEXISH = re.compile(r'^[0-9a-fA-F]{7,40}$')
 # Variables that make git use another repository, worktree or config than the
@@ -714,6 +718,88 @@ def _git_push(argv) -> bool:
     return i is not None and argv[i] == 'push'
 
 
+# git's own commands, as `git help -a` lists them. A word in the subcommand
+# place that is not one of these is an alias, which the guard cannot read.
+_GIT_BUILTINS = frozenset('''
+add am annotate apply archive bisect blame branch bugreport bundle cat-file check-attr
+check-ignore check-mailmap check-ref-format checkout checkout-index cherry cherry-pick
+citool clean clone column commit commit-graph commit-tree config count-objects
+credential describe diagnose diff diff-files diff-index diff-tree difftool fast-export
+fast-import fetch fetch-pack filter-branch fmt-merge-msg for-each-ref for-each-repo
+format-patch fsck fsmonitor--daemon gc get-tar-commit-id gitk grep gui hash-object help
+hook index-pack init instaweb interpret-trailers log ls-files ls-remote ls-tree
+mailinfo mailsplit maintenance merge merge-base merge-file merge-index merge-tree
+mergetool mktag mktree multi-pack-index mv name-rev notes pack-objects pack-refs
+patch-id prune prune-packed pull push range-diff read-tree rebase reflog refs remote
+repack replace request-pull rerere reset restore rev-list rev-parse revert rm
+send-email send-pack shortlog show show-branch show-index show-ref sparse-checkout
+stage stash status stripspace submodule switch symbolic-ref tag unpack-file
+unpack-objects update-index update-ref update-server-info var verify-commit
+verify-pack verify-tag version whatchanged worktree write-tree lfs flow
+'''.split())
+# git subcommands that run a command from their words.
+_GIT_RUNNERS = frozenset({'rebase', 'submodule', 'bisect', 'config', 'filter-branch',
+                          'for-each-repo', 'difftool', 'mergetool'})
+
+
+def _git_config_aliases(argv):
+    """{alias name: value} that `git config [opts] [set] alias.<x> <value>` sets."""
+    i, _ = _git(argv) if argv else (None, [])
+    if i is None or argv[i] != 'config':
+        return {}
+    rest, k = argv[i + 1:], 0
+    if rest[:1] == ['set']:
+        k = 1
+    while k < len(rest) and rest[k].startswith('-'):
+        k += 2 if rest[k] in ('-f', '--file', '--blob', '--type', '--comment', '--value') else 1
+    if k + 1 < len(rest) and rest[k].lower().startswith('alias.'):
+        return {rest[k][6:].lower(): rest[k + 1]}
+    return {}
+
+
+def _git_runs_unseen(s):
+    """For a `git` command that is not a push: a git launcher that would run a
+    push the guard cannot read -- an alias (given with -c, set by `git config`
+    earlier in the line, or on disk), `rebase --exec`, `submodule foreach`."""
+    a = s.argv
+    i, configs = _git(a)
+    lease = any(_LEASE_TEXT.search(w) for w in s.cmd.argv)
+    aliases = {}
+    for c in configs:
+        if c.lower().startswith('alias.') and '=' in c:
+            name, value = c.split('=', 1)
+            aliases[name[6:].lower()] = value
+        elif c.lower().startswith('alias.'):
+            aliases[c[6:].lower()] = 'true'
+    env_alias = any(w.startswith('--config-env') and 'alias.' in w.lower()
+                    for w in a[1:i or len(a)]) or any(
+        a[k] == '--config-env' and a[k + 1].lower().startswith('alias.')
+        for k in range(1, min(i or len(a), len(a) - 1)))
+    if (aliases or env_alias) and lease:
+        return 'git -c alias.' + (next(iter(aliases)) if aliases else '…')
+    if i is None:
+        return None
+    sub = a[i].lower()
+    # Aliases set earlier in this line by `git config alias.<x> ...`.
+    line = {}
+    for o in _SIMPLES[0]:
+        if o is s:
+            break
+        line.update(_git_config_aliases(o.argv))
+    for where, table in (('git -c alias.', aliases), ('git config alias.', line)):
+        value = table.get(sub)
+        if value is None:
+            continue
+        v = value.strip()
+        if lease or _LEASE_TEXT.search(v):
+            return where + sub
+        if v.startswith('!') or 'push' in v.split():
+            return ('alias', where + sub)   # a shell command or a push, unread
+    if lease and (sub in _GIT_RUNNERS or sub not in _GIT_BUILTINS):
+        return f'git {a[i]}'
+    return None
+
+
 def _lease_run_unseen(s):
     """For a command that is not itself a git push: the launcher that would
     run a lease push the guard cannot read -- `watch`, `alias`, `source <(...)`,
@@ -721,13 +807,9 @@ def _lease_run_unseen(s):
     -- or None."""
     a = s.argv
     if a[0] == 'git':
-        _, configs = _git(a)
-        for c in configs:
-            if c.lower().startswith('alias.') and _LEASE_TEXT.search(c):
-                return 'git -c ' + c.split('=', 1)[0]
-        for k in range(1, len(a)):
-            if a[k].startswith('--config-env') and 'alias.' in a[k].lower():
-                return 'git --config-env alias'
+        hit = _git_runs_unseen(s)
+        if hit:
+            return hit
     names = {_command_name(w) for w in s.cmd.argv} | {a[0]}
     hit = sorted(names & _LAUNCHERS)
     if not hit:
@@ -1006,6 +1088,10 @@ def force_with_lease_foreign(s):
     i, _ = _git(s.argv)
     if i is None or s.argv[i] != 'push':
         unseen = _lease_run_unseen(s)
+        if isinstance(unseen, tuple):
+            return (f'`{unseen[1]}` expands to a shell command or a push that bendit cannot read '
+                    f'ahead of time, so it cannot tell what it would discard — write the git '
+                    f'command out in full, without the alias')
         if unseen:
             return (f'`{unseen}` would run a `git push --force-with-lease` that bendit cannot '
                     f'read ahead of time, so it cannot tell what the push would discard — write '

@@ -344,7 +344,11 @@ It refuses:
   adds to its words: `xargs`, `find -exec`, `parallel`, `eval`, `source`/`.`,
   `sh -c` or a shell fed by a pipe, here-string or heredoc, `env -S`,
   `watch`, `script`, `su`, `sudo -s`/`-i`, a `trap`, a function or alias
-  defined in the same command, or a `git -c alias.…` holding one. `nohup`,
+  defined in the same command, `git rebase --exec`/`-x`, `git submodule
+  foreach`, or a git alias (`git -c alias.…`, `git config alias.…` earlier
+  in the line, or an unknown git command given a lease flag). A `git -c
+  alias.…` that is then called and expands to a push or a `!` shell command
+  refuses even without a lease flag. `nohup`,
   `timeout`, `nice`, `stdbuf`, `time` and plain `sudo` with literal words
   are read through. Write the push out as its own command. Rule id
   `force-with-lease-foreign`.
@@ -372,7 +376,11 @@ argument, so `git commit -m "explain rm -rf"` is allowed.
 **Known gaps** (listed in the guard's header): a command behind a variable, a
 script file (`bash clean.sh`), `ssh host 'rm …'`, brace expansion,
 `busybox`/`parallel`/`flock`/`docker run`, `psql -f drop.sql`, symlinks,
-perl and ruby one-liners, and forging bendit's own state files.
+perl and ruby one-liners, and forging bendit's own state files. A plain force
+push that comes from git config is not detected: `remote.<r>.mirror`, a `+`
+refspec in `remote.<r>.push`, or an alias to `push --force` (given with `-c`,
+set by `git config`, or on disk). Nor is a push in a script or git hook
+written and then run in the same command.
 
 The test suite feeds it more than 360 commands and snapshots every message
 ([`block-dangerous-bash.expected`](../plugins/bendit/scripts/block-dangerous-bash.expected)).

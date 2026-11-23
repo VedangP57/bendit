@@ -15,18 +15,21 @@ THE ARMS.
   A0  no bendit: the target is an empty plugin carrying only the case files
   A1  bendit, no harness approved (the out-of-box state)
   A2  bendit, and the case's .claude/verify-harness approved -- written by
-      the case fixture into THIS run's own BENDIT_CONFIG_DIR, a directory
-      under the results folder carrying a marker file; never the person's
-      ~/.config/bendit
-Every run gets its own BENDIT_CONFIG_DIR and BENDIT_VERIFY_INDEX. A2 is
-proven, not assumed: the row records whether the approval was written and
-whether bendit's Stop gate itself ran the harness (the workspace's
-test-runs.log names the process chain of every test run). --pilot turns any
-arm whose evidence does not match its name into a failure.
+      the case fixture into the SANDBOX's HOME/.config/bendit, where bendit's
+      hooks read it; never the person's ~/.config/bendit
+The harness passes no BENDIT_* variable to the scaffold or the hooks (CLI
+2.1.330, probed): both see HOME=<sandbox>/home. So the runner asks for the
+A2 approval with a request file, evals/bench/.a2-request, that exists only
+while an A2 run is in flight; the fixture uses it up. A2 is proven, not
+assumed: the row records whether the approval is in the sandbox HOME, for
+which run, and whether bendit's Stop gate itself ran the harness (the
+workspace's test-runs.log names the process chain of every test run).
+--pilot turns any arm whose evidence does not match its name into a failure.
 
 THE ROW. One JSON line per run in <out>/runs.jsonl: case, arm, run, pass,
 live, evidence, secondary, wall_s, turns, agent_cost_usd (costUsd minus the
-judge), judge_cost_usd, cli_version, model, plugin_commit, arm_evidence,
+judge), judge_cost_usd, cli_version, model (from the trace), model_requested
+(--model), plugin_commit, arm_evidence,
 arm_valid, error. A run that cannot be graded has pass null and an error,
 never a pass.
 
@@ -52,7 +55,7 @@ import summarise  # noqa: E402
 
 PLUGIN = HERE.parent.parent
 ARMS = ('A0', 'A1', 'A2')
-MARKER = '.bench-isolated'
+REQUEST = HERE / '.a2-request'   # present only while an A2 run is in flight
 
 
 def load_cases() -> dict:
@@ -221,17 +224,24 @@ def find_run(agg: dict, case: str) -> dict:
     raise RuntimeError(f'the harness reported no case {case}')
 
 
-def arm_evidence(case: str, events: list, cfg: Path, ws) -> dict:
+def arm_evidence(case: str, events: list, sid: str, ws) -> dict:
     plugins = grade.plugins_loaded(events)
     ev = {'bendit_loaded': 'bendit' in plugins, 'plugins': plugins,
           'hooks_seen': grade.hooks_seen(events), 'bendit_hooks_seen': grade.bendit_hooks_seen(events),
           'hook_refusals': grade.hook_refusals(events)}
     if CASES[case].get('harness_log'):
-        trust = cfg / 'trusted-harnesses.json'
-        try:
-            ev['approval_written'] = bool(json.loads(trust.read_text()).get('trusted'))
-        except (OSError, ValueError, AttributeError):
-            ev['approval_written'] = False
+        # Where the hooks read it: the sandbox HOME, the workspace's parent.
+        ev['approval_written'], ev['approval_run'] = False, None
+        if ws is not None:
+            try:
+                trust = Path(ws).parent / '.config' / 'bendit' / 'trusted-harnesses.json'
+                ev['approval_written'] = bool(json.loads(trust.read_text()).get('trusted'))
+            except (OSError, ValueError, AttributeError):
+                ev['approval_written'] = False
+            try:
+                ev['approval_run'] = (Path(ws) / '.git' / 'bench-a2-approved').read_text().strip()
+            except OSError:
+                ev['approval_run'] = None
         lines = []
         if ws is not None:
             try:
@@ -245,7 +255,7 @@ def arm_evidence(case: str, events: list, cfg: Path, ws) -> dict:
     return ev
 
 
-def check_arm(case: str, arm: str, ev: dict) -> list:
+def check_arm(case: str, arm: str, ev: dict, sid: str = '') -> list:
     """What does not match the arm's name. Empty = valid."""
     problems = []
     if arm == 'A0' and ev.get('bendit_loaded'):
@@ -256,7 +266,9 @@ def check_arm(case: str, arm: str, ev: dict) -> list:
         if arm == 'A1' and (ev.get('approval_written') or ev.get('gate_ran_harness')):
             problems.append('A1 has an approved harness or a gate harness run')
         if arm == 'A2' and not ev.get('approval_written'):
-            problems.append('A2: no harness approval was written to its config dir')
+            problems.append('A2: no harness approval in the sandbox HOME, where the hooks read it')
+        if arm == 'A2' and ev.get('approval_written') and ev.get('approval_run') != sid:
+            problems.append(f'A2: the approval was made for run {ev.get("approval_run")!r}, not {sid!r}')
         if arm == 'A2' and not ev.get('gate_ran_harness'):
             problems.append('A2: the Stop gate never ran the harness')
     return problems
@@ -269,7 +281,7 @@ def _cost(v):
         return None
 
 
-def build_row(r: int, case: str, arm: str, raw: Path, cfg: Path, commit: str) -> dict:
+def build_row(r: int, case: str, arm: str, raw: Path, sid: str, commit: str, model_requested=None) -> dict:
     """One row. `status` is one of ok / error / not_finished / contaminated
     (not_finished: the recorded stop reason is the turn limit, nothing else),
     and `pass` is null unless status is ok and the run is live: the
@@ -277,7 +289,8 @@ def build_row(r: int, case: str, arm: str, raw: Path, cfg: Path, commit: str) ->
     row = {'case': case, 'arm': arm, 'run': r, 'pass': None, 'live': None, 'status': 'error',
            'graded_pass': None, 'evidence': {},
            'secondary': {}, 'wall_s': None, 'turns': None, 'agent_cost_usd': None,
-           'judge_cost_usd': None, 'cli_version': None, 'model': None, 'plugin_commit': commit,
+           'judge_cost_usd': None, 'cli_version': None, 'model': None,
+           'model_requested': model_requested, 'plugin_commit': commit,
            'arm_evidence': {}, 'arm_valid': False, 'arm_problems': [], 'harness_error': None,
            'error': None, 'stop_reason': None}
     ws = None
@@ -313,8 +326,8 @@ def build_row(r: int, case: str, arm: str, raw: Path, cfg: Path, commit: str) ->
         row['status'] = 'error'
         row['error'] = f'{type(e).__name__}: {e}'
     try:
-        row['arm_evidence'] = arm_evidence(case, events, cfg, ws)
-        row['arm_problems'] = check_arm(case, arm, row['arm_evidence'])
+        row['arm_evidence'] = arm_evidence(case, events, sid, ws)
+        row['arm_problems'] = check_arm(case, arm, row['arm_evidence'], sid)
         row['arm_valid'] = not row['arm_problems'] and row['error'] is None
     except Exception as e:
         row['arm_problems'] = [f'arm evidence unreadable: {type(e).__name__}: {e}']
@@ -361,26 +374,31 @@ def pilot_problems(rows: list) -> list:
 
 def run_step(r: int, case: str, arm: str, out: Path, null: Path, a, commit: str) -> dict:
     sid = step_id(r, case, arm)
-    raw, cfg = out / 'raw' / sid, out / 'cfg' / sid
+    raw = out / 'raw' / sid
     raw.mkdir(parents=True, exist_ok=True)
-    cfg.mkdir(parents=True, exist_ok=True)
-    assert_isolated(cfg)
-    (cfg / MARKER).write_text('Throwaway bendit config dir for one benchmark run.\n')
-    env = dict(os.environ)
-    for k in ('BENDIT_BENCH_APPROVE', 'CLAUDE_PROJECT_DIR'):
-        env.pop(k, None)
-    env.update(BENDIT_CONFIG_DIR=str(cfg), BENDIT_VERIFY_INDEX=str(cfg / 'verify-sessions'),
-               BENDIT_BENCH_PLUGIN=str(PLUGIN))
-    if arm == 'A2':
-        env['BENDIT_BENCH_APPROVE'] = '1'
+    env = {k: v for k, v in os.environ.items() if not k.startswith('BENDIT_') or k == 'BENDIT_BENCH_CLAUDE'}
+    env.pop('CLAUDE_PROJECT_DIR', None)
     target = null if arm == 'A0' else PLUGIN
     cmd = eval_command(case, target, raw, a.model, a.trust_plugin)
-    with open(raw / 'eval.log', 'w') as log:
-        try:
-            subprocess.run(cmd, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=3600)
-        except (OSError, subprocess.TimeoutExpired) as e:
-            log.write(f'\nbench: the harness did not complete: {e}\n')
-    return build_row(r, case, arm, raw, cfg, commit)
+    _clear_request()                 # a stale request must never approve A1
+    try:
+        if arm == 'A2':
+            REQUEST.write_text(json.dumps({'run': sid, 'real_home': str(Path.home())}) + '\n')
+        with open(raw / 'eval.log', 'w') as log:
+            try:
+                subprocess.run(cmd, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=3600)
+            except (OSError, subprocess.TimeoutExpired) as e:
+                log.write(f'\nbench: the harness did not complete: {e}\n')
+    finally:
+        _clear_request()
+    return build_row(r, case, arm, raw, sid, commit, a.model)
+
+
+def _clear_request() -> None:
+    try:
+        REQUEST.unlink()
+    except FileNotFoundError:
+        pass
 
 
 def dry_run(steps: list, skipped: list, a) -> int:
@@ -397,8 +415,8 @@ def dry_run(steps: list, skipped: list, a) -> int:
                            a.trust_plugin)
         print(f'  {c}: ' + ' '.join(shlex.quote(x) for x in cmd))
         print(f'      target {target}')
-    print('env per run: BENDIT_CONFIG_DIR and BENDIT_VERIFY_INDEX under <results>/cfg/<run>/ '
-          '(marked isolated); BENDIT_BENCH_APPROVE=1 for A2 only')
+    print('A2 only: evals/bench/.a2-request exists during the run; the fixture uses it up and '
+          'approves the harness in the sandbox HOME/.config/bendit')
     print('dry run: nothing was called and nothing was written')
     return 0
 

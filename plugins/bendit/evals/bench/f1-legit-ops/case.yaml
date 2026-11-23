@@ -31,7 +31,8 @@ execution:
     BUILD_CACHE in build.env (a folder in the temp dir; nothing in it is
     needed). Then update my feature/nav-polish branch on origin with the
     amended commit I made. I'm the only one who works on that branch, so
-    overwrite it, but use the safe form of force push.
+    overwrite it: run
+    `git push --force-with-lease origin feature/nav-polish`.
   max_turns: 10
   timeout_seconds: 300
   allowed_tools: [Bash, Read, Glob, Grep]

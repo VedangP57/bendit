@@ -35,3 +35,6 @@ docs/superpowers/
 
 # NL2Bash corpus: fetched by plugins/bendit/evals/bench/corpus/fetch_nl2bash.py, not vendored
 plugins/bendit/evals/bench/corpus/nl2bash/all.cm
+
+# A2 approval request, present only while an A2 run is in flight
+plugins/bendit/evals/bench/.a2-request

@@ -4,8 +4,11 @@
 It does what the real harness was observed to do (2.1.326-2.1.330 kept
 sandboxes): a sandbox dir `e-XXXX/` with the workspace at `home/cwd`, the
 trace at `out/trace.jsonl`, and after the run the workspace moved under
-`sealed/`, mode 000. It runs the case's scaffold with the environment it was
-given (so the A2 approval really goes through fixture.sh), plays a twin
+`sealed/`, mode 000. Like the real one (CLI 2.1.330, probed), it runs the
+case's scaffold from its path in the TARGET plugin, in `home/cwd`, with
+HOME=<sandbox>/home and TMPDIR=<sandbox>/tmp, and no BENDIT_* variable
+reaches the scaffold or the hooks (so the A2 approval must go through the
+fixture into the sandbox HOME, where the hooks read it). It plays a twin
 scenario as the "agent", and, when the target is bendit and code was edited,
 runs bendit's REAL Stop gate (require-verification.py --mark, then Stop)
 under the same environment, so whether the gate ran the harness is decided
@@ -15,9 +18,8 @@ does, with a judge cost so the runner's split can be checked.
 Environment it reads (test-only):
   FAKE_CLAUDE_LOG      append one JSON line per call: argv and BENDIT_* env
   FAKE_SCENARIO        twin scenario for every case (default: the first)
-  FAKE_SCRUB_ENV=1     drop every BENDIT_* variable before the scaffold and
-                       the hooks -- what happens if the harness does not pass
-                       the operator's environment through
+  FAKE_SCAFFOLD_COPY=1 run a COPY of the fixture, outside the plugin -- a
+                       harness that would never see the runner's A2 request
   FAKE_COST, FAKE_JUDGE_COST   per-run costUsd and judgeCostUsd
   FAKE_RESULT_SUBTYPE  end the trace with this result subtype (error_max_turns)
   FAKE_HARNESS_ERROR   report this string as the run's harness `error`
@@ -72,17 +74,23 @@ def main(argv: list) -> int:
     if log:
         with open(log, 'a') as fh:
             fh.write(json.dumps({'argv': argv, 'env': {k: v for k, v in os.environ.items()
-                                                      if k.startswith('BENDIT_')}}) + '\n')
+                                                      if k.startswith('BENDIT_')},
+                                 'a2_request': (twins.BENCH / '.a2-request').exists()}) + '\n')
     target = Path(o['target'])
     case = o['--case']
     name = json.loads((target / '.claude-plugin' / 'plugin.json').read_text())['name']
-    env = dict(os.environ)
-    if os.environ.get('FAKE_SCRUB_ENV') == '1':
-        env = {k: v for k, v in env.items() if not k.startswith('BENDIT_')}
 
     sandbox = Path(tempfile.mkdtemp(prefix='e-', dir=os.environ.get('FAKE_SANDBOX_ROOT')))
     ws = sandbox / 'home' / 'cwd'
     ws.mkdir(parents=True)
+    (sandbox / 'tmp').mkdir()
+    env = {k: v for k, v in os.environ.items() if not k.startswith('BENDIT_')}
+    env.update(HOME=str(sandbox / 'home'), TMPDIR=str(sandbox / 'tmp'))
+    script = target / 'evals' / 'bench' / case / 'fixture.sh'
+    if os.environ.get('FAKE_SCAFFOLD_COPY') == '1':
+        copy = sandbox / 'scaffold-copy' / case
+        shutil.copytree(str(script.parent), str(copy))
+        script = copy / 'fixture.sh'
     started = time.time()
     error = None
     plugins = [name] + [p for p in os.environ.get('FAKE_EXTRA_PLUGINS', '').split(',') if p]
@@ -91,7 +99,7 @@ def main(argv: list) -> int:
     trace = twins.Trace(str(ws), plugins, model='claude-fake', version='0.0.0-fake')
     try:
         if '--scaffold' in o['flags']:
-            twins.run_fixture(case, ws, env)
+            twins.run_fixture(case, ws, env, script)
         scenario = os.environ.get('FAKE_SCENARIO') or twins.SCENARIOS[case][0]
         edited = twins.apply(case, scenario, ws, trace, env)
         if name == 'bendit' and edited:

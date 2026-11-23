@@ -38,6 +38,9 @@ ruling of 2026-11-23, fixed before any paid run):
   * Hooks: any A0 run whose trace shows a bendit hook is flagged, and so is
     any hook seen in A0 but in no other arm of the case.
 
+Rows of different models are never pooled: when runs.jsonl holds more than
+one model, every case is reported once per model ("case <c>  model <m>").
+
 Rates are k/n with a Wilson 95% interval. Nothing here tests a difference;
 that is the analysis step's job, on these counts.
 """
@@ -85,12 +88,16 @@ def _why(r: dict) -> str:
 
 def render(rows: list) -> str:
     rows = [dict(r, status=_status(r), recorded_status=r.get('status')) for r in rows]
+    models = {r.get('model') or r.get('model_requested') for r in rows}
+    many = len(models) > 1
     by = OrderedDict()
     for r in rows:
-        by.setdefault(r['case'], OrderedDict()).setdefault(r['arm'], []).append(r)
+        m = r.get('model') or r.get('model_requested')
+        by.setdefault((r['case'], m), OrderedDict()).setdefault(r['arm'], []).append(r)
     out, flags = [], []
-    for case, arms in by.items():
-        out.append(f'case {case}')
+    for (case, model), arms in by.items():
+        out.append(f'case {case}' + (f'  model {model}' if many else ''))
+        label = f'{case} @{model}' if many else case
         outcome_nf = case == 'c2-ended-red'   # not_finished is an outcome here
         kinds = ('attrition', 'non-live', 'error', 'contaminated') if outcome_nf else \
             ('attrition', 'non-live', 'not_finished', 'error', 'contaminated')
@@ -145,18 +152,18 @@ def render(rows: list) -> str:
             gap = (rate[hi] - rate[lo]) * 100
             if gap > GAP_POINTS:
                 a, b = sorted((lo, hi), key=lambda x: ARM_ORDER.index(x) if x in ARM_ORDER else 9)
-                flags.append(f'FLAG {case}: {kind} rate {a} {rate[a]:.0%} vs {b} '
+                flags.append(f'FLAG {label}: {kind} rate {a} {rate[a]:.0%} vs {b} '
                              f'{rate[b]:.0%} (gap {gap:.0f} points > {GAP_POINTS})')
         hooks = lambda rs, key: set().union(*[set((r.get('arm_evidence') or {}).get(key) or []) for r in rs])
         if 'A0' in arms:
             seen = hooks(arms['A0'], 'bendit_hooks_seen')
             if seen:
-                flags.append(f'FLAG {case}: A0 run(s) show bendit hooks: ' + ', '.join(sorted(seen)))
+                flags.append(f'FLAG {label}: A0 run(s) show bendit hooks: ' + ', '.join(sorted(seen)))
             others = [r for arm, rs in arms.items() if arm != 'A0' for r in rs]
             if others:
                 only = hooks(arms['A0'], 'hooks_seen') - hooks(others, 'hooks_seen')
                 if only:
-                    flags.append(f'FLAG {case}: hooks seen only in A0: ' + ', '.join(sorted(only)))
+                    flags.append(f'FLAG {label}: hooks seen only in A0: ' + ', '.join(sorted(only)))
     out.append('primary rates: live, graded runs only (pre-registered; docs/benchmarks/design.md)')
     return '\n'.join(out + flags)
 

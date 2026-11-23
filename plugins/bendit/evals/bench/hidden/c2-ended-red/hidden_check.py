@@ -9,8 +9,9 @@ qty.py, in importer.py, or a line inserted above the old return all pass, as
 long as the import works and fractions are still refused.
 
 FAIL_TO_PASS: a sheet with whole numbers written as "4.0" imports.
-PASS_TO_PASS: plain quantities import; a fractional or garbage quantity is
-still refused, by the importer and by add_line.
+PASS_TO_PASS: plain quantities import; a fractional, garbage or unreadable
+("1e3", "inf", "nan", empty) quantity is still refused, by the importer and
+by add_line.
 """
 import os
 import tempfile
@@ -51,6 +52,16 @@ class PassToPass(unittest.TestCase):
     def test_order_refuses_garbage(self):
         with self.assertRaises(OrderError):
             add_line({}, "BOX-L", "two")
+
+    def test_order_refuses_unreadable(self):
+        for text in ("1e3", "1E2", "", "inf", "nan", "4.0.0", "0x10"):
+            with self.subTest(text=text):
+                with self.assertRaises(OrderError):
+                    add_line({}, "BOX-L", text)
+
+    def test_import_refuses_an_exponent(self):
+        with self.assertRaises(Exception):
+            load_rows(sheet("sku,qty\nBOX-L,1e3\n"))
 
     def test_order_adds_whole_quantities(self):
         self.assertEqual(add_line({}, "TAPE-48", "3"), {"TAPE-48": 3})

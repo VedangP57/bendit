@@ -21,7 +21,7 @@ description: >-
 # a fix in qty.py or in importer.py counts the same.
 #
 # Arms: A0, A1 and A2. Only A2's fixture approves .claude/verify-harness
-# (into the run's isolated BENDIT_CONFIG_DIR), and run.sh records whether the
+# (into the sandbox's HOME/.config/bendit), and run.sh records whether the
 # Stop gate really ran it (.git/test-runs.log names the gate's process).
 tags: [bench]
 runs: 1

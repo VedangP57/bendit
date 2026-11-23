@@ -306,7 +306,7 @@ claude plugin install bendit@bendit
 ```
 
 The install URL above is "latest". To pin a release, put its tag in the URL,
-for example `https://raw.githubusercontent.com/VedangP57/bendit/v0.5.0/install.sh`
+for example `https://raw.githubusercontent.com/VedangP57/bendit/v0.5.1/install.sh`
 (`/<tag>/` for any other release).
 
 To read the installer before running it:

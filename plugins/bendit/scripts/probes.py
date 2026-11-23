@@ -61,13 +61,15 @@ def hook_entries(kit):
 def prepare(w):
     """Make the probe and temp dirs under w; return (probe_dir, env). Guards
     may keep state (post-edit-review's pre-edit snapshot, the Stop gate's
-    session index): all of it goes under w, never into a real cache or repo."""
+    session index): all of it goes under w, never into a real cache or repo.
+    BENDIT_PROBE=1 tells fire_log.record a probe's refusal is bendit's own
+    self-test, not one of the project's refusals: only the log reads it."""
     probe = os.path.join(w, 'probe')
     os.makedirs(probe, exist_ok=True)
     os.makedirs(os.path.join(w, 'tmp'), exist_ok=True)
     env = dict(os.environ, TMPDIR=os.path.join(w, 'tmp'),
                BENDIT_VERIFY_INDEX=os.path.join(w, 'index'),
-               GIT_CEILING_DIRECTORIES=w, PYTHONDONTWRITEBYTECODE='1')
+               GIT_CEILING_DIRECTORIES=w, PYTHONDONTWRITEBYTECODE='1', BENDIT_PROBE='1')
     return probe, env
 
 

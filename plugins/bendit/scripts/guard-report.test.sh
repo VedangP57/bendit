@@ -29,7 +29,8 @@ fixture() {
   python3 -c '
 import datetime, json, sys
 ts = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=float(sys.argv[1]))
-print(json.dumps({"ts": ts.strftime("%Y-%m-%dT%H:%M:%SZ"), "guard": sys.argv[2], "rule": sys.argv[3], "preview": "x"}))' "$@" >>"$LOG"
+print(json.dumps({"ts": ts.strftime("%Y-%m-%dT%H:%M:%SZ"), "guard": sys.argv[2], "rule": sys.argv[3],
+                  "preview": sys.argv[4] if len(sys.argv) > 4 else "x"}))' "$@" >>"$LOG"
 }
 
 echo "NO LOG YET"
@@ -62,6 +63,34 @@ expect_capture "fixture: --days 50 takes in the old one" python3 "$R" --root "$P
 chk "--days 50 counts git-reset-hard"         "$(printf '%s\n' "$EXPECT_STDOUT" | awk '$2=="git-reset-hard"{print $3}')" 1
 (cd "$P/sub" && python3 "$R") >"$T/sub.out" 2>&1
 chk "with no --root, the cwd's git toplevel is used" "$(awk '$2=="rm-recursive"{print $3}' "$T/sub.out")" 3
+
+echo; echo "EACH RULE SHOWS ITS MOST RECENT EXAMPLE, REDACTED AGAIN AT PRINT"
+# The live report counted 4 force-push fires and could not say what they were,
+# though each line holds its (redacted) preview. The newest one in the window
+# is printed per rule; fire_log.redact runs again on it, so a log written by
+# an older bendit, or by hand, still cannot put a key on the screen.
+X="$T/examples"; mkdir -p "$X/.claude/.bendit-state"; git -C "$X" init -q
+SAVED_LOG="$LOG"; LOG="$X/.claude/.bendit-state/fires.jsonl"
+fixture 4 block-dangerous-bash force-push 'git push --force origin old-branch'
+fixture 2 block-dangerous-bash force-push 'git push --force origin main'
+fixture 3 block-dangerous-bash force-push 'git push --force origin middle'
+fixture 40 block-dangerous-bash rm-recursive 'rm -rf ./outside-window'
+fixture 1 block-dangerous-bash rm-recursive "rm -rf ./b && curl -u admin:hunter2secret https://x.test"
+fixture 1 block-ls-parsing parses-ls-output "ls | wc -l $(printf '\033')[31m"
+LOG="$SAVED_LOG"
+expect_capture "most recent example per rule" python3 "$R" --root "$X"
+chk "exit 0"                                  "$EXPECT_CODE" 0
+EX="$EXPECT_STDOUT"
+has "force-push shows its newest preview"     "$EX" "git push --force origin main"
+hasnt "  not an older one"                    "$EX" "old-branch"
+hasnt "  nor the middle one"                  "$EX" "origin middle"
+chk "  on the force-push row"                 "$(printf '%s\n' "$EX" | awk '$2=="force-push"{print $3}')" 3
+has "  in a column named for it"              "$EX" "most recent"
+hasnt "a fire outside the window is never the example" "$EX" "outside-window"
+has "a preview is redacted again at print"    "$EX" "curl -u admin:***"
+hasnt "  the password never reaches the screen" "$EX" "hunter2secret"
+hasnt "  no escape character from a preview"  "$EX" "$(printf '\033')"
+has "  the preview still shows, made safe"    "$EX" "ls | wc -l ?[31m"
 
 echo; echo "CORRUPT LINES ARE SKIPPED, AND COUNTED"
 printf '%s\n' '{not json' '["a list"]' '{"ts": "yesterday", "guard": "g", "rule": "r"}' >>"$LOG"

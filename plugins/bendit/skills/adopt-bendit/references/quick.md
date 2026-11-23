@@ -307,7 +307,9 @@ report (§6) with NOT COMPLETE, the failing command, its output, and the fix.
    `live test:` line). Always run the live force-push check, exactly as prove.md says,
    whatever the window line says, unless the `live test:` line says `skip`
    (something here is named `bendit-probe`; the report says so plainly, and
-   the live check is "skipped"). Read the `copy:` line before deciding. A refusal by bendit with `copy: installed` means this window already runs the bendit installed for this project: then last step 2 is left out.
+   the live check is "skipped"). bendit never records its own self-tests as refusals
+   (this push, prove.sh's and selfcheck's probes), so they never show in `/bendit:guard-report`.
+   Read the `copy:` line before deciding. A refusal by bendit with `copy: installed` means this window already runs the bendit installed for this project: then last step 2 is left out.
    A refusal with `copy: installer copy` or `copy: other copy`, step 2 stays: the bendit that
    refused is not this project's recorded install (the installer's own
    download, `bendit@inline`, or another copy in Claude's plugin folder), and a

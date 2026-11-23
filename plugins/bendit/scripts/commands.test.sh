@@ -53,6 +53,8 @@ pin "$GR" 'Never remove, turn off or edit a guard or a rule here'
 pin "$GR" "Removing a rule is the person's call"
 pin "$GR" '/bendit:adopt --detailed'
 hasnt "$GR" 'rm .claude'
+pin "$GR" 'The `most recent` column'
+pin "$GR" "bendit's own self-tests are never recorded"
 hasnt "$GR" 'Bash(rm'
 
 echo; echo "SUGGEST-GUARDS: READ-ONLY, CHEAPEST LAYER, ASK ONCE"
@@ -122,6 +124,8 @@ pin "$DR" '> bendit is running in this window, but not the copy installed for th
 pin "$DR" 'anything other than `installed`'
 pin "$DR" 'Only project-scope installs are checked'
 hasnt "$DR" 'claude plugin list'
+pin "$DR" 'This test is not recorded as a refusal'
+pin "$DR" '`/bendit:guard-report` never counts it'
 
 echo; echo "DOCS: AN INSTALL RUNBOOK AN AGENT CAN RESUME, CREDITS, NEW COMMANDS"
 ROOT="$(cd "$KIT/../.." && pwd)"

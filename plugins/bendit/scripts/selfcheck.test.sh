@@ -527,6 +527,17 @@ if [ -z "$PY_GIVEN" ]; then
 fi
 
 echo
+echo "ITS OWN PROBES ARE NOT REFUSALS"
+# In a session CLAUDE_PROJECT_DIR names the user's project. Each probe that
+# does not name its own project inherits it, and its refusal used to land in
+# that project's fires.jsonl: guard-report then counted bendit's self-test.
+SP="$T/sc-proj"; mkdir -p "$SP/.claude"; git -C "$SP" init -q
+CLAUDE_PROJECT_DIR="$SP" "$PY" "$KIT/scripts/selfcheck.py" >"$T/sp.out" 2>&1
+chk "selfcheck in a project with .claude/: exit 0" "$?" 0
+chk "  ...and the project's refusal log has no line from it" \
+    "$(if [ -f "$SP/.claude/.bendit-state/fires.jsonl" ]; then wc -l <"$SP/.claude/.bendit-state/fires.jsonl" | tr -d ' '; else echo 0; fi)" 0
+
+echo
 echo "IT CLEANS UP"
 # DIRECTORIES only: selfcheck makes a temp dir per run. expect.sh keeps its own
 # capture FILE in $TMPDIR until expect_verify -- on Linux GNU mktemp puts it

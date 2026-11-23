@@ -61,6 +61,8 @@ git push --force bendit-probe HEAD
 
 It is harmless either way: the remote does not exist, so if nothing refuses it,
 git fails with `'bendit-probe' does not appear to be a git repository`.
+bendit never records its own self-tests as refusals: not this push, and not
+prove.sh's or selfcheck's probes, so `/bendit:guard-report` never counts them.
 
 Read **who** refused it. Several kits can guard one session, and their messages
 look alike; the first hook to refuse is the one you see.

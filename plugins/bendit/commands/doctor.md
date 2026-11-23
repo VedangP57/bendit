@@ -69,7 +69,9 @@ git push --force bendit-probe HEAD
 
 It is harmless: nothing here is named `bendit-probe` (that is what the `live
 test: run` line checked), so if nothing refuses it, git fails with
-`'bendit-probe' does not appear to be a git repository`. A refusal whose
+`'bendit-probe' does not appear to be a git repository`.
+This test is not recorded as a refusal, and neither are selfcheck's probes:
+`/bendit:guard-report` never counts it. A refusal whose
 message names bendit (`BLOCKED by bendit ...`, `[bendit] ...`) is a PASS, rung
 5, and decides that bendit is running in this window, whatever the window line
 says. Anything else is not a pass; then the window line only chooses the words

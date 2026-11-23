@@ -180,6 +180,20 @@ expect_capture "ls-guard on" bash "$SD/prove.sh" "$F2b"
 chk "ls-guard on: the check runs the hook and prove passes" "$EXPECT_CODE" "0"
 chk "  ...its row says PASS" "$(printf '%s\n' "$EXPECT_STDOUT" | grep -cE '^feature: ls-guard +\| PASS ')" "1"
 
+echo
+echo "PROVE'S OWN PROBES ARE NOT REFUSALS"
+# Inside Claude Code, CLAUDE_PROJECT_DIR names the project being proved, and
+# every probe's refusal used to land in ITS fires.jsonl: /bendit:guard-report
+# then showed bendit's self-test as the project's refusals. This project has a
+# .claude/ (bendit.json), so a guard that logs would write there.
+FL="$F2b/.claude/.bendit-state/fires.jsonl"
+CLAUDE_PROJECT_DIR="$F2b" bash "$SD/prove.sh" "$F2b" >"$T/pl.out" 2>&1
+chk "prove.sh run as a session runs it: still exit 0" "$?" "0"
+chk "  ...and the project's refusal log has no line from it" \
+    "$(if [ -f "$FL" ]; then wc -l <"$FL" | tr -d ' '; else echo 0; fi)" "0"
+chk "  ...so guard-report says nothing was refused" \
+    "$(python3 "$SD/guard-report.py" --root "$F2b" | head -1 | cut -c1-27)" "no refusals recorded yet (n"
+
 # primary-checkout-guard: PASS means the guard, run as hooks.json runs it, refused
 # an edit in a scratch primary checkout on THIS repo's integration branch, and
 # allowed the same edit from a linked worktree. No branch resolvable: not PASS.

@@ -378,7 +378,9 @@ def _check_ls_guard(repo, kit):
     project, and read exit 2 plus a message naming bendit."""
     payload = json.dumps({'session_id': 'bendit-prove', 'cwd': repo, 'hook_event_name': 'PreToolUse',
                           'tool_name': 'Bash', 'tool_input': {'command': 'ls | wc -l'}})
-    env = dict(os.environ, CLAUDE_PROJECT_DIR=repo, PYTHONDONTWRITEBYTECODE='1')
+    # BENDIT_PROBE: this refusal is prove's own test, not one of the project's
+    # (fire_log.record skips it; the guard's decision never reads it).
+    env = dict(os.environ, CLAUDE_PROJECT_DIR=repo, PYTHONDONTWRITEBYTECODE='1', BENDIT_PROBE='1')
     try:
         p = subprocess.run(['python3', os.path.join(kit, 'scripts', 'block-ls-parsing.py')], input=payload,
                            capture_output=True, text=True, timeout=10, env=env, cwd=repo)

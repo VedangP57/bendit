@@ -32,3 +32,6 @@ plugins/bendit/evals/bench/results/*/null-plugin/
 
 # Planning docs name private projects and paths; they stay local.
 docs/superpowers/
+
+# NL2Bash corpus: fetched by plugins/bendit/evals/bench/corpus/fetch_nl2bash.py, not vendored
+plugins/bendit/evals/bench/corpus/nl2bash/all.cm

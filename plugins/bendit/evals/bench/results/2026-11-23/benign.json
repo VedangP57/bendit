@@ -1,0 +1,2743 @@
+{
+ "mode": "benign",
+ "source_file": "all.cm",
+ "sha256": "3a72eaced7fa14a0938354cefc42b2dcafb2d47297102f1279086e18c3abe57e",
+ "raw_lines": 12607,
+ "n": 10624,
+ "refused": 340,
+ "rate": 0.032003012048192774,
+ "wilson95": [
+  0.028821595344777094,
+  0.035522758451387894
+ ],
+ "by_guard": {
+  "block-ls-parsing": 115,
+  "block-dangerous-bash": 226
+ },
+ "by_index": {},
+ "errors": [],
+ "refusals": [
+  {
+   "id": "line73",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line102",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line104",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line105",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line303",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line470",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line471",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line578",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line610",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line613",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line759",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line760",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line767",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line823",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line985",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line997",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line1099",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line1278",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1280",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1285",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1286",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1287",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1288",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1289",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1290",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1291",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1292",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1294",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1295",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1296",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1300",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1301",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1302",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1304",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line1305",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line1312",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1313",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1314",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1315",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1316",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1317",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1318",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1321",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1322",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1323",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1324",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1328",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1330",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1331",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1334",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1338",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1341",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1343",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1344",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1345",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1346",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1347",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1348",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1349",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1352",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1353",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1354",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1366",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1367",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1368",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1370",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1378",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1379",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1380",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1381",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1382",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1383",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1384",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1385",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1387",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1388",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1389",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1393",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1394",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1397",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1398",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1399",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1409",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1412",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1413",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1416",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1418",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1419",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1422",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1423",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1435",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1436",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1441",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line1448",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1454",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1455",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1456",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1457",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1461",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1467",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1470",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line1654",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line1741",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line1919",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line1920",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line1921",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line1922",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line1923",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line1942",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line2023",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line2038",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line2039",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line2040",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line2231",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line2332",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line2348",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line2349",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line2350",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line2354",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line2376",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line2383",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line2525",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line2535",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line2542",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line2663",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line2676",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line2700",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line2811",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line2853",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line3179",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line3435",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line3583",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line3798",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line3828",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line3893",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line3991",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line4025",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line4153",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line4523",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line4528",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line4730",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line4732",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line4745",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line4779",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line4864",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line4948",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line4965",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line4966",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line4967",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5041",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5063",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5113",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5120",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5121",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5156",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5157",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5158",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5213",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5219",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5268",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5270",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5272",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5273",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5274",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5275",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5276",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5279",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5285",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5335",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line5600",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5602",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5605",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5606",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5766",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5769",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5771",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5773",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5830",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5889",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line5922",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6050",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6051",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6128",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6137",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6256",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6277",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6380",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6593",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6643",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6644",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6768",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6785",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6810",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6821",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6826",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6858",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line6868",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7037",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7076",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7090",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7122",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7123",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7169",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7218",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7233",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7234",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7235",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7236",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7241",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7248",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7251",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7253",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7254",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7259",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7261",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7262",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7263",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7335",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7343",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7360",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7361",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7362",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7380",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7386",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7392",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7397",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7398",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7399",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7400",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7401",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7402",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7403",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7414",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7415",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7419",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7437",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7462",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7464",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7466",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7467",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7468",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7475",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7481",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7489",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7492",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7507",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7516",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7518",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7520",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7521",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7536",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7538",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7583",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7587",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7588",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7602",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7604",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line7634",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7638",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7652",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7653",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7654",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7655",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7656",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7659",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7661",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7664",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7666",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7671",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash",
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7679",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7680",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line7742",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7750",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7751",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7931",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7932",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line7979",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line8061",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line8096",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line8211",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line8223",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line8228",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line8229",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line8233",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line8244",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line8307",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line8349",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line8350",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line8351",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line8352",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line8353",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line8354",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line8355",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line8494",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line8611",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line8916",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line9219",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line9246",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line9441",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line9480",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line9556",
+   "index": null,
+   "guards": [
+    "block-ls-parsing"
+   ],
+   "why": "BLOCKED by bendit: this parses the output of `ls`, and `ls` here is not the real ls."
+  },
+  {
+   "id": "line10028",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line10031",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line10034",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line10045",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line10067",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line10068",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line10071",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line10076",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line10078",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line10080",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line10083",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line10084",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line10085",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line10804",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line10963",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line11040",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line11048",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line11069",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line11095",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line11096",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line11100",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line11146",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line11457",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line11458",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line11463",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line11464",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line11494",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line11540",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line11695",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line11696",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line11697",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line11704",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line11929",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line11930",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line11964",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line12195",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line12344",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: `find -delete` removes everything it matches \u2014 run it yourself if you mean it."
+  },
+  {
+   "id": "line12345",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  },
+  {
+   "id": "line12346",
+   "index": null,
+   "guards": [
+    "block-dangerous-bash"
+   ],
+   "why": "BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) \u2014 run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed."
+  }
+ ],
+ "misses": []
+}

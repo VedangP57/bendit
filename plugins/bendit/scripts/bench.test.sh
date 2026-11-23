@@ -459,6 +459,38 @@ chk "F1: four refused runs show as 4/12 with a Wilson CI" \
 chk "summarise reads a real runner file" "$?" 0
 chk "  ...with no gap flag when there is none" "$(grep -c '^FLAG' "$T/sum2.out")" 0
 
+echo "free layers: hook latency (latency.py)"
+"$PY" "$B/latency.py" --n 3 --out "$T/lat.json" > "$T/lat.out" 2>&1
+chk "latency.py N=3 exits 0" "$?" 0
+chk "  prints a p50 column" "$(grep -c 'p50 ms' "$T/lat.out")" 1
+chk "  prints a p95 column" "$(grep -c 'p95 ms' "$T/lat.out")" 1
+chk "  reports the interpreter start-up baseline" "$(grep -c 'python3 -c pass' "$T/lat.out")" 1
+chk "  an allowed and a refused payload for block-dangerous-bash" \
+    "$(grep -c '^block-dangerous-bash  *\(allow\|refuse\)  ' "$T/lat.out")" 2
+chk "  rows of kind refuse exit 2 and kind allow exit 0, N=3 samples each" \
+    "$("$PY" -c 'import json,sys; r=json.load(open(sys.argv[1]))["rows"]
+print(len(r) >= 8 and all(x["rc"] == (2 if x["kind"] == "refuse" else 0) and x["n"] == 3 for x in r))' "$T/lat.json")" True
+
+echo "free layers: command corpora (corpus.py)"
+printf '%s\n' 'npm test' 'ls -la' 'echo hi' 'rm -rf /' 'rm -rf ~' > "$T/five.cm"
+"$PY" "$B/corpus.py" benign --file "$T/five.cm" --out "$T/five.json" > "$T/five.out" 2>&1
+chk "corpus.py on a 5-line fixture exits 0" "$?" 0
+chk "  n is 5" "$(get "$T/five.json" n)" 5
+chk "  refused is 2 (rm -rf / and rm -rf ~)" "$(get "$T/five.json" refused)" 2
+chk "  the summary line carries the Wilson 95% CI for 2/5 (11.8%-76.9%)" \
+    "$(grep -c 'n=5 refused=2 .*11\.8%.*76\.9%' "$T/five.out")" 1
+chk "  it names which guard refused" "$(grep -c '^by guard.*block-dangerous-bash 2' "$T/five.out")" 1
+printf '%s\n' 'echo hi' 'ls' > "$T/two.cm"
+"$PY" "$B/corpus.py" benign --file "$T/two.cm" --out "$T/two.json" > /dev/null 2>&1
+chk "  zero refusals reports refused 0" "$(get "$T/two.json" refused)" 0
+chk "  ...with a Wilson upper bound above 0 (not a bare 0%)" \
+    "$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["wilson95"][1] > 0.5)' "$T/two.json")" True
+"$PY" "$B/corpus.py" bogus > "$T/bogus.out" 2>&1; rc=$?
+chk "corpus.py rejects an unknown mode with usage and exit 2" "$rc $(grep -c -i 'usage' "$T/bogus.out")" "2 1"
+chk "the vendored corpora carry a LICENSE and SOURCE note each" \
+    "$(for f in nl2bash redcode; do [ -s "$B/corpus/$f/LICENSE" ] && [ -s "$B/corpus/$f/SOURCE.md" ] && echo y; done | wc -l | tr -d ' ')" 2
+chk "SOURCE notes record a SHA-256" "$(grep -l -E '[0-9a-f]{64}' "$B"/corpus/*/SOURCE.md | wc -l | tr -d ' ')" 2
+
 if [ -x /usr/bin/python3 ]; then
   echo "Python 3.9: every benchmark script compiles under /usr/bin/python3"
   n=0

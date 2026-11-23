@@ -1,0 +1,195 @@
+{
+ "n": 200,
+ "warmup": 10,
+ "seed": 0,
+ "machine": {
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "machine": "arm64",
+  "python": "3.14.7",
+  "python3_on_path": "3.14.7",
+  "power": "Now drawing from 'AC Power'",
+  "cpu": "Apple M4"
+ },
+ "baseline": {
+  "hook": "python3 -c pass",
+  "kind": "baseline",
+  "rc": 0,
+  "n": 200,
+  "p50_ms": 17.7,
+  "p95_ms": 23.8,
+  "max_ms": 28.3
+ },
+ "rows": [
+  {
+   "hook": "block-dangerous-bash",
+   "kind": "allow",
+   "rc": 0,
+   "n": 200,
+   "p50_ms": 29.1,
+   "p95_ms": 42.3,
+   "max_ms": 115.1
+  },
+  {
+   "hook": "block-dangerous-bash",
+   "kind": "allow-long",
+   "rc": 0,
+   "n": 200,
+   "p50_ms": 29.1,
+   "p95_ms": 37.6,
+   "max_ms": 68.2
+  },
+  {
+   "hook": "block-dangerous-bash",
+   "kind": "refuse",
+   "rc": 2,
+   "n": 200,
+   "p50_ms": 50.8,
+   "p95_ms": 66.4,
+   "max_ms": 98.1
+  },
+  {
+   "hook": "block-zsh-wordsplit",
+   "kind": "allow",
+   "rc": 0,
+   "n": 200,
+   "p50_ms": 23.8,
+   "p95_ms": 33.4,
+   "max_ms": 44.0
+  },
+  {
+   "hook": "block-zsh-wordsplit",
+   "kind": "refuse",
+   "rc": 2,
+   "n": 200,
+   "p50_ms": 45.4,
+   "p95_ms": 59.6,
+   "max_ms": 74.5
+  },
+  {
+   "hook": "block-ls-parsing",
+   "kind": "allow",
+   "rc": 0,
+   "n": 200,
+   "p50_ms": 29.5,
+   "p95_ms": 36.8,
+   "max_ms": 52.0
+  },
+  {
+   "hook": "block-ls-parsing",
+   "kind": "refuse",
+   "rc": 2,
+   "n": 200,
+   "p50_ms": 50.8,
+   "p95_ms": 62.1,
+   "max_ms": 91.1
+  },
+  {
+   "hook": "require-verification --pre",
+   "kind": "allow",
+   "rc": 0,
+   "n": 200,
+   "p50_ms": 38.1,
+   "p95_ms": 48.9,
+   "max_ms": 67.7
+  },
+  {
+   "hook": "require-verification --mark",
+   "kind": "allow",
+   "rc": 0,
+   "n": 200,
+   "p50_ms": 37.5,
+   "p95_ms": 46.3,
+   "max_ms": 58.2
+  },
+  {
+   "hook": "warn-suppressed-stderr",
+   "kind": "allow",
+   "rc": 0,
+   "n": 200,
+   "p50_ms": 23.0,
+   "p95_ms": 30.9,
+   "max_ms": 43.4
+  },
+  {
+   "hook": "path-contracts (Edit)",
+   "kind": "allow",
+   "rc": 0,
+   "n": 200,
+   "p50_ms": 22.6,
+   "p95_ms": 30.7,
+   "max_ms": 41.8
+  },
+  {
+   "hook": "path-contracts (Edit 200 KB)",
+   "kind": "allow-large",
+   "rc": 0,
+   "n": 200,
+   "p50_ms": 23.6,
+   "p95_ms": 30.9,
+   "max_ms": 44.4
+  },
+  {
+   "hook": "path-contracts (Write)",
+   "kind": "allow",
+   "rc": 0,
+   "n": 200,
+   "p50_ms": 22.7,
+   "p95_ms": 29.5,
+   "max_ms": 51.5
+  },
+  {
+   "hook": "post-edit-review --pre",
+   "kind": "allow",
+   "rc": 0,
+   "n": 200,
+   "p50_ms": 32.8,
+   "p95_ms": 39.7,
+   "max_ms": 64.2
+  },
+  {
+   "hook": "post-edit-review (Post)",
+   "kind": "allow",
+   "rc": 0,
+   "n": 200,
+   "p50_ms": 33.1,
+   "p95_ms": 43.6,
+   "max_ms": 80.1
+  },
+  {
+   "hook": "block-primary-checkout",
+   "kind": "allow",
+   "rc": 0,
+   "n": 200,
+   "p50_ms": 29.5,
+   "p95_ms": 38.0,
+   "max_ms": 49.9
+  },
+  {
+   "hook": "require-verification (Stop, no edits)",
+   "kind": "allow",
+   "rc": 0,
+   "n": 200,
+   "p50_ms": 48.0,
+   "p95_ms": 60.0,
+   "max_ms": 84.1
+  },
+  {
+   "hook": "selfcheck --hook (SessionStart)",
+   "kind": "allow",
+   "rc": 0,
+   "n": 200,
+   "p50_ms": 220.6,
+   "p95_ms": 268.7,
+   "max_ms": 332.2
+  },
+  {
+   "hook": "session-brief --hook (SessionStart)",
+   "kind": "allow",
+   "rc": 0,
+   "n": 200,
+   "p50_ms": 42.8,
+   "p95_ms": 53.7,
+   "max_ms": 92.7
+  }
+ ]
+}

@@ -312,6 +312,17 @@ It refuses:
 - `supabase db push` and `supabase db reset`; `prisma migrate reset` and
   `prisma db push --force-reset`;
 - force pushes (`--force`, `-f`, `+refspec`, `--mirror`, `--delete`, `:branch`);
+- a lease push aimed at someone else's commit: `--force-with-lease=<ref>:<expect>`
+  (or `=<sha>`) where `<expect>` is not already part of what you push, so the
+  push would discard commits that exist only on the remote. The refusal lists
+  them (`git log <pushed>..<expect>`, five lines at most). The guard asks local
+  git only (`rev-parse`, `merge-base`, `log`, never a fetch) in the hook's
+  folder, after `git -C` and a literal `cd`, and refuses whenever git cannot
+  answer: an unknown commit, not a repository, git missing, a timeout. Rule id
+  `force-with-lease-foreign`. Known limit: rebasing commits you already pushed
+  and then naming the old remote tip as `<expect>` is refused too. Not
+  checked: plain `--force-with-lease` with no expected value, which after a
+  `git fetch` overwrites whatever that fetch brought in;
 - `git reset --hard`, `git checkout .`, `git restore .`, `git clean -f`;
 - deleting the folder the shell is in, or a parent of it;
 - live secrets typed into a command: Stripe live secret and restricted keys,
@@ -320,7 +331,9 @@ It refuses:
   pre-answering the bendit installer;
 - a payload it cannot read.
 
-It allows, among others: `git push --force-with-lease`, `git clean -n`,
+It allows, among others: `git push --force-with-lease` with no expected value
+(and `--force-if-includes`), a lease whose expected commit your push already
+contains, `git clean -n`,
 `rm -rf /tmp/scratch`, `rm file`, `rmdir build`, `supabase db diff`, a Stripe
 test key, `grep -r "DROP TABLE" supabase/migrations`, and commit messages or
 heredoc bodies that only mention `rm -rf`.

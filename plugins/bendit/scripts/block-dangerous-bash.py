@@ -515,6 +515,209 @@ def push_deletes_remote_refs(s):
     return False
 
 
+# A LEASE AIMED AT SOMEONE ELSE'S COMMIT. `--force-with-lease=<ref>:<expect>`
+# overwrites the remote ref only if it still points at <expect> -- so when
+# <expect> is a commit the push does NOT contain, the push discards it. The
+# v0.5.2 benchmark (s3-force-push) lost a teammate's commit exactly so: the
+# agent fetched, saw sam's 51dc142, and ran
+#   git push --force-with-lease=feature/checkout:51dc142 origin feature/checkout
+# The lease only guards against the remote moving AGAIN; it cannot protect a
+# commit the agent has already seen and chosen to overwrite.
+#
+# So an explicit expected value must be an ancestor of (or equal to) the commit
+# pushed to that ref, or the push is refused. Plain `--force-with-lease` and
+# `--force-with-lease=<ref>` (no expected value) stay allowed, as does
+# `--force-if-includes`. Asked with LOCAL git only -- rev-parse, merge-base,
+# log; never a fetch -- in the payload's cwd (after `git -C` and a literal
+# `cd` earlier in the command), under one deadline inside the hook's 10 s.
+# Whenever git cannot answer (unknown commit, not a repo, git missing, a
+# timeout, a refspec it cannot resolve) the push is refused.
+#
+# KNOWN LIMITS: rebasing commits you already PUSHED and then naming the old
+# remote tip as the expected value is refused too -- the old commits are not
+# ancestors of the rebased ones (plain --force-with-lease still works). A
+# `GIT_DIR=x git push` prefix is not followed. A cd inside `( )` before the
+# push is read as if it moved the push's shell, so the check may run in the
+# wrong folder; there an unknown commit refuses.
+_LEASE_DEADLINE_S = 6.0   # every git call for one command; the hook's timeout is 10 s
+_HEXISH = re.compile(r'^[0-9a-fA-F]{7,40}$')
+_CWD = [None]       # the payload's cwd; set by inspect()
+_SIMPLES = [[]]     # every simple command of the command being judged; set by _verdict()
+
+
+class _GitCannotTell(Exception):
+    pass
+
+
+def _push_leases(args):
+    """(leases, refspecs, all_refs) for `git push <args>`. Each lease with an
+    EXPLICIT expected value is (ref or None, expect, the option as written)."""
+    leases, positional, all_refs, k, opts = [], [], False, 0, True
+    while k < len(args):
+        x = args[k]
+        k += 1
+        if opts and x == '--':
+            opts = False
+            continue
+        if opts and x.startswith('--'):
+            if _long_is(x, 'force-with-lease', 7):
+                value = x.split('=', 1)[1] if '=' in x else None
+                if value is not None and ':' in value:
+                    ref, expect = value.split(':', 1)
+                    if expect:   # `<ref>:` means "must not exist yet": nothing to lose
+                        leases.append((ref, expect, x))
+                elif value is not None and _HEXISH.match(value):
+                    leases.append((None, value, x))   # a commit, not a refname
+            elif _long_is(x, 'no-force-with-lease', 10):
+                leases = []
+            elif any(_long_is(x, n, 3) for n in ('all', 'branches', 'mirror')):
+                all_refs = True
+            elif '=' not in x and any(_long_is(x, n, 3) for n in
+                                      ('repo', 'receive-pack', 'exec', 'push-option')):
+                k += 1   # its value is the next word
+            continue
+        if opts and x.startswith('-') and len(x) > 1:
+            for j, ch in enumerate(x[1:]):
+                if ch == 'o':   # -o <push-option>: the rest, or the next word
+                    k += j == len(x) - 2
+                    break
+            continue
+        positional.append(x)
+    return leases, positional[1:], all_refs
+
+
+def _short_ref(ref: str) -> str:
+    for prefix in ('refs/heads/',):
+        if ref.startswith(prefix):
+            return ref[len(prefix):]
+    return ref
+
+
+def _push_dir(s):
+    """(cwd, git's -C/--git-dir/--work-tree options) the push runs with."""
+    cwd = _CWD[0] or os.getcwd()
+    simples = _SIMPLES[0]
+    at = next((n for n, x in enumerate(simples) if x is s), len(simples))
+    for c in simples[:at]:
+        if c.deferred or c.argv[0] not in ('cd', 'pushd') or (c.subshell and not s.subshell):
+            continue
+        targets = [x for x in c.argv[1:] if not x.startswith('-')]
+        target = _resolve(targets[0], c.seq, c.cmd.chain) if targets else '~'
+        if target.startswith('~'):
+            target = os.path.expanduser(target)
+        if not target or '$' in target or '`' in target or '*' in target:
+            raise _GitCannotTell(f'the command changes directory to {targets[0] if targets else "~"}, '
+                                 'which cannot be read without running it')
+        cwd = os.path.join(cwd, target)
+    a, i, opts = s.argv, 1, []
+    while i < len(a) and a[i].startswith('-'):
+        x = a[i]
+        if x == '-C' and i + 1 < len(a):
+            cwd = os.path.join(cwd, os.path.expanduser(a[i + 1]))
+        elif x in ('--git-dir', '--work-tree') and i + 1 < len(a):
+            opts += [x, a[i + 1]]
+        elif x.startswith(('--git-dir=', '--work-tree=')):
+            opts.append(x)
+        i += 2 if x in _GIT_OPTS_WITH_ARG else 1
+    return cwd, opts
+
+
+def _git_run(cwd, opts, args, deadline):
+    """(exit code, stdout) of a LOCAL git query. Raises _GitCannotTell."""
+    import subprocess
+    import time
+    left = deadline - time.monotonic()
+    if left <= 0:
+        raise _GitCannotTell('git took too long to answer')
+    env = dict(os.environ, GIT_TERMINAL_PROMPT='0', GIT_OPTIONAL_LOCKS='0',
+               GIT_PAGER='cat', LC_ALL='C')
+    try:
+        r = subprocess.run(['git'] + opts + args, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=left)
+    except subprocess.TimeoutExpired:
+        raise _GitCannotTell('git took too long to answer') from None
+    except OSError as exc:
+        raise _GitCannotTell(f'git could not run ({_describe(exc)})') from None
+    return r.returncode, r.stdout.decode('utf-8', 'replace')
+
+
+def _commit_of(name, cwd, opts, deadline):
+    if not name or name.startswith('-'):
+        raise _GitCannotTell(f'{name!r} is not a commit name')
+    code, out = _git_run(cwd, opts, ['rev-parse', '--verify', '--quiet', name + '^{commit}'], deadline)
+    if code != 0 or not out.strip():
+        raise _GitCannotTell(f'git here does not know a commit {name}: an unknown commit, '
+                             'or not a git repository')
+    return out.strip()
+
+
+def force_with_lease_foreign(s):
+    """`git push --force-with-lease=<ref>:<expect>` (or `=<sha>`) whose <expect>
+    is not an ancestor of, or equal to, what is pushed to that ref. Returns the
+    reason, naming the commits that would be lost, or False."""
+    i, _ = _git(s.argv)
+    if i is None or s.argv[i] != 'push':
+        return False
+    leases, refspecs, all_refs = _push_leases(s.argv[i + 1:])
+    if not leases:
+        return False
+    import time
+    deadline = time.monotonic() + _LEASE_DEADLINE_S
+    pushes = []   # (src, dst) for each refspec that pushes a commit
+    for spec in refspecs:
+        src, _, dst = spec.lstrip('+').partition(':')
+        if src:
+            pushes.append((src, dst or src))
+    for ref, expect, written in leases:
+        try:
+            cwd, opts = _push_dir(s)
+            if pushes:
+                mine = [src for src, dst in pushes
+                        if ref is not None and _short_ref(dst) == _short_ref(ref)]
+                sources = mine or [src for src, _ in pushes]
+            elif all_refs and ref:
+                sources = ['refs/heads/' + _short_ref(ref)]
+            else:
+                sources = ['HEAD']
+            old = _commit_of(expect, cwd, opts, deadline)
+            for src in sources:
+                new = _commit_of(src, cwd, opts, deadline)
+                code, _ = _git_run(cwd, opts, ['merge-base', '--is-ancestor', old, new], deadline)
+                if code == 0:
+                    continue
+                if code != 1:
+                    raise _GitCannotTell(f'git merge-base exited {code}')
+                code, log = _git_run(cwd, opts, ['log', '--oneline', '--no-decorate', '--no-color',
+                                                 '-n', '6', f'{new}..{old}'], deadline)
+                lines = [ln for ln in log.splitlines() if ln.strip()]
+                if code != 0 or not lines:
+                    lines = [f'{old[:7]} (git could not list it: run the command below)']
+                shown = '\n'.join('    ' + ln for ln in lines[:5])
+                if len(lines) > 5:
+                    shown += '\n    ... and more'
+                return (f'`{written}` would overwrite {old[:7]} on the remote, and {old[:7]} is '
+                        f'not part of what you are pushing ({src}) — the push would discard '
+                        f'these commits, which exist only there:\n{shown}\n'
+                        f'Look at them first: `git log --stat {new[:7]}..{old[:7]}`. To keep them, '
+                        f'rebase onto them (`git rebase {old[:7]}`) and push again; a lease only '
+                        f'guards against the remote moving again, never a commit you have already '
+                        f'seen and chose to overwrite')
+        except _GitCannotTell as why:
+            return (f'`{written}` names {expect} as the remote commit to overwrite, and git could '
+                    f'not check here that your push already contains it ({_describe_short(why)}) — '
+                    f'a lease with an explicit expected commit is only allowed when it is part of '
+                    f'what you push. Run `git log {expect}` to see what you would discard, and '
+                    f'leave this push to the human if it must happen')
+    return False
+
+
+def _describe_short(exc: BaseException) -> str:
+    try:
+        return str(exc)
+    except BaseException:
+        return 'an error that could not be described'
+
+
 _REQUIRE_FORCE_OFF = re.compile(r'(?i)^clean\.requireforce=(false|no|off|0)$')
 
 
@@ -704,6 +907,7 @@ COMMAND_RULES = [
     (prisma_reset, '`prisma migrate reset` / `prisma db push --force-reset` drops the database and every row in it — use `prisma migrate dev --create-only` to write the migration and let the human apply it', 'prisma-reset'),
     (force_push, 'force push — use --force-with-lease, and never on a shared branch', 'force-push'),
     (push_deletes_remote_refs, '`git push --mirror` / `--delete` / `:<branch>` deletes branches on the remote (--mirror: every remote branch you do not have locally), and other people\'s commits go with them — push your own branch, and leave deleting remote branches to the human', 'push-deletes-remote-refs'),
+    (force_with_lease_foreign, 'a lease push aimed at a commit your push does not contain', 'force-with-lease-foreign'),
     (git_clean_force, '`git clean -f` deletes untracked (and with -x, ignored, .env included) files with no undo — run `git clean -n` to see the list, then run it yourself if you mean it', 'git-clean-force'),
     (git_reset_hard, '`git reset --hard` throws away every uncommitted change to tracked files, with no undo — run `git stash` instead (`git stash pop` brings it back), or `git reset --keep`, which refuses to overwrite local changes', 'git-reset-hard'),
     (git_discard_all, '`git checkout .` / `git restore .` throws away EVERY uncommitted change in the working tree, with no undo — name the files you mean (`git restore path/to/file`), or `git stash` to set everything aside recoverably', 'git-discard-all'),
@@ -954,7 +1158,8 @@ SPECIAL_RULES = ['deletes-own-cwd', 'trust-approval', 'trust-file-write', 'insta
 RULES = [
     'deletes-own-cwd', 'trust-approval', 'trust-file-write', 'installer-preanswer',
     'rm-recursive', 'find-delete', 'destructive-sql', 'supabase-push-reset',
-    'prisma-reset', 'force-push', 'push-deletes-remote-refs', 'git-clean-force',
+    'prisma-reset', 'force-push', 'push-deletes-remote-refs',
+    'force-with-lease-foreign', 'git-clean-force',
     'git-reset-hard', 'git-discard-all', 'script-deletes-tree',
     'stripe-live-key', 'stripe-restricted-key', 'supabase-access-token',
     'supabase-secret-key', 'github-token', 'github-fine-grained-token', 'private-key',
@@ -1004,6 +1209,8 @@ def inspect(raw: str, fired=None) -> int:
     if not command.strip():
         return 0
 
+    cwd = payload.get('cwd')
+    _CWD[0] = cwd if isinstance(cwd, str) and cwd else None
     rule, reason = _verdict(command)
     if not reason:
         return 0
@@ -1022,8 +1229,10 @@ def _verdict(command: str):
     """(rule id, reason) to refuse `command`, or (None, None)."""
     global VARS
     saved, VARS = VARS, Vars(command)
+    saved_simples = _SIMPLES[0]
     try:
         simples = simple_commands(command)
+        _SIMPLES[0] = simples
         doomed = deletes_the_directory_it_enters(simples)
         if doomed is not None:
             entered, deleted, same = doomed
@@ -1054,6 +1263,7 @@ def _verdict(command: str):
         return None, None
     finally:
         VARS = saved
+        _SIMPLES[0] = saved_simples
 
 
 def main() -> int:

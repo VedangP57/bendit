@@ -2052,7 +2052,7 @@ BLOCKED by bendit safety hook: `--force-with-lease=c3673ae` would discard 1 comm
 Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
-=== expect given as origin/<branch>
+=== expect as origin/<branch>, fetched earlier
 exit 2
 --- stderr
 BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:origin/feature/checkout` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
@@ -2139,7 +2139,7 @@ If this is genuinely required, ask the human to run it.
 === git missing: fail closed
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae`: git could not check here whether this push discards someone else's commits (git could not run (FileNotFoundError: [Errno 2] No such file or directory: 'git')), so it is refused. Run `git fetch` and `git log <your branch>..<remote>/<branch>` to see what is on the remote, and leave this push to the human if it must happen.
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae`: git could not check here whether this push discards someone else's commits (git could not run (FileNotFoundError: [Errno 2] No such file or directory: 'git')), so it is refused. Leave this push to the human if it must happen.
 If this is genuinely required, ask the human to run it.
 
 === plain lease after a fetch brought sam's commit
@@ -2188,7 +2188,7 @@ exit 2
 BLOCKED by bendit safety hook: `--force-with-lease` would discard 2 commit(s) that may not be yours (`git config user.email` is not set, so bendit cannot tell whose they are) from the remote's squash — they are on 9518eb2 and their changes are not in what you push (squash):
     bc0531d me: squash: one
     9518eb2 me: squash: two
-Look at them first: `git log --stat 2b9cea9..9518eb2`. To keep them, rebase onto them (`git rebase 9518eb2`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+Set it (`git config user.email <you>`) and run the push again. Look at them first: `git log --stat 2b9cea9..9518eb2`. To keep them, rebase onto them (`git rebase 9518eb2`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
 === CONTROL: plain lease, no tracking ref
@@ -2212,6 +2212,138 @@ exit 0
 (silent)
 
 === CONTROL: my squash, explicit expect
+exit 0
+(silent)
+
+=== fetch && plain lease (C1)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` comes after `git fetch origin` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+If this is genuinely required, ask the human to run it.
+
+=== fetch; explicit origin/<b> lease
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease=fc2:origin/fc2` comes after `git fetch origin` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+If this is genuinely required, ask the human to run it.
+
+=== pull; lease
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` comes after `git pull -q origin fc2` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+If this is genuinely required, ask the human to run it.
+
+=== reset --keep && lease
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` comes after `git reset -q --keep HEAD~1` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+If this is genuinely required, ask the human to run it.
+
+=== rebase && lease
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` comes after `git rebase -q main` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+If this is genuinely required, ask the human to run it.
+
+=== fetch && lease inside sh -c
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` comes after `git fetch origin` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+If this is genuinely required, ask the human to run it.
+
+=== fetch in a subshell; lease
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` comes after `git fetch origin` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+If this is genuinely required, ask the human to run it.
+
+=== fetch || lease
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` comes after `git fetch origin` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+If this is genuinely required, ask the human to run it.
+
+=== fetch, newline, lease
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` comes after `git fetch origin` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: fc2 lease on its own (state as it is)
+exit 0
+(silent)
+
+=== CONTROL: read-only git before the lease
+exit 0
+(silent)
+
+=== CONTROL: echo and cd before the lease
+exit 0
+(silent)
+
+=== @ as the refspec (I1)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (@):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+If this is genuinely required, ask the human to run it.
+
+=== push.default=upstream, named remote (I2)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (HEAD):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat e6662cf..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+If this is genuinely required, ask the human to run it.
+
+=== push.default=upstream, no remote
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (HEAD):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat e6662cf..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+If this is genuinely required, ask the human to run it.
+
+=== a remote named team/r2 (M1)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (HEAD):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat e6662cf..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+If this is genuinely required, ask the human to run it.
+
+=== GIT_DIR= prefix (I3)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with GIT_DIR set in this command, so git would push from a different repository or config than the one bendit can check — run the push as its own command, without GIT_DIR, from the repository itself.
+If this is genuinely required, ask the human to run it.
+
+=== export GIT_DIR earlier (I3)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with GIT_DIR set in this command, so git would push from a different repository or config than the one bendit can check — run the push as its own command, without GIT_DIR, from the repository itself.
+If this is genuinely required, ask the human to run it.
+
+=== GIT_WORK_TREE= prefix
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with GIT_WORK_TREE set in this command, so git would push from a different repository or config than the one bendit can check — run the push as its own command, without GIT_WORK_TREE, from the repository itself.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: plain lease from a repo with nothing fetched
+exit 0
+(silent)
+
+=== sam's merge with its own fix is lost (M2)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` would discard 1 commit(s) by someone else from the remote's mg — they are on f494510 and their changes are not in what you push (mgmine):
+    f494510 sam: mg: merge, with a fix (a merge with changes of its own)
+Look at them first: `git log --stat 6e8186a..f494510`. To keep them, rebase onto them (`git rebase f494510`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: sam's clean merge, parents kept
 exit 0
 (silent)
 

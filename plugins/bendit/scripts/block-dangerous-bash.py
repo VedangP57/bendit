@@ -87,7 +87,7 @@ def _refuse_uncaught(_type, exc, _tb):
 if __name__ == '__main__':
     sys.excepthook = _refuse_uncaught
 try:
-    from shell_text import SHELLS, SQL_CLIENTS, _match_close, lex, simple_commands, unwrap  # noqa: E402
+    from shell_text import SHELLS, SQL_CLIENTS, _match_close, lex, shell_c_string, simple_commands, unwrap  # noqa: E402
 except SystemExit as _exc:   # a helper that exits on import never reaches excepthook
     raise ImportError(f'shell_text.py raised SystemExit on import (exit {_exc.code})') from None
 
@@ -543,21 +543,69 @@ def push_deletes_remote_refs(s):
 # under one deadline inside the hook's 10 s. Whenever git cannot answer
 # (unknown commit, not a repo, git missing, a timeout) the push is refused.
 #
-# KNOWN LIMITS: git cherry ignores merge commits, so a lost merge counts only
-# through the commits it brought in. Authorship is the commit's author email,
-# which anyone can set. A `GIT_DIR=x git push` prefix is not followed. A cd
-# inside `( )` before the push is read as if it moved the push's shell. The
+# THE CHECK SEES THE REPOSITORY BEFORE THE COMMAND RUNS. So a lease push that
+# comes after any command not known to be read-only (`git fetch && git push
+# --force-with-lease ...`, a pull, rebase or reset first -- through `;`, `&&`,
+# `||`, newlines, `sh -c` or a subshell) is refused: run it as its own
+# command. A GIT_DIR / GIT_WORK_TREE / GIT_COMMON_DIR / GIT_NAMESPACE /
+# GIT_CONFIG* assignment anywhere in the command is refused the same way.
+# Where the push goes follows git: `@` is HEAD; with no refspec, push.default,
+# branch.<b>.merge, branch.<b>.pushRemote and remote.pushDefault decide it,
+# and a remote.<r>.push mapping, which is not followed, refuses. A merge by
+# someone else whose OWN change (a conflict fix) would be lost counts as lost.
+#
+# KNOWN LIMITS: authorship is the author email, which anyone can set. The
 # tracking ref is assumed to be refs/remotes/<remote>/<branch> (the default
-# fetch refspec).
+# fetch refspec). A cd inside `( )` before the push is read as if it moved the
+# push's shell. `git -c alias.x=push x ...` is not seen as a push.
 _LEASE_DEADLINE_S = 6.0   # every git call for one command; the hook's timeout is 10 s
 _HEXISH = re.compile(r'^[0-9a-fA-F]{7,40}$')
-_REMOTE_NAME = re.compile(r'^[\w.-]+$')
+# Variables that make git use another repository, worktree or config than the
+# folder the check runs in. Seen anywhere in a command with a lease push: refuse.
+_GIT_ENV = re.compile(r'(?<![\w$])(GIT_DIR|GIT_WORK_TREE|GIT_COMMON_DIR|GIT_NAMESPACE|GIT_CONFIG\w*)=')
 _CWD = [None]       # the payload's cwd; set by inspect()
 _SIMPLES = [[]]     # every simple command of the command being judged; set by _verdict()
+_COMMAND = ['']     # the text of the command being judged; set by _verdict()
+_BRANCH_READ_OPTS = frozenset({'--list', '-l', '--show-current', '-a', '-r', '-v', '-vv',
+                               '--all', '--remotes', '--verbose', '--no-color'})
+
+
+def _read_only(c) -> bool:
+    """A command known to change nothing a lease check reads: no ref, no
+    branch, no config. Narrow on purpose."""
+    a = c.argv
+    if a[0] in ('cd', 'pushd', 'echo', 'printf', 'true', ':'):
+        return True   # a cd is followed by _push_dir
+    if a[0] == 'eval' or (a[0] in SHELLS and shell_c_string(a) is not None):
+        return True   # a container: what it runs is listed, and judged, on its own
+    i, _ = _git(a)
+    if i is None:
+        return False
+    sub, rest = a[i], a[i + 1:]
+    if sub in ('status', 'log', 'show', 'diff', 'rev-parse'):
+        return True
+    if sub == 'branch':
+        opts = {x for x in rest if x.startswith('-')}
+        named = any(not x.startswith('-') for x in rest)
+        return opts <= _BRANCH_READ_OPTS and (not named or bool(opts & {'--list', '-l'}))
+    return sub == 'remote' and all(x in ('-v', '--verbose') for x in rest)
+
+
+def _runs_before(s):
+    """The first command that runs before `s` in this command line and may
+    change what a lease check reads, or None."""
+    simples = _SIMPLES[0]
+    at = next((n for n, x in enumerate(simples) if x is s), len(simples))
+    for c in simples[:at]:
+        if not c.deferred and not _read_only(c):
+            return c
+    return None
 
 
 class _GitCannotTell(Exception):
-    pass
+    def __init__(self, why, unknown_commit=False):
+        super().__init__(why)
+        self.unknown_commit = unknown_commit
 
 
 def _push_leases(args):
@@ -674,24 +722,44 @@ class _Git:
         if code == 1 and not must_exist:
             return None
         raise _GitCannotTell(f'git here does not know a commit {name}: an unknown commit, '
-                             'or not a git repository')
+                             'or not a git repository', unknown_commit=True)
 
-    def tracking(self, remote, branch):
-        """The remote-tracking commit a plain lease expects, or None."""
-        if remote is not None and not _REMOTE_NAME.match(remote):
-            return None   # a URL or a path: no remote-tracking ref can exist
-        names = ['@{push}'] if remote is None else []
-        if branch is not None:
-            names.append(f'refs/remotes/{remote or "origin"}/{_short_ref(branch)}')
+    def config(self, key):
+        """A config value, or None when it is not set."""
+        code, out = self.run(['config', '--get', key])
+        if code not in (0, 1):
+            raise _GitCannotTell(f'git config --get {key} exited {code}')
+        return out.strip() if code == 0 and out.strip() else None
+
+    def tracking(self, remote, branch, own_answer):
+        """Every remote-tracking commit a plain lease on `branch` may expect:
+        refs/remotes/<remote>/<branch>, and git's own @{push} when the command
+        names no remote. Empty when the remote is a URL or a path, or nothing
+        was fetched."""
+        names = ['@{push}'] if own_answer else []
+        if branch is not None and self.config(f'remote.{remote}.url') is not None:
+            names.append(f'refs/remotes/{remote}/{_short_ref(branch)}')
+        found = []
         for name in names:
-            found = self.commit(name, must_exist=False)
-            if found:
-                return found
-        return None
+            commit = self.commit(name, must_exist=False)
+            if commit and commit not in found:
+                found.append(commit)
+        return found
 
 
 def _pushes(g, remote, refspecs, all_refs):
-    """[(source, destination branch or None)] this push writes."""
+    """(remote, [(source, destination branch or None)]) this push writes, with
+    the destination decided the way git decides it: push.default,
+    branch.<b>.merge, branch.<b>.pushRemote, remote.pushDefault."""
+    code, cur = g.run(['symbolic-ref', '--short', '-q', 'HEAD'])
+    branch = cur.strip() if code == 0 and cur.strip() else None
+    if remote is None:
+        remote = ((branch and g.config(f'branch.{branch}.pushRemote')) or g.config('remote.pushDefault')
+                  or (branch and g.config(f'branch.{branch}.remote')) or 'origin')
+    if (any(':' not in spec for spec in refspecs) or not refspecs) and \
+            g.config(f'remote.{remote}.push') is not None:
+        raise _GitCannotTell(f'remote.{remote}.push decides where this push goes, and bendit '
+                             'does not follow that mapping')
     out = []
     for spec in refspecs:
         src, colon, dst = spec.lstrip('+').partition(':')
@@ -699,20 +767,66 @@ def _pushes(g, remote, refspecs, all_refs):
             continue   # a deletion: push-deletes-remote-refs speaks for it
         if colon:
             out.append((src, dst))
-        elif src == 'HEAD':
-            code, cur = g.run(['symbolic-ref', '--short', '-q', 'HEAD'])
-            out.append((src, cur.strip() if code == 0 and cur.strip() else None))
+        elif src in ('HEAD', '@'):
+            out.append((src, branch))
         else:
             out.append((src, src))
-    if not refspecs and all_refs:
+    if refspecs:
+        return remote, out
+    if all_refs:
         code, refs = g.run(['for-each-ref', '--format=%(refname:short)', 'refs/heads'])
         if code != 0:
             raise _GitCannotTell(f'git for-each-ref exited {code}')
-        out = [(b, b) for b in refs.split()]
-    elif not refspecs:
-        code, cur = g.run(['symbolic-ref', '--short', '-q', 'HEAD'])
-        out = [('HEAD', cur.strip() if code == 0 and cur.strip() else None)]
-    return out
+        return remote, [(b, b) for b in refs.split()]
+    if branch is None:
+        raise _GitCannotTell('HEAD is not on a branch, so where a push with no refspec goes '
+                             'cannot be told')
+    mode = (g.config('push.default') or 'simple').lower()
+    merge = g.config(f'branch.{branch}.merge')
+    if mode == 'nothing':
+        return remote, []   # git refuses to push
+    if mode == 'matching':
+        code, refs = g.run(['for-each-ref', '--format=%(refname:short)', 'refs/heads'])
+        if code != 0:
+            raise _GitCannotTell(f'git for-each-ref exited {code}')
+        return remote, [(b, b) for b in refs.split()]
+    if mode in ('upstream', 'tracking'):
+        if not merge:
+            raise _GitCannotTell(f'push.default is {mode} and {branch} has no upstream branch')
+        return remote, [('HEAD', _short_ref(merge))]
+    if mode == 'current':
+        return remote, [('HEAD', branch)]
+    if mode == 'simple':
+        dsts = [branch] + ([_short_ref(merge)] if merge and _short_ref(merge) != branch else [])
+        return remote, [('HEAD', d) for d in dsts]
+    raise _GitCannotTell(f'push.default is {mode!r}, which bendit does not know')
+
+
+def _lost_rows(g, new, old):
+    """[(short sha, email, author, subject)] of what pushing `new` over `old`
+    discards: commits whose change is not in `new` (git cherry), and merges
+    whose OWN change -- a conflict fix -- would go with them."""
+    code, out = g.run(['cherry', new, old])
+    if code != 0:
+        raise _GitCannotTell(f'git cherry exited {code}')
+    lost = [ln[2:].strip() for ln in out.splitlines() if ln.startswith('+ ')]
+    rows = []
+    if lost:
+        code, log = g.run(['log', '--no-walk=unsorted', '--stdin', '--no-color',
+                           '--format=%h%x09%ae%x09%an%x09%s'], '\n'.join(lost) + '\n')
+        rows = [ln.split('\t', 3) for ln in log.splitlines() if ln.count('\t') >= 3]
+        if code != 0 or len(rows) != len(lost):
+            raise _GitCannotTell(f'git log could not read the {len(lost)} commits the push would discard')
+    code, log = g.run(['log', '--merges', '--cc', '--no-color', '--no-ext-diff',
+                       '--format=%x01%h%x09%ae%x09%an%x09%s', f'{new}..{old}'])
+    if code != 0:
+        raise _GitCannotTell(f'git log --merges exited {code}')
+    for chunk in log.split('\x01')[1:]:
+        head, _, diff = chunk.partition('\n')
+        if diff.strip() and head.count('\t') >= 3:
+            h, e, a, subj = head.split('\t', 3)
+            rows.append([h, e, a, subj + ' (a merge with changes of its own)'])
+    return rows
 
 
 def force_with_lease_foreign(s):
@@ -725,10 +839,27 @@ def force_with_lease_foreign(s):
     if not leases:
         return False
     written = leases[0][2]
+    env = _GIT_ENV.search(_COMMAND[0]) or next(
+        (m for m in map(_GIT_ENV.match, s.cmd.argv) if m), None)
+    if env:
+        return (f'`{written}` runs with {env.group(1)} set in this command, so git would push '
+                f'from a different repository or config than the one bendit can check — run the '
+                f'push as its own command, without {env.group(1)}, from the repository itself')
+    before = _runs_before(s)
+    if before is not None:
+        shown = ' '.join(before.argv)
+        shown = shown if len(shown) <= 60 else shown[:57] + '...'
+        return (f'`{written}` comes after `{shown}` in the same command. bendit checks a lease '
+                f'against the repository as it is before the command runs, and that command may '
+                f'move the remote-tracking refs or your branch (a fetch, pull, rebase or reset '
+                f'does), so what this push would discard cannot be checked. Run the push as its '
+                f'own command, after the other one has run')
     try:
         cwd, opts = _push_dir(s)
         g = _Git(cwd, opts)
-        pushes = _pushes(g, remote, refspecs, all_refs)
+        remote, pushes = _pushes(g, remote, refspecs, all_refs)
+        own_answer = not refspecs and remote is not None and not any(
+            not x.startswith('-') for x in s.argv[i + 1:])
         checks = []   # (option as written, src, dst, expect name or None)
         for ref, expect, written in leases:
             mine = [(src, dst) for src, dst in pushes
@@ -737,50 +868,40 @@ def force_with_lease_foreign(s):
                 checks.append((written, src, dst, expect))
         email = None
         for written, src, dst, expect in checks:
-            if expect is not None:
-                old = g.commit(expect)
-            else:
-                old = g.tracking(remote, dst)
-                if old is None:
-                    continue   # nothing fetched: the server-side lease protects it
+            olds = [g.commit(expect)] if expect is not None else g.tracking(remote, dst, own_answer)
+            if not olds:
+                continue   # nothing fetched: the server-side lease protects it
             new = g.commit(src)
-            code, out = g.run(['cherry', new, old])
-            if code != 0:
-                raise _GitCannotTell(f'git cherry exited {code}')
-            lost = [ln[2:].strip() for ln in out.splitlines() if ln.startswith('+ ')]
-            if not lost:
-                continue
-            code, log = g.run(['log', '--no-walk=unsorted', '--stdin', '--no-color',
-                               '--format=%h%x09%ae%x09%an%x09%s'], '\n'.join(lost) + '\n')
-            rows = [ln.split('\t', 3) for ln in log.splitlines() if ln.count('\t') >= 3]
-            if code != 0 or len(rows) != len(lost):
-                raise _GitCannotTell(f'git log could not read the {len(lost)} commits the push would discard')
-            if email is None:
-                code, out = g.run(['config', '--get', 'user.email'])
-                if code not in (0, 1):
-                    raise _GitCannotTell(f'git config exited {code}')
-                email = out.strip().lower() if code == 0 else ''
-            others = [r for r in rows if not email or r[1].strip().lower() != email]
-            if not others:
-                continue   # only your own commits, squashed or amended
-            shown = '\n'.join(f'    {h} {a}: {subj}' for h, _e, a, subj in others[:5])
-            if len(others) > 5:
-                shown += f'\n    ... and {len(others) - 5} more'
-            whose = ('by someone else' if email else
-                     'that may not be yours (`git config user.email` is not set, so bendit '
-                     'cannot tell whose they are)')
-            return (f'`{written}` would discard {len(others)} commit(s) {whose} from the '
-                    f'remote\'s {dst or src} — they are on {old[:7]} and their changes are not in '
-                    f'what you push ({src}):\n{shown}\n'
-                    f'Look at them first: `git log --stat {new[:7]}..{old[:7]}`. To keep them, '
-                    f'rebase onto them (`git rebase {old[:7]}`) and push again; a lease only '
-                    f'guards against the remote moving again, never a commit you have already '
-                    f'fetched and chose to overwrite')
+            for old in olds:
+                rows = _lost_rows(g, new, old)
+                if not rows:
+                    continue
+                if email is None:
+                    email = (g.config('user.email') or '').lower()
+                others = [r for r in rows if not email or r[1].strip().lower() != email]
+                if not others:
+                    continue   # only your own commits, squashed or amended
+                shown = '\n'.join(f'    {h} {a}: {subj}' for h, _e, a, subj in others[:5])
+                if len(others) > 5:
+                    shown += f'\n    ... and {len(others) - 5} more'
+                whose = ('by someone else' if email else
+                         'that may not be yours (`git config user.email` is not set, so bendit '
+                         'cannot tell whose they are)')
+                fix = ('' if email else
+                       'Set it (`git config user.email <you>`) and run the push again. ')
+                return (f'`{written}` would discard {len(others)} commit(s) {whose} from the '
+                        f'remote\'s {dst or src} — they are on {old[:7]} and their changes are not in '
+                        f'what you push ({src}):\n{shown}\n{fix}'
+                        f'Look at them first: `git log --stat {new[:7]}..{old[:7]}`. To keep them, '
+                        f'rebase onto them (`git rebase {old[:7]}`) and push again; a lease only '
+                        f'guards against the remote moving again, never a commit you have already '
+                        f'fetched and chose to overwrite')
     except _GitCannotTell as why:
+        hint = ('Run `git fetch` and `git log <your branch>..<remote>/<branch>` to see what is on '
+                'the remote, and leave this push to the human if it must happen'
+                if why.unknown_commit else 'Leave this push to the human if it must happen')
         return (f'`{written}`: git could not check here whether this push discards someone '
-                f'else\'s commits ({_describe_short(why)}), so it is refused. Run `git fetch` '
-                f'and `git log <your branch>..<remote>/<branch>` to see what is on the remote, '
-                f'and leave this push to the human if it must happen')
+                f'else\'s commits ({_describe_short(why)}), so it is refused. {hint}')
     return False
 
 
@@ -1302,7 +1423,8 @@ def _verdict(command: str):
     """(rule id, reason) to refuse `command`, or (None, None)."""
     global VARS
     saved, VARS = VARS, Vars(command)
-    saved_simples = _SIMPLES[0]
+    saved_simples, saved_command = _SIMPLES[0], _COMMAND[0]
+    _COMMAND[0] = command
     try:
         simples = simple_commands(command)
         _SIMPLES[0] = simples
@@ -1337,6 +1459,7 @@ def _verdict(command: str):
     finally:
         VARS = saved
         _SIMPLES[0] = saved_simples
+        _COMMAND[0] = saved_command
 
 
 def main() -> int:

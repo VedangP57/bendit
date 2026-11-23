@@ -729,7 +729,40 @@ lg() { GIT_AUTHOR_NAME="$1" GIT_AUTHOR_EMAIL="$1@example.invalid" GIT_COMMITTER_
   lg me 7 "$LT/me" push -q origin mixed
   lg me 8 "$LT/me" reset -q --soft main; lg me 8 "$LT/me" rm -q --cached xs; rm -f "$LT/me/xs"
   lg me 8 "$LT/me" commit -qm "mixed: mine only"
+  # fc2: I push, sam pushes AFTER my last fetch, I amend. My tracking ref still
+  # holds only my own commit -- a fetch in the same command line would change that.
+  lg me 8 "$LT/me" checkout -qb fc2 main
+  echo f1 >"$LT/me/f2"; lg me 8 "$LT/me" add f2; lg me 8 "$LT/me" commit -qm "fc2: mine"
+  lg me 8 "$LT/me" push -q origin fc2
+  git -C "$LT/sam" fetch -q origin; lg sam 8 "$LT/sam" checkout -qb fc2 origin/fc2
+  echo sf >"$LT/sam/sf2"; lg sam 9 "$LT/sam" add sf2; lg sam 9 "$LT/sam" commit -qm "fc2: sam after my fetch"
+  lg sam 9 "$LT/sam" push -q origin fc2
+  echo f1b >"$LT/me/f2"; lg me 9 "$LT/me" commit -qam "fc2: mine" --amend
+  # mg: sam merges a side branch and fixes a line IN the merge; I keep both of
+  # sam's commits (cherry-picked) but not the merge. mgclean: the same, clean.
+  lg me 9 "$LT/me" checkout -qb mg main
+  echo a >"$LT/me/ma"; lg sam 9 "$LT/me" add ma; lg sam 9 "$LT/me" commit -qm "mg: sam a"
+  lg sam 9 "$LT/me" checkout -qb mgside main
+  echo b >"$LT/me/mb"; lg sam 9 "$LT/me" add mb; lg sam 9 "$LT/me" commit -qm "mg: sam b"
+  lg sam 9 "$LT/me" checkout -qb mgclean mg
+  lg sam 9 "$LT/me" merge -q --no-ff -m "mgclean: merge" mgside
+  lg sam 9 "$LT/me" checkout -q mg
+  lg sam 9 "$LT/me" merge -q --no-ff --no-commit mgside
+  echo evil >"$LT/me/ma"; lg sam 9 "$LT/me" add ma; lg sam 9 "$LT/me" commit -qm "mg: merge, with a fix"
+  lg sam 9 "$LT/me" push -q origin mg mgclean
+  lg me 9 "$LT/me" checkout -qb mgmine main
+  lg me 9 "$LT/me" cherry-pick mg^1 mg^2
   lg me 8 "$LT/me" checkout -q feature/checkout
+  # up: push.default=upstream; local co tracks origin/feature/checkout. And a
+  # remote whose name has a slash.
+  git clone -q -b main "$LT/remote.git" "$LT/up"
+  git -C "$LT/up" config user.email me@example.invalid
+  git -C "$LT/up" checkout -qb co origin/main
+  git -C "$LT/up" branch -q --set-upstream-to=origin/feature/checkout co
+  git -C "$LT/up" config push.default upstream
+  git -C "$LT/up" remote add team/r2 "$LT/remote.git"; git -C "$LT/up" fetch -q team/r2
+  # other: an unrelated repo with an origin and nothing fetched.
+  git init -q "$LT/other"; git -C "$LT/other" remote add origin "$LT/remote.git"
   # noid: a clone with no user.email, squashing my commits.
   git clone -q -b squash "$LT/remote.git" "$LT/noid"
   lg me 8 "$LT/noid" reset -q --soft HEAD~2; lg me 8 "$LT/noid" commit -qm "squash: both"
@@ -771,7 +804,7 @@ names_it "  ...names sam's commit and how to look"
 run_in 2 "lease on a full teammate sha"        "$ME" "git push --force-with-lease=feature/checkout:$TM origin feature/checkout"
 run_in 2 "lease on a short teammate sha"       "$ME" "git push --force-with-lease=feature/checkout:${TM:0:9} origin feature/checkout"
 run_in 2 "lease names only the teammate sha"   "$ME" "git push --force-with-lease=$S origin feature/checkout"
-run_in 2 "expect given as origin/<branch>"     "$ME" "git fetch origin && git push --force-with-lease=feature/checkout:origin/feature/checkout origin feature/checkout"
+run_in 2 "expect as origin/<branch>, fetched earlier" "$ME" "git push --force-with-lease=feature/checkout:origin/feature/checkout origin feature/checkout"
 run_in 2 "expect as refs/remotes/origin/..."   "$ME" "git push --force-with-lease=refs/heads/feature/checkout:refs/remotes/origin/feature/checkout origin HEAD:refs/heads/feature/checkout"
 run_in 2 "foreign lease inside sh -c"          "$ME" "sh -c 'git push --force-with-lease=feature/checkout:$S origin feature/checkout'"
 run_in 2 "foreign lease after FOO=1"           "$ME" "FOO=1 git push --force-with-lease=feature/checkout:$S origin feature/checkout"
@@ -814,6 +847,44 @@ run_in 0 "CONTROL: my rebase, explicit expect" "$ME" "git push --force-with-leas
 run_in 0 "CONTROL: my rebase, plain lease"     "$ME" "git push --force-with-lease --force-if-includes origin solo"
 run_in 0 "CONTROL: my squash, plain lease"     "$ME" "git push --force-with-lease origin squash"
 run_in 0 "CONTROL: my squash, explicit expect" "$ME" "git push --force-with-lease=squash:origin/squash origin squash"
+
+echo
+echo "THE LEASE IS CHECKED AGAINST THE STATE THE PUSH WILL SEE"
+# The guard reads the repository BEFORE the command runs. A fetch (or pull,
+# rebase, reset) earlier in the same command line moves what the push would
+# discard, unseen: fc2's tracking ref holds only my commit until that fetch
+# brings in sam's. So a lease push after anything not known to be read-only is
+# refused: run it as its own command.
+run_in 2 "fetch && plain lease (C1)"           "$ME" "git fetch origin && git push --force-with-lease origin fc2"
+run_in 2 "fetch; explicit origin/<b> lease"    "$ME" "git fetch origin; git push --force-with-lease=fc2:origin/fc2 origin fc2"
+run_in 2 "pull; lease"                          "$ME" "git pull -q origin fc2; git push --force-with-lease origin fc2"
+run_in 2 "reset --keep && lease"                "$ME" "git reset -q --keep HEAD~1 && git push --force-with-lease origin fc2"
+run_in 2 "rebase && lease"                      "$ME" "git rebase -q main && git push --force-with-lease origin fc2"
+run_in 2 "fetch && lease inside sh -c"          "$ME" "sh -c 'git fetch origin && git push --force-with-lease origin fc2'"
+run_in 2 "fetch in a subshell; lease"           "$ME" "(git fetch origin); git push --force-with-lease origin fc2"
+run_in 2 "fetch || lease"                       "$ME" "git fetch origin || git push --force-with-lease origin fc2"
+run_in 2 "fetch, newline, lease"                "$ME" $'git fetch origin\ngit push --force-with-lease origin fc2'
+run_in 0 "CONTROL: fc2 lease on its own (state as it is)" "$ME" "git push --force-with-lease origin fc2"
+run_in 0 "CONTROL: read-only git before the lease" "$ME" "git status -sb && git log --oneline -3 && git branch --list && git remote -v && git push --force-with-lease origin solo"
+run_in 0 "CONTROL: echo and cd before the lease" "$LT" "cd me && echo pushing && git push --force-with-lease origin solo 2>&1 | grep -v hint"
+
+echo
+echo "WHERE THE PUSH GOES, as git decides it"
+run_in 2 "@ as the refspec (I1)"               "$ME" "git push --force-with-lease origin @"
+run_in 2 "push.default=upstream, named remote (I2)" "$LT/up" "git push --force-with-lease origin"
+run_in 2 "push.default=upstream, no remote"    "$LT/up" "git push --force-with-lease"
+run_in 2 "a remote named team/r2 (M1)"         "$LT/up" "git push --force-with-lease team/r2 HEAD:feature/checkout"
+run_in 2 "GIT_DIR= prefix (I3)"                "$LT/other" "GIT_DIR=$ME/.git git push --force-with-lease origin feature/checkout"
+run_in 2 "export GIT_DIR earlier (I3)"         "$LT/other" "export GIT_DIR=$ME/.git; git push --force-with-lease origin feature/checkout"
+run_in 2 "GIT_WORK_TREE= prefix"               "$ME" "GIT_WORK_TREE=. git push --force-with-lease origin solo"
+run_in 0 "CONTROL: plain lease from a repo with nothing fetched" "$LT/other" "git push --force-with-lease origin feature/checkout"
+
+echo
+echo "A MERGE SOMEONE ELSE MADE, with a change of its own"
+# git cherry skips merges. A lost merge whose parents are both kept loses
+# nothing -- unless the merge itself changed something (a conflict fix).
+run_in 2 "sam's merge with its own fix is lost (M2)" "$ME" "git push --force-with-lease origin mgmine:mg"
+run_in 0 "CONTROL: sam's clean merge, parents kept" "$ME" "git push --force-with-lease origin mgmine:mgclean"
 run_in 0 "CONTROL: lease on an ancestor of HEAD" "$ME" "git push --force-with-lease=feature/checkout:$BASE origin feature/checkout"
 run_in 0 "CONTROL: lease on HEAD itself"       "$ME" "git push --force-with-lease=feature/checkout:HEAD origin feature/checkout"
 run_in 0 "CONTROL: lease on 'must not exist'"  "$ME" "git push --force-with-lease=feature/new: origin HEAD:feature/new"

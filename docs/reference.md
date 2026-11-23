@@ -324,9 +324,17 @@ It refuses:
   and a squash or amend of your own commits stay allowed. Local git only
   (`rev-parse`, `cherry`, `log`, `config`; never a fetch), in the hook's
   folder after `git -C` and a literal `cd`; any git error or timeout refuses.
-  Rule id `force-with-lease-foreign`. Known limits: merge commits are not
-  counted themselves (git cherry skips them), and authorship is the commit's
-  author email, which anyone can set;
+  A merge by someone else whose own change (a conflict fix) would be lost
+  counts too. The check sees the repository before the command runs, so a
+  lease push after any command not known to be read-only (a `git fetch &&`,
+  pull, rebase or reset first, through `;`, `&&`, `||`, newlines, `sh -c` or a
+  subshell) is refused: run the push as its own command. So is one with
+  `GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR`, `GIT_NAMESPACE` or
+  `GIT_CONFIG*` set in the command. Where the push goes follows git: `@` is
+  HEAD; with no refspec, `push.default`, `branch.<b>.merge`,
+  `branch.<b>.pushRemote` and `remote.pushDefault` decide, and a
+  `remote.<r>.push` mapping refuses. Rule id `force-with-lease-foreign`.
+  Known limit: authorship is the commit's author email, which anyone can set;
 - `git reset --hard`, `git checkout .`, `git restore .`, `git clean -f`;
 - deleting the folder the shell is in, or a parent of it;
 - live secrets typed into a command: Stripe live secret and restricted keys,

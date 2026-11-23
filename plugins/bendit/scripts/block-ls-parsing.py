@@ -352,7 +352,10 @@ def main() -> int:
     msg = refusal(payload)
     if msg is None:
         return 0
-    if unreadable is not None:
+    if isinstance(unreadable, getattr(features, 'UnknownFeatureOn', ())):
+        msg = ('BLOCKED by bendit: %s\nls-guard cannot tell whether it is on, so a command that '
+               'parses `ls` output is refused until bendit is updated.' % unreadable)
+    elif unreadable is not None:
         msg = ('BLOCKED by bendit: `.claude/bendit.json` is unreadable: %s\n'
                'ls-guard cannot tell whether it is on, so a command that parses `ls` output '
                'is refused until the file is fixed: fix it with the Edit tool, or ask the person.'

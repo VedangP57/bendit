@@ -115,6 +115,11 @@ printf '{"version":1,"features":{"ls-guard":{"on":false,"why":"x"},"teleport-gua
 chk "newer bendit.json, unknown feature off, ls-guard off: allows" "$(run 'ls | wc -l' "$T/newer")" "0"
 printf '{"version":1,"features":{"ls-guard":{"on":false,"why":"x"},"teleport-guard":{"on":true,"why":"chosen"}}}' > "$T/newer/.claude/bendit.json"
 chk "newer bendit.json, unknown feature ON: refuses (fail closed)" "$(run 'ls | wc -l' "$T/newer")" "2"
+# Review I1: the message says update bendit, and never to edit the file.
+NEWER_ERR="$(pl 'ls | wc -l' "$T/newer" | python3 "$H" 2>&1 >/dev/null)"
+case "$NEWER_ERR" in *"claude plugin update bendit@bendit --scope project"*) chk "  ...giving the update command" y y;; *) chk "  ...giving the update command ($NEWER_ERR)" n y;; esac
+case "$NEWER_ERR" in *"Do not edit or delete .claude/bendit.json"*) chk "  ...saying plainly not to edit or delete the file" y y;; *) chk "  ...saying not to edit the file ($NEWER_ERR)" n y;; esac
+case "$NEWER_ERR" in *"Edit tool"*|*"fix it"*) chk "  ...and never to fix it with the Edit tool ($NEWER_ERR)" n y;; *) chk "  ...and never to fix it with the Edit tool" y y;; esac
 # An import failure is inside the crash net: exit 2, never exit 1 (fail open).
 mkdir -p "$T/broken"; cp "$H" "$SD/shell_text.py" "$T/broken/"
 printf 'raise RuntimeError("broken features module")\n' > "$T/broken/features.py"

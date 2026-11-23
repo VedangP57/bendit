@@ -1435,7 +1435,7 @@ features: .claude/bendit.json readable                                 | FAIL   
 
 failures:
   features: .claude/bendit.json readable
-    <tmp>/feat-newer-on/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it. If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).
+    <tmp>/feat-newer-on/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it: most likely a newer bendit's guard. Update bendit in this project: claude plugin update bendit@bendit --scope project, then close Claude and open it again; if bendit is already up to date, ask the person. Do not edit or delete .claude/bendit.json to get past this: a teammate turned that guard on, and changing the file turns it off for everyone.
 
 prove: 1 of 25 checks FAILED -- adoption is NOT complete
 not proved by this script: live wiring -- that Claude Code runs these hooks in a real

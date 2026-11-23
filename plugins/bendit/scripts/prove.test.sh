@@ -281,6 +281,7 @@ FO="$T/feat-newer-on"; repo "$FO" 'exit 0'
 expect_capture "bendit.json from a newer bendit, unknown feature ON" bash "$SD/prove.sh" "$FO"
 chk "an unknown feature that is ON: prove fails" "$EXPECT_CODE" "1"
 has "  ...giving the update command" "claude plugin update bendit@bendit --scope project" "$EXPECT_STDOUT"
+has "  ...and saying not to edit or delete the file (review I1)" "Do not edit or delete .claude/bendit.json to get past this" "$EXPECT_STDOUT"
 
 BENDIT_JSON='{"version":1,'
 F3="$T/feat-bad"; repo "$F3" 'exit 0'

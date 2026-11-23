@@ -268,6 +268,7 @@ report (§6) with NOT COMPLETE, the failing command, its output, and the fix.
    set -e
    <the one command line>
    HARNESS
+   # --pm <pm> only for a Node project (leave it out otherwise); add --kind/--dev as in §1
    bash "$KIT/scripts/scaffold-verification-skill.sh" "$ROOT" --keep-harness --pm <pm>
    ```
 
@@ -410,7 +411,7 @@ What I did (for the record; no action needed)
   Files written: <every path, new or changed>
   Commands run:  <every command, in order, with its exit status>
   prove.sh:      <its table, as printed>
-  Live check:    <PASS / FAIL / inconclusive / waits until you reopen Claude>, copy: <installed / installer copy>
+  Live check:    <PASS / FAIL / inconclusive / waits until you reopen Claude>, copy: <installed / installer copy / other copy>
   Versions:      <installed-versions' lines, as printed: each checkout and its bendit version;
                  only project-scope installs are checked>
   Also noted:    <.git/info/exclude: the lines added; the port, in ~/.config/bendit/ports.json (web apps)>

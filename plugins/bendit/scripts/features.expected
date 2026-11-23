@@ -52,7 +52,7 @@ primary-checkout-guard | off    | (not set)
 === unknown feature
 exit 2
 --- stderr
-features: <tmp>/bad/.claude/bendit.json: unknown feature 'lsguard' is not off, and this bendit (<running>) cannot run it. If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).
+features: <tmp>/bad/.claude/bendit.json: unknown feature 'lsguard' is not off, and this bendit (<running>) cannot run it: most likely a newer bendit's guard. Update bendit in this project: claude plugin update bendit@bendit --scope project, then close Claude and open it again; if bendit is already up to date, ask the person. Do not edit or delete .claude/bendit.json to get past this: a teammate turned that guard on, and changing the file turns it off for everyone.
 
 === on is not a bool
 exit 2
@@ -252,7 +252,7 @@ usage: features.py get <root> <name> | set <root> <name> on|off <why> | show <ro
 === show on a malformed file
 exit 2
 --- stderr
-features: <tmp>/bad/.claude/bendit.json: unknown feature 'lsguard' is not off, and this bendit (<running>) cannot run it. If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).
+features: <tmp>/bad/.claude/bendit.json: unknown feature 'lsguard' is not off, and this bendit (<running>) cannot run it: most likely a newer bendit's guard. Update bendit in this project: claude plugin update bendit@bendit --scope project, then close Claude and open it again; if bendit is already up to date, ask the person. Do not edit or delete .claude/bendit.json to get past this: a teammate turned that guard on, and changing the file turns it off for everyone.
 
 === every brief key, each at an edge of its type
 exit 0
@@ -357,7 +357,7 @@ exit 0
 === get beside an unknown feature that is ON
 exit 2
 --- stderr
-features: <tmp>/newer/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it. If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).
+features: <tmp>/newer/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it: most likely a newer bendit's guard. Update bendit in this project: claude plugin update bendit@bendit --scope project, then close Claude and open it again; if bendit is already up to date, ask the person. Do not edit or delete .claude/bendit.json to get past this: a teammate turned that guard on, and changing the file turns it off for everyone.
 
 === an ignored name holding a newline
 exit 0
@@ -373,15 +373,15 @@ note: ignored feature 'a\nBLOCKED' (off; this bendit <running> does not know it,
 === an unknown feature with no on
 exit 2
 --- stderr
-features: <tmp>/bad/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it. If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).
+features: <tmp>/bad/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it: most likely a newer bendit's guard. Update bendit in this project: claude plugin update bendit@bendit --scope project, then close Claude and open it again; if bendit is already up to date, ask the person. Do not edit or delete .claude/bendit.json to get past this: a teammate turned that guard on, and changing the file turns it off for everyone.
 
 === an unknown feature whose on is not a bool
 exit 2
 --- stderr
-features: <tmp>/bad/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it. If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).
+features: <tmp>/bad/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it: most likely a newer bendit's guard. Update bendit in this project: claude plugin update bendit@bendit --scope project, then close Claude and open it again; if bendit is already up to date, ask the person. Do not edit or delete .claude/bendit.json to get past this: a teammate turned that guard on, and changing the file turns it off for everyone.
 
 === an unknown feature that is not an object
 exit 2
 --- stderr
-features: <tmp>/bad/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it. If a newer bendit added it, update bendit in this project: claude plugin update bendit@bendit --scope project. If not, the name is wrong (known: browser-driver, ux-design-laws, session-brief, ls-guard, primary-checkout-guard).
+features: <tmp>/bad/.claude/bendit.json: unknown feature 'teleport-guard' is not off, and this bendit (<running>) cannot run it: most likely a newer bendit's guard. Update bendit in this project: claude plugin update bendit@bendit --scope project, then close Claude and open it again; if bendit is already up to date, ask the person. Do not edit or delete .claude/bendit.json to get past this: a teammate turned that guard on, and changing the file turns it off for everyone.
 

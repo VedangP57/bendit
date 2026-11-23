@@ -323,6 +323,14 @@ def main():
     try:
         data = features.load(root)
     except features.FeaturesError as e:
+        # A newer bendit's guard that is on: updating bendit is the fix, and
+        # editing the file would turn that guard off for the whole team, so
+        # even an edit to the file itself is refused.
+        if isinstance(e, getattr(features, 'UnknownFeatureOn', ())):
+            _say('BLOCKED by bendit: %s\nprimary-checkout-guard cannot tell what this project asks of '
+                 'it, so every edit is refused until bendit is updated.' % e)
+            _record_fire(payload, 'cannot-tell-checkout', target_path(payload) or '')
+            return 2
         f = target_path(payload)
         if f is not None and os.path.realpath(f) == os.path.realpath(features.path(root)):
             return 0                     # editing the broken file is how it gets fixed

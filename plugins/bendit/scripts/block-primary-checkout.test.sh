@@ -27,6 +27,7 @@ export GIT_CEILING_DIRECTORIES="$T"
 chk() { if [ "$2" = "$3" ]; then printf '  ok    %s\n' "$1"; pass=$((pass+1));
         else printf '  FAIL  %s (got [%s], wanted [%s])\n' "$1" "$2" "$3"; fail=$((fail+1)); fi; }
 has() { case "$3" in *"$2"*) chk "$1" y y;; *) chk "$1 (missing '$2' in: $3)" n y;; esac; }
+hasnt() { case "$3" in *"$2"*) chk "$1 (found '$2' in: $3)" n y;; *) chk "$1" y y;; esac; }
 
 . "$SD/expect.sh"
 expect_init "$SD/block-primary-checkout.expected"
@@ -217,6 +218,14 @@ chk "newer bendit.json, unknown feature off, guard off -> allow" "$(run "$NW/app
 printf '{"version":1,"features":{"primary-checkout-guard":{"on":false,"why":"x"},"teleport-guard":{"on":true,"why":"chosen"}}}' > "$NW/.claude/bendit.json"
 chk "newer bendit.json, unknown feature ON -> refuse" "$(run "$NW/app.py" "$NW")" 2
 has "  ...giving the update command" "claude plugin update bendit@bendit --scope project" "$(cat "$T/err")"
+# Review I1: a teammate on a newer bendit turned that guard on. The fix is to
+# update bendit, never to edit the file (that turns the guard off for everyone).
+has "  ...saying plainly not to edit or delete the file" "Do not edit or delete .claude/bendit.json" "$(cat "$T/err")"
+has "  ...because a teammate turned it on" "a teammate turned that guard on" "$(cat "$T/err")"
+hasnt "  ...and never that editing it is allowed" "that edit is allowed" "$(cat "$T/err")"
+hasnt "  ...nor to fix the file" "fix .claude/bendit.json" "$(cat "$T/err")"
+chk "  ...and an edit to bendit.json itself is refused too (update, not edit)" "$(run "$NW/.claude/bendit.json" "$NW")" 2
+has "  ...saying update" "claude plugin update bendit@bendit --scope project" "$(cat "$T/err")"
 
 echo; echo "JUNK AND SHAPES IT DOES NOT HANDLE"
 chk "not JSON, feature on -> allow (no path to judge)" "$(cd "$R2" && printf 'nope' | "$PY" "$H" >/dev/null 2>&1; echo $?)" 0

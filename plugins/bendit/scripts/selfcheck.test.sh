@@ -45,6 +45,7 @@ export TMPDIR="$T/tmpd"; mkdir -p "$TMPDIR"
 chk() { if [ "$2" = "$3" ]; then printf '  ok    %s\n' "$1"; pass=$((pass+1));
         else printf '  FAIL  %s (got [%s], wanted [%s])\n' "$1" "$2" "$3"; fail=$((fail+1)); fi; }
 has() { case "$3" in *"$2"*) chk "$1" y y;; *) chk "$1 (missing '$2' in: $3)" n y;; esac; }
+hasnt() { case "$3" in *"$2"*) chk "$1 (found '$2' in: $3)" n y;; *) chk "$1" y y;; esac; }
 
 . "$SD/expect.sh"
 if [ -z "$PY_GIVEN" ]; then
@@ -329,6 +330,17 @@ has "  ...naming the file" "bendit.json" "$FE_OUT"
 has "  ...and still says the add-on scope" "add-on scope:" "$FE_OUT"
 case "$FE_OUT" in *"features: features:"*) o=doubled ;; *) o=once ;; esac
 chk "  ...and does not print the 'features:' prefix twice" "$o" once
+has "  ...and says to repair it (a malformed file)" "fix: repair" "$FE_OUT"
+# Review I1: a newer bendit's feature that is ON. A teammate turned that guard
+# on: the fix is to update bendit, never to edit or delete the file.
+NB="$T/newerproj"; mkdir -p "$NB/.claude"
+printf '{"version":1,"features":{"teleport-guard":{"on":true,"why":"chosen"}}}' > "$NB/.claude/bendit.json"
+fe "$T/stub-user" "$NB"
+chk "an unknown feature that is ON: exit 1" "$FE_RC" 1
+has "  ...the fix: line gives the update command" "fix: update bendit: claude plugin update bendit@bendit --scope project" "$FE_OUT"
+has "  ...and says plainly not to edit or delete the file" "Do not edit or delete .claude/bendit.json" "$FE_OUT"
+has "  ...because a teammate turned it on" "a teammate turned that guard on" "$FE_OUT"
+hasnt "  ...and never to repair or delete it" "repair or delete" "$FE_OUT"
 # From a SUBDIRECTORY of a git repo whose ROOT file is malformed: the root is
 # resolved like prove.sh does, so this fails (not four "off | (not set)" rows).
 SR="$T/subrepo"; mkdir -p "$SR/.claude" "$SR/pkg/deep"; git -C "$SR" init -q
@@ -494,8 +506,30 @@ has "the recorded path, but the record's version is not the running one: other c
     "$(cp_line "$C/$RV" HOME="$H")"
 record "$H/.claude/plugins" project "$T/elsewhere" "$RV" "$C/$RV"
 has "another project's install: other copy" "copy: other copy" "$(cp_line "$C/$RV" HOME="$H")"
+# Review I2: a user-scope install, and no project-scope one for this project,
+# is what a reopened window runs: `installed`, saying which scope. Calling it
+# `other copy` sent the doctor into an endless "reopen Claude" loop.
 record "$H/.claude/plugins" user - "$RV" "$C/$RV"
-has "a user-scope install: other copy" "copy: other copy" "$(cp_line "$C/$RV" HOME="$H")"
+has "a user-scope install, no project install here: copy: installed" "copy: installed" "$(cp_line "$C/$RV" HOME="$H")"
+has "  ...saying user scope" "user scope" "$(cp_line "$C/$RV" HOME="$H")"
+hasnt "  ...and never to reopen Claude" "open it again" "$(cp_line "$C/$RV" HOME="$H")"
+has "a user-scope install, but another version is running: other copy" "copy: other copy" "$(cp_line "$C/0.0.1" HOME="$H")"
+# user + project for this project: the project install wins.
+"$PY" -c 'import json,sys
+d, proj, rv, inst = sys.argv[1:5]
+json.dump({"version": 2, "plugins": {"bendit@bendit": [
+  {"scope": "user", "version": rv, "installPath": inst},
+  {"scope": "project", "projectPath": proj, "version": "0.0.1", "installPath": d + "/old"}]}},
+  open(d + "/installed_plugins.json", "w"))' "$H/.claude/plugins" "$LP" "$RV" "$C/$RV"
+has "user scope at the running version, but this project records an older project install: other copy" \
+    "copy: other copy" "$(cp_line "$C/$RV" HOME="$H")"
+has "  ...naming what the project records" "records bendit 0.0.1" "$(cp_line "$C/$RV" HOME="$H")"
+has "  ...and saying to reopen Claude" "open it again" "$(cp_line "$C/$RV" HOME="$H")"
+record "$H/.claude/plugins" project "$LP" "$RV" "$C/$RV"
+has "the project install says project scope" "project scope" "$(cp_line "$C/$RV" HOME="$H")"
+record "$H/.claude/plugins" user - "$RV" "$C/$RV"
+has "a user-scope install does not make the installer's copy installed" "copy: installer copy" \
+    "$(cp_line "$H/.cache/bendit/v1.0.0/plugins/bendit" HOME="$H")"
 printf '{"version": 2, "plugins": ' > "$H/.claude/plugins/installed_plugins.json"
 has "the record unreadable: other copy, never installed" "copy: other copy" "$(cp_line "$C/$RV" HOME="$H")"
 record "$H/.claude/plugins" project "$LP" "$RV" "$C/$RV"

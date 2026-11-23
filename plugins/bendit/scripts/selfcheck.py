@@ -295,6 +295,22 @@ def project_root(given):
     return given
 
 
+def features_fix(root):
+    """The `fix:` line for a bendit.json features.py refused. A newer bendit's
+    guard that is on is not a broken file: update bendit, never edit or delete
+    the file (that turns a teammate's guard off). Anything else: repair it."""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import features
+        features.load(root)
+    except Exception as e:  # noqa: BLE001 -- classify only; the error is already printed
+        if type(e).__name__ == 'UnknownFeatureOn':
+            return (f'fix: update bendit: {features.UPDATE_COMMAND}, then close Claude and open it again. '
+                    'Do not edit or delete .claude/bendit.json to get past this: a teammate turned that '
+                    'guard on, and changing the file turns it off for everyone.')
+    return 'fix: repair .claude/bendit.json (the error above names the problem), then run /bendit:adopt'
+
+
 def features_report(given):
     """The features table for the project root of <given>, then the add-on
     scope line. 1 when bendit.json is unreadable (reported, never read as
@@ -306,7 +322,7 @@ def features_report(given):
     if p.returncode != 0:
         msg = first_line(p.stderr) or f'{path}: could not read it'
         print(msg if msg.startswith('features:') else f'features: {msg}')
-        print('fix: repair or delete .claude/bendit.json, then run /bendit:adopt')
+        print(features_fix(root))
         print()
         print(addon_scope_line())
         return 1
@@ -451,12 +467,16 @@ def copy_line():
     copy Claude Code recorded for THIS project at project scope (the entry's
     installPath is the same folder as the running root) and that entry's
     version is the running version: that is what a reopened window runs.
+    Also `installed` (user scope) when this project records NO project-scope
+    bendit and the running root is the recorded user-scope install at the
+    running version: Claude Code loads that one here too. A project-scope
+    install always wins, so with one recorded the user install never counts.
     Anything else keeps "reopen Claude": `installer copy` (the installer's
     download, which `bendit` starts with `claude --plugin-dir`, loading as
     bendit@inline, or any folder outside Claude's plugin cache) or `other copy`
-    (in Claude's plugin cache, but not this project's recorded install: a
-    user-scope copy, another project's, another version, or the record could
-    not be read)."""
+    (in Claude's plugin cache, but not what this project loads: a user-scope
+    copy where a project install exists, another project's, another version,
+    or the record could not be read)."""
     root = os.environ.get('CLAUDE_PLUGIN_ROOT') or KIT
     home = os.path.expanduser('~')
     claude_dir = os.environ.get('CLAUDE_CONFIG_DIR') or os.path.join(home, '.claude')
@@ -483,13 +503,22 @@ def copy_line():
             '_installed_versions', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'installed-versions.py'))
         iv = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(iv)
-        mine = iv.installs_for(iv.load_installs(iv.default_plugins_file()), project, 'bendit')
+        everything = iv.load_all(iv.default_plugins_file())
+        mine = iv.installs_for([e for e in everything if e['scope'] == 'project'], project, 'bendit')
+        users = [e for e in everything if e['scope'] == 'user' and e['name'] == 'bendit']
     except Exception as e:  # noqa: BLE001 -- unreadable: never "installed"
         return (f'copy: other copy ({version}, {root}; which bendit this project records could not be read: '
                 f'{type(e).__name__}) -- {reopen}')
     for e in mine:
         if e['install'] and running and e['version'] == running and iv.same_path(e['install'], root):
-            return f'copy: installed ({version}, {root})'
+            return f'copy: installed ({version}, {root}; project scope)'
+    # No project-scope install here: Claude Code loads the user-scope one, so
+    # a reopened window runs this same copy. A project install always wins.
+    if not mine:
+        for e in users:
+            if e['install'] and running and e['version'] == running and iv.same_path(e['install'], root):
+                return (f'copy: installed ({version}, {root}; user scope: this project ({project}) records no '
+                        f'project-scope bendit, so a reopened window runs this same copy)')
     recorded = ', '.join(sorted({e['version'] for e in mine})) or 'none'
     return (f'copy: other copy ({version}, {root}; this project ({project}) records bendit {recorded} at '
             f'project scope) -- {reopen}')

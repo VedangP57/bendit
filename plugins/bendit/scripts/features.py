@@ -21,8 +21,9 @@ A file from a NEWER bendit may name features this one does not know. One
 that is "on": false changes nothing here, so it is kept as written (a later
 `set` preserves it) and reported by ignored() / ignored_note(). One that is
 on, or whose "on" is not plainly false, is a guard someone chose that this
-bendit cannot run: load() refuses, naming the running version and
-UPDATE_COMMAND. It must never silently not run.
+bendit cannot run: load() raises UnknownFeatureOn (a FeaturesError), naming
+the running version and UNKNOWN_ON_ADVICE: update bendit, never edit or delete
+the file to get past it. It must never silently not run.
 
 No new top-level key, ever: bendit.json is committed, and bendit 0.5.0 and
 older refuse any top-level key but "version" and "features", so one would
@@ -59,6 +60,22 @@ _CONFIG_KEY = {'session-brief': 'brief'}
 
 class FeaturesError(Exception):
     pass
+
+
+class UnknownFeatureOn(FeaturesError):
+    """A newer bendit's feature that is on. Not a broken file: a teammate on a
+    newer bendit turned that guard on. The only fix is to update bendit here;
+    editing or deleting the file to get past it turns that guard off for the
+    whole team, silently. Every reader says so (UNKNOWN_ON_ADVICE)."""
+
+
+# What every reader tells the person or agent about UnknownFeatureOn. One
+# string, so no reader can drift into "fix the file".
+UNKNOWN_ON_ADVICE = (
+    'Update bendit in this project: %s, then close Claude and open it again; if bendit is already '
+    'up to date, ask the person. '
+    'Do not edit or delete .claude/bendit.json to get past this: a teammate turned that guard on, '
+    'and changing the file turns it off for everyone.' % UPDATE_COMMAND)
 
 
 def _str_list(v):
@@ -160,10 +177,9 @@ def _validate(data, where):
             # written. Anything else: a chosen guard this bendit cannot run.
             if isinstance(entry, dict) and entry.get('on') is False:
                 continue
-            raise FeaturesError(
-                '%s: unknown feature %r is not off, and this bendit (%s) cannot run it. If a newer '
-                'bendit added it, update bendit in this project: %s. If not, the name is wrong (known: %s).'
-                % (where, name, _running_version(), UPDATE_COMMAND, ', '.join(FEATURES)))
+            raise UnknownFeatureOn(
+                '%s: unknown feature %r is not off, and this bendit (%s) cannot run it: most likely '
+                'a newer bendit\'s guard. %s' % (where, name, _running_version(), UNKNOWN_ON_ADVICE))
         if not isinstance(entry, dict):
             raise FeaturesError('%s: feature %r must be an object' % (where, name))
         if not isinstance(entry.get('on'), bool):

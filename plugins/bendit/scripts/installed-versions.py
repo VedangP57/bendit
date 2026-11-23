@@ -11,8 +11,9 @@ install (seen once, not proven). Nothing said the two checkouts disagreed.
 
 WHAT. Every checkout of the repo at --root (default: the current folder), from
 `git worktree list --porcelain`, the main checkout first. For each, every
-bendit and bendit-web version installed for that path at PROJECT scope (user
-and local scope are not checked), read from Claude Code's record of installs
+bendit and bendit-web version installed for that path at PROJECT scope, then
+the USER-scope version on its own line (what a folder with no project-scope
+install loads; it changes no exit code; local scope is not read), read from Claude Code's record of installs
 (--plugins-file, default
 ${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/installed_plugins.json), or "none".
 Each is compared with the version of the bendit running this script (bendit
@@ -46,7 +47,8 @@ import sys
 sys.dont_write_bytecode = True
 
 PLUGINS = ('bendit', 'bendit-web')
-SCOPE_NOTE = 'Only project-scope installs are checked (user- and local-scope installs are not).'
+SCOPE_NOTE = ('Only project-scope installs are compared between checkouts; a user-scope install is listed '
+              'on its own line (local-scope installs are not read).')
 
 
 class CannotRead(Exception):
@@ -122,6 +124,18 @@ def load_installs(path):
     """[{name, id, project, version, install}] for every PROJECT-scope bendit or
     bendit-web entry. Any surprise in the file is CannotRead, never an empty
     answer."""
+    return [e for e in load_all(path) if e['scope'] == 'project']
+
+
+def load_user(path):
+    """[{name, id, version, install}] for every USER-scope bendit or bendit-web
+    entry: what a folder with no project-scope install loads."""
+    return [e for e in load_all(path) if e['scope'] == 'user']
+
+
+def load_all(path):
+    """Every project- and user-scope bendit or bendit-web entry, each with its
+    'scope'. Local scope is not read. Any surprise is CannotRead."""
     try:
         with open(path, encoding='utf-8') as f:
             data = json.load(f)
@@ -140,13 +154,16 @@ def load_installs(path):
         for e in entries:
             if not isinstance(e, dict):
                 raise CannotRead('%s: an entry of %r is not an object' % (path, pid))
-            if e.get('scope') != 'project':
+            scope = e.get('scope')
+            if scope not in ('project', 'user'):
                 continue
             proj, ver = e.get('projectPath'), e.get('version')
-            if not isinstance(proj, str) or not isinstance(ver, str) or not ver:
-                raise CannotRead('%s: an entry of %r has no projectPath or version string' % (path, pid))
+            if not isinstance(ver, str) or not ver or (scope == 'project' and not isinstance(proj, str)):
+                raise CannotRead('%s: a %s-scope entry of %r has no %sversion string'
+                                 % (path, scope, pid, 'projectPath or ' if scope == 'project' else ''))
             inst = e.get('installPath')
-            found.append({'name': name, 'id': str(pid), 'project': proj, 'version': ver,
+            found.append({'name': name, 'id': str(pid), 'scope': scope,
+                          'project': proj if scope == 'project' else None, 'version': ver,
                           'install': inst if isinstance(inst, str) else None})
     return found
 
@@ -179,7 +196,9 @@ def report(root, plugins_file):
         here = real(top) if top else here
     except (OSError, subprocess.SubprocessError):
         pass
-    installs = load_installs(plugins_file)
+    everything = load_all(plugins_file)
+    installs = [e for e in everything if e['scope'] == 'project']
+    user = {n: [e['version'] for e in everything if e['scope'] == 'user' and e['name'] == n] for n in PLUGINS}
     rows = []
     for path, is_main in checkouts(root):
         row = {'path': path, 'main': is_main, 'here': same_path(path, here)}
@@ -210,10 +229,10 @@ def report(root, plugins_file):
                     r['notes'].append('%s %s (%s) is %s the running %s' % (name, v, pid, compare(v, running), running))
                 if v != newest and vkey(v) < vkey(newest):
                     r['update'].append('cd %s && claude plugin update %s --scope project' % (q, pid))
-    return running, rows, mismatch
+    return running, rows, mismatch, user
 
 
-def text(running, rows, mismatch):
+def text(running, rows, mismatch, user):
     out = ['running: bendit %s' % running]
     for r in rows:
         tags = [t for t, on in (('main checkout', r['main']), ('this folder', r['here'])) if on]
@@ -224,6 +243,17 @@ def text(running, rows, mismatch):
         out.append('%s: %s -- %s' % (label, vers, state))
         for cmd in r['update']:
             out.append('  to fix it: %s' % cmd)
+    for name in PLUGINS:
+        if name != 'bendit' and not user[name]:
+            continue
+        vs = user[name]
+        if not vs:
+            out.append('user scope: %s none' % name)
+            continue
+        state = ', '.join('matches' if v == running else '%s the running %s' % (compare(v, running), running)
+                          for v in vs)
+        out.append('user scope: %s %s -- %s; a folder with no project-scope install loads it '
+                   '(a project-scope install wins)' % (name, '/'.join(vs), state))
     if mismatch:
         out.append('Checkouts of one repo can load each other\'s install (a worktree has been seen loading the '
                    'main checkout\'s), so every checkout should have the same version.')
@@ -248,7 +278,7 @@ def main(argv):
             print('usage: installed-versions.py [--root DIR] [--plugins-file FILE] [--json]', file=sys.stderr)
             return 2
     try:
-        running, rows, mismatch = report(root, pfile or default_plugins_file())
+        running, rows, mismatch, user = report(root, pfile or default_plugins_file())
     except CannotRead as e:
         if as_json:
             print(json.dumps({'error': str(e)}))
@@ -260,9 +290,10 @@ def main(argv):
             {'path': r['path'], 'main': r['main'], 'here': r['here'],
              'bendit': '/'.join(v for _, v in r['bendit']) or None,
              'bendit-web': '/'.join(v for _, v in r['bendit-web']) or None,
-             'notes': r['notes'], 'update': r['update']} for r in rows]}))
+             'notes': r['notes'], 'update': r['update']} for r in rows],
+            'user': {n: '/'.join(user[n]) or None for n in PLUGINS}}))
     else:
-        print(text(running, rows, mismatch))
+        print(text(running, rows, mismatch, user))
     return 1 if mismatch else 0
 
 

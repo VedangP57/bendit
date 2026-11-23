@@ -358,6 +358,15 @@ has "  ...names the feature" "teleport-guard" "$EXPECT_STDERR"
 has "  ...names the running version" "this bendit ($RUNNING)" "$EXPECT_STDERR"
 has "  ...gives the update command" "claude plugin update bendit@bendit --scope project" "$EXPECT_STDERR"
 has "  ...names the file" "$T/newer/.claude/bendit.json" "$EXPECT_STDERR"
+# Review I1: a teammate turned that guard on; editing the file turns it off for everyone.
+has "  ...says plainly not to edit or delete the file" "Do not edit or delete .claude/bendit.json to get past this" "$EXPECT_STDERR"
+has "  ...because a teammate turned it on" "a teammate turned that guard on" "$EXPECT_STDERR"
+case "$EXPECT_STDERR" in *"name is wrong"*) chk "  ...and never suggests the name is wrong" n y;; *) chk "  ...and never suggests the name is wrong" y y;; esac
+got=$("$PY" -c 'import sys; sys.path.insert(0, sys.argv[1]); import features
+try: features.load(sys.argv[2])
+except features.UnknownFeatureOn: print("UnknownFeatureOn")
+except features.FeaturesError: print("FeaturesError")' "$SD" "$T/newer" 2>&1)
+chk "  ...raised as UnknownFeatureOn (a FeaturesError), so readers can say update" "$got" "UnknownFeatureOn"
 chk "  ...nothing on stdout" "$EXPECT_STDOUT" ""
 proj newer '{"version":1,"features":{"a\nBLOCKED":{"on":false,"why":"x"}}}'
 cap "an ignored name holding a newline" show "$T/newer"

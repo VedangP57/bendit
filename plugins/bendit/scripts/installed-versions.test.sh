@@ -111,7 +111,7 @@ run --root "$MAIN" --plugins-file "$T/none.json"
 chk "nothing recorded for either path: exit 0 (none everywhere is not a mismatch)" "$RC" 0
 has "  ...says none, never a version" "bendit none" "$OUT"
 has "  ...says only project scope was looked at" "no project-scope install recorded for this path" "$OUT"
-has "  ...and says so once, plainly" "Only project-scope installs are checked" "$OUT"
+has "  ...and says so once, plainly" "Only project-scope installs are compared between checkouts" "$OUT"
 # The incident's first-time shape: setup in a worktree installs for the
 # worktree's path only, and a worktree loads the MAIN checkout's install.
 plugins "$T/half.json" - "$V"
@@ -123,6 +123,39 @@ has "  ...and gets the command that installs it there" \
 plugins "$T/half2.json" "$V" -
 run --root "$MAIN" --plugins-file "$T/half2.json"
 chk "main installed, worktree none: exit 0 (the worktree loads main's)" "$RC" 0
+
+echo
+echo "USER SCOPE: LISTED, AND SAID WHICH SCOPE (review I2)"
+# us <file> <user version|-> <main project version|-> -- user scope, and maybe a project install.
+us() {
+  "$PY" - "$@" "$MAIN" <<'PY'
+import json, sys
+out, uv, mv, main = sys.argv[1:5]
+e = []
+if uv != '-':
+    e.append({'scope': 'user', 'version': uv, 'installPath': '/nowhere/u/' + uv})
+if mv != '-':
+    e.append({'scope': 'project', 'projectPath': main, 'version': mv, 'installPath': '/nowhere/p/' + mv})
+json.dump({'version': 2, 'plugins': {'bendit@bendit': e}}, open(out, 'w'))
+PY
+}
+us "$T/user.json" "$V" -
+run --root "$MAIN" --plugins-file "$T/user.json"
+chk "user scope only, at the running version: exit 0" "$RC" 0
+has "  ...lists the user-scope install, saying user scope" "user scope: bendit $V" "$OUT"
+has "  ...and says it is what a folder with no project install loads" "a folder with no project-scope install loads it" "$OUT"
+has "  ...the checkouts still say no project-scope install" "no project-scope install recorded for this path" "$OUT"
+chk "--json: the user-scope version" \
+  "$("$PY" "$S" --root "$MAIN" --plugins-file "$T/user.json" --json | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["user"])')" \
+  "{'bendit': '$V', 'bendit-web': None}"
+us "$T/user-proj-old.json" "$V" "$OLD"
+run --root "$MAIN" --plugins-file "$T/user-proj-old.json"
+chk "user scope at the running version, project install older: still a mismatch (exit 1)" "$RC" 1
+has "  ...says the project install wins" "a project-scope install wins" "$OUT"
+has "  ...and gives the project update command" "cd $MAIN && claude plugin update bendit@bendit --scope project" "$OUT"
+us "$T/nouser.json" - -
+run --root "$MAIN" --plugins-file "$T/nouser.json"
+has "no user-scope install: says none" "user scope: bendit none" "$OUT"
 
 echo
 echo "SEVERAL ENTRIES FOR ONE PATH: EVERY ONE COUNTS"

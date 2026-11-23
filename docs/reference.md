@@ -418,15 +418,15 @@ To find candidates, run `/bendit:suggest-guards` (adapted from the `ruminate`
 idea in poteto's brainmaxxing). Its script, `scripts/suggest-guards.py`,
 reads this project's Claude Code transcripts under `~/.claude/projects/`, and
 only lines whose `cwd` is this project, so a different project that maps to
-the same folder name is left out. It finds the messages where you corrected
-the agent: a wide filter that marks each candidate `likely` ("no,", "don't",
-"stop", "undo that", "I told you", "you broke") or `maybe` (an answer to the
-agent's question, a habit such as "don't forget", a marker word later on),
-pairs each with the tool call before it, and groups repeats. Labels are whole
-words. The command then has Claude read every candidate's example and drop
-what is not a correction, saying how many it dropped and why; a cluster of
-only `maybe` candidates is never shown without Claude's confirmation. Each cluster has a count,
-the tool and command, and one example, with secrets redacted before anything
+the same folder name is left out. It works in two steps, so that meaning is
+read by Claude, never guessed from keywords. First it lists every reply you
+typed right after an agent tool call (a stable id, the tool, the command
+head, the redacted text cut to 160 characters; newest sessions first, at
+most 200). Claude reads every row and picks the ids that correct the agent,
+saying how many it read, confirmed and dropped. Then `--confirm <ids>`
+clusters only those ids, by the tool call before them and shared words
+(labels are whole words), and shows every example, with secrets redacted
+before anything
 else happens. A correction seen once is left out (`--min 2`). The command then
 proposes the cheapest layer for each cluster (delete, structure, guard or
 prose, from [the ladder](#the-ladder)), asks once which rows to build, and

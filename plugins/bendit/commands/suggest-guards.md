@@ -6,8 +6,9 @@ allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/suggest-guards.py *)
 Arguments: `$ARGUMENTS`
 
 Run this from the repo the user is in. If the arguments hold `--min N`, use
-that N instead of 2. If they hold `--git`, add `--git`. Read the full output
-before saying anything:
+that N instead of 2. If they hold `--git`, add `--git` to both runs below.
+
+**Step 1: list.** Run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/suggest-guards.py" --min 2
@@ -15,22 +16,30 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/suggest-guards.py" --min 2
 
 It reads this project's own Claude Code transcripts, and no other project's:
 it keeps only lines whose `cwd` is this project, even when another project
-shares the folder name.
-It finds CANDIDATE corrections: a wide filter, not a judge. Each is
-`likely` ("no,", "don't", "stop", "undo that", "I told you", "not what I
-asked", "you broke") or `maybe` (an answer to the agent's question, a habit
-such as "don't forget", a marker word later on). It groups them by the tool
-and command before them. Each cluster shows a count, how many are likely, its
-confidence, the tool and command, and one example with secrets redacted. The
-script is read-only.
+shares the folder name. It lists every reply the person typed right after
+an agent tool call: an id, the tool, the command head, and the text
+(redacted, at most 160 characters). Newest sessions come first, and replies
+that look like corrections come first; that is an ordering hint only. At
+most 200 rows; it says how many more there are. It does not judge anything.
 
-**You judge each candidate.** Before you show any table:
-read every candidate's quoted example and drop the ones that are not corrections of the agent
-(a question, an answer, an approval, a new request, a change of mind).
-Then say in one line how many you dropped and why.
-A cluster made only of `maybe` candidates is never shown without your confirmation:
-keep it only if its example plainly corrects the agent's action before it;
-otherwise drop it and count it in that line.
+**Step 2: you judge.** Read every listed row.
+Choose the ids whose text corrects the agent's action before it: blame, a
+damage report, "undo", "put it back", "I told you", sarcasm about what broke.
+Drop the rest: a question, an answer, an approval, a new request.
+Then say in one line how many rows you read, how many you confirmed and how many you dropped.
+Never confirm a row you have not read, and never guess an id.
+
+**Step 3: cluster what you confirmed.** Run, with your ids comma-separated:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/suggest-guards.py" --min 2 --confirm <id,id,...>
+```
+
+Only the confirmed ids are clustered; nothing unconfirmed can count toward
+`--min`. Each cluster shows every example. An id that is not one of this
+project's replies is refused (exit 2): fix the list, never drop the check.
+If you confirmed none, skip this step unless `--git` was asked; then run it
+with `--confirm ""`.
 
 With `--git` it also reads this repo's last 2,000 commits (one read-only
 `git log`): commits whose subject starts with fix or revert, and commits that
@@ -43,7 +52,7 @@ the top 8 git rows; `--json` has them all.
 
 - `No past sessions found for this project` is not a failure. Say so, and
   stop unless `--git` rows follow.
-- `No correction repeats` (or, with `--git`, `No pattern repeats`) means
+- `No correction repeats` (or, for git rows, `No pattern repeats`) means
   nothing came up twice. Say so and stop: a
   one-off is an incident, not a pattern.
 - Report skipped lines or files as the numbers given.
@@ -62,7 +71,7 @@ ladder in `references/grow.md` of the `adopt-bendit` skill:
 
 A cluster can be noise: a correction that happened to follow the same
 command, or a file that simply gets a lot of work. Say so instead of
-proposing anything for it. Quote only the example the script printed;
+proposing anything for it. Quote only the examples the script printed;
 never open the transcripts to read more, and never read more commits or
 diffs.
 

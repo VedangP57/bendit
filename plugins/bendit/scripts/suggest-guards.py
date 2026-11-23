@@ -1,7 +1,19 @@
 #!/usr/bin/env python3
 """Find the corrections you keep repeating, in THIS project's past sessions.
 
-    suggest-guards.py [--root DIR] [--projects-dir DIR] [--min 2] [--json] [--git]
+    suggest-guards.py [--root DIR] [--projects-dir DIR] [--json] [--git] [--min 2]
+                      [--confirm ID,ID,...]
+
+TWO STEPS. The script does only deterministic work; a person's meaning is
+read by Claude, never guessed from keywords.
+  1. With no --confirm it LISTS every reply the person typed right after an
+     agent tool call, each with a stable id, the tool, the command head and
+     the redacted text cut to 160 characters: newest sessions first, those
+     that look like corrections first (an ordering hint only), at most 200.
+  2. Claude reads every listed reply and picks the ids that correct the
+     agent. `--confirm <ids>` then clusters ONLY those ids, applies --min,
+     and shows every example of each cluster. An id that is not one of this
+     project's replies is refused (exit 2): nothing unconfirmed can count.
 
 Adapted from the `ruminate` idea in poteto's brainmaxxing (mine old
 transcripts for repeated corrections, keep patterns, drop incidents). Here it
@@ -31,15 +43,11 @@ read line by line with a cap of 1 MiB a line: a longer line is skipped
 without being held in memory, and so is a line that does not parse as a JSON
 object for any reason (nesting too deep included).
 
-WHAT COUNTS AS A CANDIDATE CORRECTION. A message the person typed (not tool
-output, not a subagent's prompt, not a meta line, not a /command wrapper)
-with any sign of one. This is a WIDE filter, not a judge: each candidate is
-`likely` (it opens with "no,", "don't", "stop", "undo", "wrong", or says "I
-told you", "not what I asked", "you broke", "you didn't" ...) or `maybe` (a
-habit or approval opener, a "no" answering the agent's own question, a
-marker word later on). /bendit:suggest-guards has Claude read each example
-and drop what is not a correction. It is paired with the last tool call the
-agent made before it, if any.
+WHAT IS LISTED. A message the person typed (not tool output, not a
+subagent's prompt, not a meta line, not a /command wrapper) after the agent
+made a tool call and before the person's next message. Its id is a short
+hash of the session file's name and the message's line number, so it stays
+the same between runs. It is paired with the last tool call before it.
 
 REDACTED FIRST. Every piece of text taken from a transcript -- the person's
 words, the agent's command, a file path -- goes through fire_log.redact (the
@@ -66,16 +74,20 @@ an hour of the last commit to it. Candidates group by file; each subject and
 path is redacted before anything else, and only one example subject is
 printed. Rows say `source: git` (transcript rows say `source: session`).
 
-WHAT IT PRINTS. Each cluster seen at least --min times: its source, a pattern
-label, the count, the tool and command (or the file), and ONE example of the person's words, folded and
-cut to 160 characters. Nothing else from any transcript is printed. It never
-writes anything (not even bytecode for its helper). Exit 0 on success, 2 on a
-usage error, 1 on an internal error, whose message names only the error type.
+WHAT IT PRINTS. Listing: each reply's id, tool, command head and text, folded,
+redacted and cut to 160 characters. --confirm: each cluster of confirmed
+replies seen at least --min times, with its source, a pattern label, the
+count, the tool and command (or the file), and EVERY example, each cut to
+160 characters. Nothing else from any transcript is printed. It never writes
+anything (not even bytecode for its helper). Exit 0 on success, 2 on a usage
+error or a refused --confirm id, 1 on an internal error, whose message names
+only the error type.
 """
 import sys
 sys.dont_write_bytecode = True   # set before any import: this script writes nothing, not even a .pyc
 
 import argparse  # noqa: E402
+import hashlib  # noqa: E402
 import json  # noqa: E402
 import os  # noqa: E402
 import re  # noqa: E402
@@ -88,7 +100,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fire_log import redact  # noqa: E402
 
 LINE_CAP = 1 << 20        # bytes per transcript line; longer lines are skipped
-TEXT_CAP = 2000           # a longer message is a task, not a correction
+LIST_MAX = 200            # replies listed per run
 # Hard caps applied BEFORE redaction, so redaction never runs on more than
 # this. A longer message is dropped whole (never cut: a cut could split a
 # secret so its pattern no longer matches); a command or path is cut, since
@@ -99,50 +111,17 @@ CMD_CAP = 4096
 EXAMPLE_MAX = 160
 NO_SESSIONS = 'No past sessions found for this project'
 
-# The script is a WIDE filter: it finds candidate corrections, each marked
-# `likely` or `maybe`, and Claude reads each quoted example and drops what is
-# not a correction before anything is shown (commands/suggest-guards.md).
-# Rules tuned for precision overfit whatever messages they were tuned on, so
-# recall comes first here and the judgement is Claude's.
-#
-# LIKELY: the message anywhere says "I told you", "not what I asked", "I
-# asked for", "why did you", "you broke", "you didn't", "you were supposed
-# to", "the third time", "undo that", "put it back"; or its FIRST sentence
-# opens with a negation or an order to stop or undo ("no,", "don't",
-# "stop", "undo", "wrong") that is not a habit or approval ("no problem",
-# "no, that's fine", "don't forget", "never mind", "stop here for today").
-# MAYBE: everything else with a hint of one -- an excluded opener, a "no"
-# answering the agent's own question, a change of mind ("stop -- actually
-# continue"), a rename request, "why would you", or a marker word ("don't",
-# "again", "wrong", "instead", "never") later in the message.
-_OPEN_WORDS = (r"no\b|nope\b|nah\b|stop\b|don'?t\b|do not\b|dont\b|never\b"
-               r"|undo\b|revert\b|wrong\b|not that\b|that'?s (?:wrong|not right|not it)\b")
-_PREFIX = r"^(?:(?:please|ugh|argh|hey|oh|wait|ok|okay)[\s,.!]+)*"
-_OPENS_ANY = re.compile(_PREFIX + r"(?:" + _OPEN_WORDS + r")", re.I)
+# ORDERING HINT ONLY. A reply that opens with a negation or an order to stop
+# or undo, or says "I told you" or the like, is listed first. It decides
+# nothing: every reply after a tool call is listed, and Claude judges each.
 _OPENS = re.compile(
-    _PREFIX +
-    r"(?:no\b(?!\s+(?:problem|worries|rush|thanks|thank|issue|doubt|prob)\b)"
-    r"(?![\s,.!]+(?:that'?s|thats|it'?s|its)\s+(?:fine|ok|okay|good|alright|all right)\b)"
-    r"|nope\b|nah\b|stop\b(?!\s+(?:here|for\s+(?:today|now|the\s+day)|there)\b)"
-    r"|(?:don'?t|do not|dont)\b(?!\s+(?:forget|worry|bother)\b)|never\b(?!\s+(?:mind|thought)\b)"
-    r"|undo\b|revert\b|wrong\b|not that\b|that'?s (?:wrong|not right|not it)\b)", re.I)
+    r"^(?:(?:please|ugh|argh|hey|oh|wait|ok|okay)[\s,.!]+)*"
+    r"(?:no\b(?!\s+(?:problem|worries|rush|thanks|thank)\b)|nope\b|stop\b|don'?t\b|do not\b"
+    r"|never\b(?!\s+mind\b)|undo\b|revert\b|wrong\b|that'?s (?:wrong|not right|not it)\b)", re.I)
 _ANYWHERE = re.compile(
     r"\b(?:i (?:already )?told you|not what i (?:asked|said|wanted)|i (?:said|asked) (?:not|never|no|to|for)\b"
-    r"|i asked you not|undo (?:that|this|it|those)|revert (?:that|this|it|those)"
-    r"|put (?:it|them|that|this) back|why (?:did|are) you"
-    r"|you (?:broke|deleted|removed|overwrote|ignored|wiped)"
-    r"|you (?:didn'?t|did not|never)\s+\w+|you were (?:supposed|meant|told) to"
-    r"|(?:second|third|fourth|fifth|\d+(?:st|nd|rd|th)) time|how many times"
-    r"|you (?:shouldn'?t|should not) have)\b", re.I)
-_WEAK = re.compile(r"\b(?:why would you|don'?t|do not|never|again|wrong|instead|stop|undo|revert"
-                   r"|not what|supposed to)\b", re.I)
-_CHANGED_MIND = re.compile(r"\b(?:actually|never ?mind)\b[^.?!]*\b(?:continue|go on|carry on|go ahead"
-                           r"|keep going|fine)\b|\bi misread\b", re.I)
-# A request that only renames or changes something, blaming no one.
-_CHANGE_REQUEST = re.compile(r"\b(?:can|could|would) you (?:please )?(?:also )?(?:rename|change|update)\b", re.I)
-_BLAME = re.compile(r"\bagain\b|\byou (?:did|changed|used|ran|added|forgot)\b", re.I)
-_BARE_NO = re.compile(r"^(?:no|nope|nah)\b", re.I)
-_UNDO_VERB = re.compile(r"\b(?:undo|revert|put|restore|remove|delete|roll)\b", re.I)
+    r"|undo (?:that|this|it)|revert (?:that|this|it)|put (?:it|them|that|this) back|why (?:did|are) you"
+    r"|you (?:broke|deleted|removed|overwrote|ignored|didn'?t|were supposed to))\b", re.I)
 _SENTENCE_END = re.compile(r'[.!?;\n](?=\s|$)|\n')
 MARKER_WORDS = {'no', 'nope', 'nah', 'don', 'dont', "don't", 'do', 'not', 'stop', 'never',
                 'again', 'told', 'asked', 'said', 'wrong', 'instead', 'undo', 'revert',
@@ -200,15 +179,18 @@ def session_dir(root: str, projects_dir: str) -> str:
 
 
 def read_lines(fd: int, stats: Counter):
-    """Yield each line of the open file `fd` as a parsed JSON object, line by
+    """Yield (line number, parsed JSON object) for each line of the open
+    file `fd`, line by
     line; a line over LINE_CAP is drained in chunks and skipped, never held
     whole, and a line that fails to parse for any reason is skipped. Closes
     `fd`."""
     with os.fdopen(fd, 'rb') as f:
+        lineno = 0
         while True:
             line = f.readline(LINE_CAP + 1)
             if not line:
                 return
+            lineno += 1
             if len(line) > LINE_CAP and not line.endswith(b'\n'):
                 stats['oversized'] += 1
                 while True:
@@ -224,7 +206,7 @@ def read_lines(fd: int, stats: Counter):
             if not isinstance(obj, dict):
                 stats['malformed'] += 1
                 continue
-            yield obj
+            yield lineno, obj
 
 
 def message_parts(obj):
@@ -268,14 +250,6 @@ def last_tool_call(obj):
     return found
 
 
-def asks(obj):
-    """For an assistant line with text: do its last words ask the person a
-    question? None for a line with no text (thinking only, say)."""
-    texts = [p.get('text') for p in message_parts(obj) or []
-             if p.get('type') == 'text' and isinstance(p.get('text'), str) and p['text'].strip()]
-    return texts[-1].rstrip().endswith('?') if texts else None
-
-
 def command_of(tool):
     """What was corrected, as (tool name, command) -- command '' if none.
     Every part is taken from redacted text and must look like a plain name,
@@ -310,25 +284,10 @@ def first_sentence(text: str) -> str:
     return (text[:m.end()] if m else text).strip()
 
 
-def classify(text: str, after_question: bool):
-    """'likely', 'maybe' or None: is this (redacted) message a candidate
-    correction of the agent's last action? See the rules above _OPEN_WORDS.
-    A no right after the agent asked a question, with no undo verb in its
-    first sentence and no blame, is only `maybe`: it is usually an answer
-    ("No, go with the second option")."""
-    if _ANYWHERE.search(text):
-        return 'likely'
+def looks_like_correction(text: str) -> bool:
+    """The ordering hint (see _OPENS). Never a filter."""
     first = first_sentence(text)
-    if _OPENS_ANY.search(first):
-        if first.endswith('?') or not _OPENS.search(first) or _CHANGED_MIND.search(text):
-            return 'maybe'
-        if _CHANGE_REQUEST.search(text) and not _BLAME.search(text):
-            return 'maybe'
-        if (after_question and _BARE_NO.match(first) and not _UNDO_VERB.search(first)
-                and not _BLAME.search(text)):
-            return 'maybe'
-        return 'likely'
-    return 'maybe' if _WEAK.search(text) else None
+    return bool(_ANYWHERE.search(text) or (_OPENS.search(first) and not first.endswith('?')))
 
 
 def stem(word: str) -> str:
@@ -381,17 +340,28 @@ def under(cwd, roots) -> bool:
     return any(cwd == r or cwd.startswith(r.rstrip(os.sep) + os.sep) for r in roots)
 
 
+def reply_id(path: str, lineno: int) -> str:
+    """Stable and plain: a hash of the session file's name, and the line."""
+    name = os.path.basename(path).encode('utf-8', 'surrogateescape')
+    return '%s:%d' % (hashlib.sha1(name).hexdigest()[:10], lineno)
+
+
+_ID = re.compile(r'[0-9a-f]{10}:[0-9]{1,9}')
+
+
 def collect(folder: str, roots, stats: Counter):
-    """Every correction in the folder's transcripts made in this project
-    (a line's cwd under one of `roots`), oldest file first."""
+    """Every reply the person typed right after an agent tool call, in this
+    project's transcripts (a line's cwd under one of `roots`), as dicts:
+    id, age (0 = newest session), line, key (tool, command), kw, text
+    (REDACTED), hint."""
     files = []
     for entry in os.scandir(folder):
         if entry.name.endswith('.jsonl') and entry.is_file(follow_symlinks=False):
             files.append((entry.stat(follow_symlinks=False).st_mtime, entry.path))
         elif entry.name.endswith('.jsonl') and entry.is_symlink():
             stats['links'] += 1
-    corrections = []
-    for _mtime, path in sorted(files):
+    replies = []
+    for age, (_mtime, path) in enumerate(sorted(files, reverse=True)):
         try:
             # O_NOFOLLOW: a file swapped for a link since the listing is not followed.
             fd = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0))
@@ -403,9 +373,8 @@ def collect(folder: str, roots, stats: Counter):
             continue
         mine = False
         tool = None
-        asked = False
         try:
-            for obj in read_lines(fd, stats):
+            for lineno, obj in read_lines(fd, stats):
                 if not under(obj.get('cwd'), roots):
                     if obj.get('type') in ('user', 'assistant'):
                         stats['other_project'] += 1
@@ -415,32 +384,34 @@ def collect(folder: str, roots, stats: Counter):
                     call = last_tool_call(obj)
                     if call:
                         tool = call
-                        asked = False
-                        continue
-                    if obj.get('type') == 'assistant':
-                        q = None if obj.get('isSidechain') else asks(obj)
-                        asked = asked if q is None else q
                         continue
                     text = typed_text(obj)
                     if text is None:
                         continue
-                    conf = classify(text, asked) if len(text) <= TEXT_CAP else None
-                    if conf:
-                        corrections.append((command_of(tool), keywords(text), text, conf))
-                    tool = None   # a new turn: the next correction is about what follows
-                    asked = False
+                    if tool and text:
+                        replies.append({'id': reply_id(path, lineno), 'age': age, 'line': lineno,
+                                        'key': command_of(tool), 'kw': keywords(text), 'text': text,
+                                        'hint': looks_like_correction(text)})
+                    tool = None   # a new turn: the next reply is about what follows
                 except Exception:
                     stats['malformed'] += 1
         except Exception:
             stats['unreadable'] += 1
         if mine:
             stats['sessions'] += 1
-    return corrections
+    return replies
 
 
-def cluster(corrections):
+def listed(r):
+    tool, command = r['key']
+    return {'id': r['id'], 'tool': safe(tool), 'command': safe(command),
+            'hint': 'likely' if r['hint'] else '', 'text': safe(example_of(r['text']))}
+
+
+def cluster(replies):
     clusters = []   # each: {'key', 'words', 'kw' (Counter of stems), 'surface', 'items'}
-    for key, kw, text, conf in corrections:
+    for r in replies:
+        key, kw = r['key'], r['kw']
         stems = set(kw)
         need = 2 if key[0] == '-' else 1
         home = None
@@ -460,7 +431,7 @@ def cluster(corrections):
         home['kw'].update(stems)
         for st, word in kw.items():
             home['surface'].setdefault(st, Counter())[word] += 1
-        home['items'].append((text, conf))
+        home['items'].append(r)
     return clusters
 
 
@@ -477,11 +448,10 @@ def describe(c):
     shared = shared_words(c)
     label = ' '.join(x for x in (tool if tool != '-' else 'no tool call', command) if x)
     pattern = label + (': ' + ', '.join(shared) if shared else '')
-    likely = [t for t, conf in c['items'] if conf == 'likely']
     return {'source': 'session', 'pattern': safe(pattern), 'count': len(c['items']),
-            'confidence': 'likely' if likely else 'maybe', 'likely': len(likely),
             'tool': safe(tool) if tool != '-' else '', 'command': safe(command), 'file': '',
-            'example': safe(example_of(likely[0] if likely else c['items'][0][0]))}
+            'ids': [r['id'] for r in c['items']],
+            'examples': [safe(example_of(r['text'])) for r in c['items']]}
 
 
 # ---- --git: this repo's own history --------------------------------------
@@ -623,15 +593,76 @@ def git_rows(candidates, touches):
     return rows
 
 
+class Refused(Exception):
+    """A --confirm id that is not one of this project's listed replies."""
+
+
+def confirmed(replies, spec: str):
+    """The replies whose ids `spec` (comma-separated) names. Every id must be
+    well formed and one of THIS project's replies, or the whole run is
+    refused: an unknown id never silently drops, and nothing else counts."""
+    ids = [x.strip() for x in spec.split(',') if x.strip()]
+    bad = [x for x in ids if not _ID.fullmatch(x)]
+    if bad:
+        raise Refused(f'{len(bad)} malformed id(s); an id looks like 0123456789:42')
+    known = {r['id']: r for r in replies}
+    unknown = [x for x in ids if x not in known]
+    if unknown:
+        raise Refused(f"{len(unknown)} id(s) are not replies in this project's sessions: "
+                      + ', '.join(unknown[:5]))
+    want = set(ids)
+    # Oldest first, so a cluster's examples read in the order they happened.
+    return sorted((r for r in replies if r['id'] in want), key=lambda r: (-r['age'], r['line']))
+
+
+def git_section(args, root):
+    """(state, commits read, candidate commits, ranked rows at --min)."""
+    if not args.git:
+        return None, 0, 0, []
+    log = git_log(root)
+    if isinstance(log, str):
+        return log, 0, 0, []
+    candidates, touches = git_candidates(log)
+    rows = sorted((d for d in git_rows(candidates, touches) if d['count'] >= args.min),
+                  key=lambda d: (d['docs_only'], -d['weight'], -d['count'], d['pattern']))
+    for i, d in enumerate(rows, 1):
+        d['rank'] = i
+    return 'ok', len(log), len({c[0] for c in candidates}), rows
+
+
+def print_git(args, state, commits_read, n_candidates, rows):
+    if state == 'ok':
+        print(f'{commits_read} commits read (the last {GIT_MAX} at most), '
+              f'{n_candidates} fix, revert or quick follow-up commits.')
+    else:
+        print(f'Git history: {state}.')
+    if not rows:
+        print(f'No pattern repeats {args.min} or more times in the git history.')
+    for d in rows[:GIT_SHOWN]:
+        print()
+        print(f"[git {d['rank']}] {d['pattern']}  ({d['count']} commits)")
+        print(f"    source: git   file: {d['file']}")
+        print(f'    e.g. "{d["example"]}"')
+    if len(rows) > GIT_SHOWN:
+        print()
+        print(f'{len(rows) - GIT_SHOWN} more git rows (--json for all).')
+
+
 def run(args) -> int:
     root = args.root
     roots = sorted({os.path.realpath(root), os.path.abspath(root)})
     folder = session_dir(root, args.projects_dir)
     stats = Counter()
-    corrections = []
+    replies = []
     if os.path.isdir(folder) and not os.path.islink(folder):
-        corrections = collect(folder, roots, stats)
-    if not stats['sessions'] and not args.git:
+        replies = collect(folder, roots, stats)
+    if args.confirm is not None:
+        try:
+            chosen = confirmed(replies, args.confirm)
+        except Refused as e:
+            print(safe(f'suggest-guards: refused: {e}. Nothing was clustered.'), file=sys.stderr)
+            return 2
+    if not stats['sessions'] and not args.git and args.confirm is None:
         if args.json:
             print(json.dumps({'sessions': 0, 'message': NO_SESSIONS,
                               'skipped_other_project': stats['other_project'], 'clusters': []}))
@@ -642,74 +673,73 @@ def run(args) -> int:
                       'that shares this folder name.')
         return 0
 
-    # Session rows first, always: they are a person's own corrections.
-    found = sorted((d for d in (describe(c) for c in cluster(corrections)) if d['count'] >= args.min),
-                   key=lambda d: (-d['count'], d['pattern']))
-    git_state, commits_read, candidates, git_found = None, 0, [], []
+    state, commits_read, n_candidates, git_found = git_section(args, root)
+    head = {'sessions': stats['sessions'], 'min': args.min,
+            'skipped_malformed': stats['malformed'], 'skipped_oversized': stats['oversized'],
+            'skipped_links': stats['links'], 'unreadable': stats['unreadable'],
+            'skipped_other_project': stats['other_project']}
+    if not stats['sessions']:
+        head['message'] = NO_SESSIONS
     if args.git:
-        log = git_log(root)
-        if isinstance(log, str):
-            git_state = log
-        else:
-            git_state, commits_read = 'ok', len(log)
-            candidates, touches = git_candidates(log)
-            git_found = sorted((d for d in git_rows(candidates, touches) if d['count'] >= args.min),
-                               key=lambda d: (d['docs_only'], -d['weight'], -d['count'], d['pattern']))
-            for i, d in enumerate(git_found, 1):
-                d['rank'] = i
-    found += git_found
-    if args.json:
-        out = {'sessions': stats['sessions'], 'corrections': len(corrections),
-               'likely': sum(1 for c in corrections if c[3] == 'likely'),
-               'min': args.min, 'skipped_malformed': stats['malformed'],
-               'skipped_oversized': stats['oversized'],
-               'skipped_links': stats['links'], 'unreadable': stats['unreadable'],
-               'skipped_other_project': stats['other_project']}
-        if not stats['sessions']:
-            out['message'] = NO_SESSIONS
-        if args.git:
-            out.update({'git': git_state, 'commits_read': commits_read,
-                        'git_candidates': len({c[0] for c in candidates})})
-        out['clusters'] = found
-        print(json.dumps(out, ensure_ascii=False, indent=1))
-        return 0
-    if stats['sessions']:
-        likely = sum(1 for c in corrections if c[3] == 'likely')
-        print(f"{stats['sessions']} sessions read, {len(corrections)} candidate corrections found "
-              f"({likely} likely, {len(corrections) - likely} maybe).")
-    else:
-        print(safe(f'{NO_SESSIONS} (looked in {folder}).'))
-    if args.git:
-        if git_state == 'ok':
-            print(f'{commits_read} commits read (the last {GIT_MAX} at most), '
-                  f"{len({c[0] for c in candidates})} fix, revert or quick follow-up commits.")
-        else:
-            print(f'Git history: {git_state}.')
-    print(f'{len(found)} patterns seen at least {args.min} times.')
+        head.update({'git': state, 'commits_read': commits_read, 'git_candidates': n_candidates})
     skipped = [f'{stats[k]} {label}' for k, label in
                (('malformed', 'malformed lines'), ('oversized', 'lines over 1 MiB'),
                 ('links', 'linked files'), ('unreadable', 'unreadable files'),
                 ('other_project', "lines from another project's sessions")) if stats[k]]
+
+    if args.confirm is None:
+        # STEP 1: list every reply after a tool call, for Claude to read.
+        order = sorted(replies, key=lambda r: (not r['hint'], r['age'], r['line']))
+        shown = [listed(r) for r in order[:LIST_MAX]]
+        more = len(order) - len(shown)
+        if args.json:
+            head.update({'replies': len(replies), 'listed': len(shown), 'more': more,
+                         'candidates': shown, 'clusters': git_found})
+            print(json.dumps(head, ensure_ascii=False, indent=1))
+            return 0
+        if stats['sessions']:
+            print(f"{stats['sessions']} sessions read; {len(replies)} replies came right after a "
+                  f'tool call. Listing {len(shown)}: newest sessions first, those that look '
+                  'like corrections first.')
+        else:
+            print(safe(f'{NO_SESSIONS} (looked in {folder}).'))
+        if skipped:
+            print('Skipped: ' + ', '.join(skipped) + '.')
+        for d in shown:
+            print()
+            print(f"[{d['id']}] {d['tool']} {d['command'] or '-'}"
+                  + ('   (looks like a correction)' if d['hint'] else ''))
+            print(f'    "{d["text"]}"')
+        if more:
+            print()
+            print(f'{more} more (only the first {LIST_MAX} are listed).')
+        if args.git:
+            print()
+            print_git(args, state, commits_read, n_candidates, git_found)
+        return 0
+
+    # STEP 2: cluster only what Claude confirmed. Session rows first, always.
+    found = sorted((d for d in (describe(c) for c in cluster(chosen)) if d['count'] >= args.min),
+                   key=lambda d: (-d['count'], d['pattern']))
+    if args.json:
+        head.update({'confirmed': len(chosen), 'clusters': found + git_found})
+        print(json.dumps(head, ensure_ascii=False, indent=1))
+        return 0
+    print(f'{len(chosen)} confirmed corrections, {len(found)} patterns seen at least '
+          f'{args.min} times.')
     if skipped:
         print('Skipped: ' + ', '.join(skipped) + '.')
     if not found:
-        print(f"No {'pattern' if args.git else 'correction'} repeats {args.min} or more times.")
-    hidden = max(0, len(git_found) - GIT_SHOWN)
-    if hidden:
-        found = found[:len(found) - hidden]
+        print(f'No correction repeats {args.min} or more times.')
     for i, d in enumerate(found, 1):
         print()
-        if d['source'] == 'git':
-            print(f"[{i}] {d['pattern']}  ({d['count']} commits)")
-            print(f"    source: git   file: {d['file']}")
-        else:
-            print(f"[{i}] {d['pattern']}  ({d['count']} times, {d['likely']} likely)")
-            print(f"    source: session   confidence: {d['confidence']}   "
-                  f"tool: {d['tool'] or '-'}   command: {d['command'] or '-'}")
-        print(f'    e.g. "{d["example"]}"')
-    if hidden:
+        print(f"[{i}] {d['pattern']}  ({d['count']} times)")
+        print(f"    source: session   tool: {d['tool'] or '-'}   command: {d['command'] or '-'}")
+        for rid, ex in zip(d['ids'], d['examples']):
+            print(f'    {rid}: "{ex}"')
+    if args.git:
         print()
-        print(f'{hidden} more git rows (--json for all).')
+        print_git(args, state, commits_read, n_candidates, git_found)
     return 0
 
 
@@ -721,6 +751,8 @@ def main(argv=None) -> int:
     ap.add_argument('--projects-dir', default=os.path.join(os.path.expanduser('~'), '.claude', 'projects'),
                     help='where Claude Code keeps per-project transcript folders')
     ap.add_argument('--min', type=int, default=2, help='show clusters seen at least this often (default 2)')
+    ap.add_argument('--confirm', metavar='ID,ID,...',
+                    help='cluster ONLY these listed replies (the ones Claude confirmed as corrections)')
     ap.add_argument('--json', action='store_true', help='print JSON')
     ap.add_argument('--git', action='store_true',
                     help="also mine this repo's last %d commits (fix, revert and quick follow-up commits)" % GIT_MAX)

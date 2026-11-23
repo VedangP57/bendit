@@ -38,6 +38,12 @@ SLUG="$(slug "$P")"
 HERE="$PD/$SLUG"
 # The fixtures say __ROOT__ where a real transcript holds the session's cwd.
 place() { sed "s|__ROOT__|$2|g" "$FX/$1" >"$3/$1"; }
+# allids <root>: every id the listing gives. crun <root> <args>: confirm ALL
+# of them, then cluster (what the old one-step run did, minus the judging).
+allids() { "$PY" "$S" --root "$1" --projects-dir "$PD" --json 2>/dev/null | "$PY" -c 'import json,sys
+try: print(",".join(c["id"] for c in json.load(sys.stdin).get("candidates", [])))
+except Exception: print("")'; }
+crun() { local r="$1"; shift; run --root "$r" --projects-dir "$PD" --confirm "$(allids "$r")" "$@"; }
 
 echo "NO PAST SESSIONS"
 run --root "$P" --projects-dir "$PD"
@@ -48,25 +54,62 @@ run --root "$P" --projects-dir "$PD"
 chk "an empty project folder: exit 0"            "$CODE" 0
 has "  and says so"                              "$OUT" "No past sessions found for this project"
 
-echo; echo "REPEATED CORRECTIONS CLUSTER; A ONE-OFF DOES NOT SHOW"
+echo; echo "STEP 1 LISTS EVERY REPLY AFTER A TOOL CALL, AND ONLY THOSE"
 for f in session-a.jsonl session-b.jsonl malformed.jsonl; do place "$f" "$P" "$HERE"; done
 run --root "$P" --projects-dir "$PD" --json
 chk "exit 0"                                     "$CODE" 0
 chk "  nothing on stderr (no traceback)"         "$ERR" ""
 J="$T/out.json"; printf '%s' "$OUT" >"$J"
 q() { "$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); print(eval(sys.argv[2]))' "$J" "$1" 2>&1; }
+chk "  three replies (tool output, a subagent prompt, a meta line, a /command and a reply with no tool call before it are not listed)" \
+                                                 "$(q 'd["listed"]')" 3
+chk "  each row: id, tool, command, text, hint"  "$(q 'sorted(d["candidates"][0])')" "['command', 'hint', 'id', 'text', 'tool']"
+chk "  ids are a 10-hex hash and a line number"  "$(q 'all(__import__("re").fullmatch(r"[0-9a-f]{10}:[0-9]+", c["id"]) for c in d["candidates"])')" True
+IDS1="$(q '",".join(c["id"] for c in d["candidates"])')"
+run --root "$P" --projects-dir "$PD" --json
+printf '%s' "$OUT" >"$J"
+chk "  the ids are the same on a second run"     "$(q '",".join(c["id"] for c in d["candidates"])')" "$IDS1"
+chk "  no clustering happens in step 1"          "$(q 'd["clusters"]')" "[]"
+run --root "$P" --projects-dir "$PD"
+chk "text mode: exit 0"                          "$CODE" 0
+has "  lists an id with the tool and command"    "$OUT" "] Bash git push"
+has "  and the person's words"                   "$OUT" "force push"
+
+echo; echo "A BAD --confirm ID IS REFUSED (EXIT 2), NOTHING CLUSTERS"
+run --root "$P" --projects-dir "$PD" --confirm "not-an-id" --json
+chk "  a malformed id: exit 2"                   "$CODE" 2
+chk "  and nothing on stdout"                    "$OUT" ""
+run --root "$P" --projects-dir "$PD" --confirm "0123456789:1" --json
+chk "  an id that is no reply here: exit 2"      "$CODE" 2
+has "  and says so"                              "$ERR" "not replies in this project"
+
+echo; echo "STEP 2 (--confirm): ONLY THE CONFIRMED IDS CLUSTER; A ONE-OFF DOES NOT SHOW"
+run --root "$P" --projects-dir "$PD" --json
+printf '%s' "$OUT" >"$J"
+PUSH="$(q '",".join(c["id"] for c in d["candidates"] if c["command"] == "git push")')"
+RMID="$(q '",".join(c["id"] for c in d["candidates"] if c["command"] == "rm")')"
+run --root "$P" --projects-dir "$PD" --confirm "$PUSH" --min 1 --json
+printf '%s' "$OUT" >"$J"
+chk "  confirming the two push replies: one cluster, rm left out" "$(q '[(c["command"], c["count"]) for c in d["clusters"]]')" "[('git push', 2)]"
+chk "  it carries those ids"                     "$(q '",".join(sorted(d["clusters"][0]["ids"]))')" "$(printf '%s' "$PUSH" | tr ',' '\n' | sort | paste -sd, -)"
+run --root "$P" --projects-dir "$PD" --confirm "$RMID" --min 2 --json
+printf '%s' "$OUT" >"$J"
+chk "  confirming only rm, at --min 2: nothing"  "$(q 'len(d["clusters"])')" 0
+crun "$P" --json
+printf '%s' "$OUT" >"$J"
 chk "one cluster at --min 2"                     "$(q 'len(d["clusters"])')" 1
 chk "  it is the git push corrections"           "$(q 'd["clusters"][0]["tool"] + " " + d["clusters"][0]["command"]')" "Bash git push"
 chk "  counted twice (tool output, a subagent prompt, a meta line and a /command are not the person)" \
                                                  "$(q 'd["clusters"][0]["count"]')" 2
 has "  its pattern names a shared keyword"       "$(q 'd["clusters"][0]["pattern"]')" "force"
-has "  its example quotes the person"            "$(q 'd["clusters"][0]["example"]')" "force push"
+chk "  EVERY example is shown, one per reply"     "$(q 'len(d["clusters"][0]["examples"])')" 2
+has "  they quote the person"                    "$(q 'd["clusters"][0]["examples"]')" "force push"
 hasnt "the one-off rm correction is absent"      "$OUT" "build output"
 chk "the malformed lines were counted as skipped" "$(q 'd["skipped_malformed"] >= 2')" True
-run --root "$P" --projects-dir "$PD" --min 1 --json
+crun "$P" --min 1 --json
 printf '%s' "$OUT" >"$J"
 chk "at --min 1 the one-off shows (2 clusters)"  "$(q 'len(d["clusters"])')" 2
-run --root "$P" --projects-dir "$PD"
+crun "$P"
 chk "text mode: exit 0"                          "$CODE" 0
 has "  names the tool and command"               "$OUT" "Bash git push"
 has "  and the count"                            "$OUT" "2 times"
@@ -96,7 +139,7 @@ hasnt "  the deep line's text never appears"     "$OUT" "DEEPLINE"
 printf '%s' "$OUT" >"$J"
 chk "  the huge line is counted as oversized"    "$(q 'd["skipped_oversized"]')" 1
 chk "  the two deep lines are counted as malformed" "$(q 'd["skipped_malformed"] >= 5')" True
-chk "  the cluster is unchanged"                 "$(q 'd["clusters"][0]["count"]')" 2
+chk "  the listing is unchanged"                 "$(q 'd["listed"]')" 3
 
 echo; echo "ANOTHER PROJECT'S FOLDER IS NEVER READ"
 # Siblings whose names start with this project's name, and a link into one.
@@ -115,7 +158,7 @@ run --root "$P" --projects-dir "$PD" --json
 chk "exit 0"                                     "$CODE" 0
 hasnt "  the canary is absent"                   "$OUT" "CANARY_SIBLING"
 printf '%s' "$OUT" >"$J"
-chk "  the git push count is still 2"            "$(q 'd["clusters"][0]["count"]')" 2
+chk "  still 3 replies listed"                   "$(q 'd["listed"]')" 3
 AUDIT_CACHE="$T/pycache-prefix"; mkdir -p "$AUDIT_CACHE"
 PYTHONPYCACHEPREFIX="$AUDIT_CACHE" "$PY" - "$S" "$P" "$PD" "$T/opened" "$T/wrote" <<'PY'
 # Every file the script opens, and every write or mkdir it attempts, recorded
@@ -170,7 +213,7 @@ for i in 1 2; do mine_line "$C2" "git push --force" "no, never force push CANARY
 mine_line "$C1/../b-cx" "git push" "never force push CANARY_COLLISION" >>"$CF/mine.jsonl"
 # A file with no cwd at all is nobody's for sure: skipped.
 printf '%s\n' '{"type":"user","message":{"role":"user","content":"no, never CANARY_COLLISION"}}' >"$CF/nocwd.jsonl"
-run --root "$C1" --projects-dir "$PD" --min 1 --json
+crun "$C1" --min 1 --json
 chk "exit 0"                                     "$CODE" 0
 hasnt "  the other project's canary is absent"   "$OUT" "CANARY_COLLISION"
 printf '%s' "$OUT" >"$J"
@@ -230,34 +273,43 @@ for s in sys.argv[2:]:
     if hits:
         print(s[:4] + "...: " + " ".join(hits[:5]))' "$@"
 }
-for mode in "--min 1" "--min 1 --json" "--min 2" "--min 2 --json"; do
+ALLR="$(allids "$R")"
+chk "  (the listing gave ids to confirm)"          "$(printf '%s' "$ALLR" | tr ',' '\n' | grep -c .)" 16
+for mode in "" "--json" "--confirm $ALLR --min 1" "--confirm $ALLR --min 1 --json" "--confirm $ALLR --min 2" "--confirm $ALLR --min 2 --json"; do
   # shellcheck disable=SC2086
   "$PY" "$S" --root "$R" --projects-dir "$PD" $mode >"$T/sec.out" 2>"$T/sec.err"; code=$?
-  chk "[$mode] exit 0"                           "$code" 0
+  chk "[${mode:0:40}] exit 0"                    "$code" 0
   cat "$T/sec.out" "$T/sec.err" >"$T/sec.all"
-  chk "  [$mode] no part of any key past its first 4 characters, stdout or stderr" "$(leaks "$T/sec.all" "$STRIPE" "$GH" "$AWS" "$JWT" "$AWSS")" ""
+  chk "  [${mode:0:40}] no part of any key past its first 4 characters, stdout or stderr" "$(leaks "$T/sec.all" "$STRIPE" "$GH" "$AWS" "$JWT" "$AWSS")" ""
 done
-"$PY" "$S" --root "$R" --projects-dir "$PD" --min 1 --json >"$J"
-chk "  every call made a cluster (8 tool calls + 1 with none)" "$(q 'sum(c["count"] for c in d["clusters"])')" 18
-has "  an example says [REDACTED]"               "$(q 'd["clusters"][0]["example"]')" "[REDACTED]"
-chk "  every example is at most 160 characters"  "$(q 'all(len(c["example"]) <= 160 for c in d["clusters"])')" True
+"$PY" "$S" --root "$R" --projects-dir "$PD" --json >"$J"
+chk "  every listed text is at most 160 characters" "$(q 'all(len(c["text"]) <= 160 for c in d["candidates"])')" True
+"$PY" "$S" --root "$R" --projects-dir "$PD" --confirm "$ALLR" --min 1 --json >"$J"
+chk "  every confirmed reply is in a cluster (8 tool calls x 2 sessions)" "$(q 'sum(c["count"] for c in d["clusters"])')" 16
+has "  an example says [REDACTED]"               "$(q 'd["clusters"][0]["examples"]')" "[REDACTED]"
+chk "  every example is at most 160 characters"  "$(q 'all(len(e) <= 160 for c in d["clusters"] for e in c["examples"])')" True
 chk "  a command that is a key prints as ?"      "$(q 'sorted({c["command"] for c in d["clusters"] if c["tool"] == "Bash"})')" "['?', 'git ?']"
 
 echo; echo "CONTROL CHARACTERS NEVER REACH THE TERMINAL"
 K="$T/ctl"; KS="$PD/$(slug "$K")"; mkdir -p "$K" "$KS"
 for i in 1 2; do
   "$PY" -c 'import json,sys
+print(json.dumps({"type": "assistant", "cwd": sys.argv[1], "message": {"role": "assistant", "content": [{"type": "tool_use", "name": "Bash", "input": {"command": "make"}}]}}))
 print(json.dumps({"type": "user", "cwd": sys.argv[1], "message": {"role": "user", "content": "no, wrong \x1b]0;pwned\x07 title \x1b[31m red \x9b again"}}))' "$K" >"$KS/s$i.jsonl"
 done
 run --root "$K" --projects-dir "$PD"
 chk "exit 0"                                     "$CODE" 0
 chk "  no ESC, BEL or C1 byte in the output"     "$(printf '%s' "$OUT" | LC_ALL=C grep -c "$(printf '[\033\007]')" )" 0
 chk "  no C1 CSI either"                         "$(printf '%s' "$OUT" | "$PY" -c 'import sys; print(sum(1 for c in sys.stdin.read() if 0x80 <= ord(c) <= 0x9f))')" 0
+crun "$K" --min 1
+chk "  --confirm text mode: exit 0"              "$CODE" 0
+chk "  and no ESC, BEL or C1 byte there either"  "$(printf '%s' "$OUT" | "$PY" -c 'import sys; print(sum(1 for c in sys.stdin.read() if ord(c) in (27, 7) or 0x80 <= ord(c) <= 0x9f))')" 0
 
 echo; echo "BIDI CONTROLS NEVER REACH THE TERMINAL EITHER"
 B="$T/bidi"; BS="$PD/$(slug "$B")"; mkdir -p "$B" "$BS"
 for i in 1 2; do
   "$PY" -c 'import json,sys
+print(json.dumps({"type": "assistant", "cwd": sys.argv[1], "message": {"role": "assistant", "content": [{"type": "tool_use", "name": "Bash", "input": {"command": "make"}}]}}))
 print(json.dumps({"type": "user", "cwd": sys.argv[1], "message": {"role": "user", "content": "no, wrong ‮evil‬ and ⁦iso⁩ again ‏"}}))' "$B" >"$BS/s$i.jsonl"
 done
 run --root "$B" --projects-dir "$PD" --min 1
@@ -291,7 +343,7 @@ PY
 chk "  (the lines are under the line cap, so they are read)" \
     "$("$PY" -c 'import sys; print(max(len(l) for l in open(sys.argv[1], "rb")) < (1 << 20))' "$LS/s1.jsonl")" True
 t0=$("$PY" -c 'import time;print(time.time())')
-run --root "$L" --projects-dir "$PD" --min 1 --json
+crun "$L" --min 1 --json
 el=$("$PY" -c 'import sys,time;print("%.1f" % (time.time() - float(sys.argv[1])))' "$t0")
 chk "exit 0, under 5 s (took ${el}s)"            "$CODE $("$PY" -c 'import sys; print(float(sys.argv[1]) < 5)' "$el")" "0 True"
 hasnt "  the message canary never appears"       "$OUT" "MSGCANARY"
@@ -299,24 +351,26 @@ hasnt "  the command canary never appears"       "$OUT" "CMDCANARY"
 printf '%s' "$OUT" >"$J"
 chk "  the short corrections still cluster under rm" "$(q '[(c["command"], c["count"]) for c in d["clusters"]]')" "[('rm', 2)]"
 
-echo; echo "ONLY REAL CORRECTIONS: QUESTIONS, ANSWERS, APPROVALS AND NEW REQUESTS ARE NOT"
+echo; echo "ORDINARY REPLIES ARE LISTED TOO: CLAUDE, NOT A KEYWORD LIST, JUDGES THEM"
 # Every message in this fixture once matched a marker word ("no", "don't",
 # "again", "instead", "wrong", "never", "stop") somewhere in it.
 N="$T/plain"; NS="$PD/$(slug "$N")"; mkdir -p "$N" "$NS"; place not-corrections.jsonl "$N" "$NS"
-run --root "$N" --projects-dir "$PD" --min 1 --json
+run --root "$N" --projects-dir "$PD" --json
 chk "exit 0"                                     "$CODE" 0
 printf '%s' "$OUT" >"$J"
-chk "  none of 13 ordinary messages is a likely correction" "$(q 'd["likely"]')" 0
-chk "  so every cluster they make is maybe-only (Claude must confirm it)" \
-    "$(q 'sorted({(c["confidence"], c["likely"]) for c in d["clusters"]})')" "[('maybe', 0)]"
+chk "  the 10 replies that follow a tool call are listed (of 12; 2 follow only a question)" "$(q 'd["listed"]')" 10
+chk "  confirming none of them clusters nothing" "$(run --root "$N" --projects-dir "$PD" --confirm "" --min 1 --json; printf '%s' "$OUT" >"$J"; q 'len(d["clusters"])')" 0
 
 echo; echo "REAL CORRECTIONS, EACH PAIRED WITH THE TOOL CALL BEFORE IT"
 C="$T/corr"; CS="$PD/$(slug "$C")"; mkdir -p "$C" "$CS"; place corrections.jsonl "$C" "$CS"
-run --root "$C" --projects-dir "$PD" --min 1 --json
+run --root "$C" --projects-dir "$PD" --json
+printf '%s' "$OUT" >"$J"
+chk "  six replies listed (the first message has no tool call before it)" "$(q 'd["listed"]')" 6
+chk "  all six hinted as corrections (an ordering hint only)" "$(q 'sum(1 for c in d["candidates"] if c["hint"] == "likely")')" 6
+crun "$C" --min 1 --json
 chk "exit 0"                                     "$CODE" 0
 printf '%s' "$OUT" >"$J"
-chk "  six corrections (no / stop / undo / not what I asked / I told you / please don't)" "$(q 'd["corrections"]')" 6
-chk "  all six likely"                            "$(q 'd["likely"]')" 6
+chk "  six confirmed"                            "$(q 'd["confirmed"]')" 6
 chk "  each aimed at the call before it"         "$(q 'sorted((c["tool"], c["command"], c["count"]) for c in d["clusters"])')" \
     "[('Bash', 'git push', 2), ('Bash', 'npm publish', 1), ('Bash', 'rm', 1), ('Edit', '*.ts', 2)]"
 chk "  every session row says source: session"   "$(q 'sorted({c["source"] for c in d["clusters"]})')" "['session']"
@@ -329,78 +383,56 @@ P2="$(q '[c["pattern"] for c in d["clusters"] if c["command"] == "*.ts"][0]')"
 has   "  'page' and 'pages' still join one cluster, labelled with a whole word" "$P2" "login"
 case "$P2" in *"pag,"*|*"pag"|*"pag "*) bad "  no 'pag' stem" "$P2";; *) ok "  no 'pag' stem";; esac
 
-echo; echo "THE CLASSIFIER IS A WIDE FILTER: CORRECTIONS ARE CANDIDATES, ORDINARY MESSAGES ARE NOT 'likely'"
-# Two tables. TUNED: a reviewer's first 20 (7 quoted, 13 written to its
-# categories), which the rules were tuned on. HELD-OUT: a second reviewer's
-# fresh 20 (the elided ones completed to their quoted openings), added AFTER
-# the rules were set and never tuned against. A correction scores if it is a
-# candidate (likely or maybe); an ordinary message scores if it is not
-# `likely`: a `maybe` is Claude's to drop.
-cat >"$T/table.py" <<'PY'
-import importlib.util, sys
-sys.dont_write_bytecode = True
-spec = importlib.util.spec_from_file_location('sg', sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-# (message, the agent's last turn asked a question, is it a correction?)
-tuned = [
-    ("no, that's fine, go ahead", False, False),
-    ("Never thought of that. Good idea, go with it", False, False),
-    ("Stop here for today, we'll pick it up tomorrow", False, False),
-    ("Don't forget to also update the changelog when you're done", False, False),
-    ("Wrong file name in the spec doc too, can you rename it to plan.md", False, False),
-    ("no worries, take your time", False, False),
-    ("no rush.", False, False),
-    ("Nope, all good. Merge it.", True, False),
-    ("add a settings page with a dark mode toggle", False, False),
-    ("looks great, thanks! now wire it into the nav", False, False),
-    ("can you check why the build fails? don't change any code yet", False, False),
-    ("no, it's ok, leave it as is", False, False),
-    ("why did you delete the migration? I told you to keep it", False, True),
-    ("no no no, put it back", True, True),
-    ("ugh, you broke the login page again", False, True),
-    ("Why are you running the migration against prod?", False, True),
-    ("no, don't force push to main", False, True),
-    ("stop, that's the wrong branch", False, True),
-    ("undo that, it broke the tests", False, True),
-    ("That's not what I asked for, use the existing helper", False, True),
-]
-held_out = [
-    ("stop, wait \u2014 actually continue, I misread the diff", False, False),
-    ("No, go with the second option", True, False),
-    ("why would you need a cache here? just curious, it's fine either way", False, False),
-    ("Don't bother with the docs, I'll write them later", False, False),
-    ("looks good, ship it", True, False),
-    ("no rush on this, finish the tests first", False, False),
-    ("can you also add a loading spinner to the form", False, False),
-    ("never mind, I'll do it myself", False, False),
-    ("don't worry about the tests for now, just get it compiling", False, False),
-    ("perfect. now do the same for the settings page", False, False),
-    ("I asked for a modal, not a new page", False, True),
-    ("you didn't run the tests before saying it works", False, True),
-    ("this is the third time you've hardcoded the API key", False, True),
-    ("hey, you were supposed to leave the lockfile alone", False, True),
-    ("you broke the build again", False, True),
-    ("revert that", False, True),
-    ("that's wrong, the port is 3000", False, True),
-    ("why are you editing main?", False, True),
-    ("No. Use pnpm, not npm", False, True),
-    ("nope, that's the old endpoint \u2014 use /v2", True, True),
-]
-for name, cases in (('tuned', tuned), ('held-out', held_out)):
-    found = sum(1 for t, a, w in cases if w and m.classify(t, a))
-    calm = sum(1 for t, a, w in cases if not w and m.classify(t, a) != 'likely')
-    for t, a, w in cases:
-        got = m.classify(t, a)
-        if (w and not got) or (not w and got == 'likely'):
-            print('    %s miss: %r -> %s' % (name, t, got), file=sys.stderr)
-    nc = sum(1 for c in cases if c[2])
-    print('%s %d %d %d %d' % (name, found, nc, calm, len(cases) - nc))
+echo; echo "RECALL IS STRUCTURAL: CORRECTIONS NO KEYWORD LIST CAUGHT ARE STILL LISTED"
+# A reviewer's fresh corrections that held none of the old marker words.
+W="$T/wide"; WS="$PD/$(slug "$W")"; mkdir -p "$W" "$WS"
+"$PY" - "$WS/s.jsonl" "$W" <<'PY'
+import json, sys
+path, root = sys.argv[1:3]
+msgs = ["this is your fault, the deploy script worked fine before you touched it",
+        "roll it back to how it was",
+        "great, now the build is broken",
+        "what have you done to the tests, half of them fail now",
+        "bro the CSS is all messed up now, fix what you just did"]
+with open(path, 'w') as f:
+    for m in msgs:
+        f.write(json.dumps({"type": "assistant", "cwd": root, "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "name": "Edit", "input": {"file_path": "/w/a.css"}}]}}) + '\n')
+        f.write(json.dumps({"type": "user", "cwd": root, "message": {"role": "user", "content": m}}) + '\n')
 PY
-"$PY" -B "$T/table.py" "$S" >"$T/table.out"
-while read -r name found nc calm no; do
-  echo "  $name: corrections found $found/$nc, ordinary messages not 'likely' $calm/$no"
-done <"$T/table.out"
-chk "  tuned: at least 18 of 20 right"           "$(awk '$1=="tuned"{print ($2+$4>=18)}' "$T/table.out")" 1
-chk "  held-out: at least 9 of 10 corrections are candidates" "$(awk '$1=="held-out"{print ($3==10 && $2>=9)}' "$T/table.out")" 1
+run --root "$W" --projects-dir "$PD" --json
+printf '%s' "$OUT" >"$J"
+chk "  all five are listed"                      "$(q 'd["listed"]')" 5
+has "  'roll it back' among them"                "$(q '[c["text"] for c in d["candidates"]]')" "roll it back"
+has "  'what have you done' among them"          "$(q '[c["text"] for c in d["candidates"]]')" "what have you done"
+
+echo; echo "AT MOST 200 ROWS ARE LISTED, AND IT SAYS HOW MANY MORE"
+M="$T/many"; MS="$PD/$(slug "$M")"; mkdir -p "$M" "$MS"
+"$PY" - "$MS/s.jsonl" "$M" <<'PY'
+import json, sys
+path, root = sys.argv[1:3]
+with open(path, 'w') as f:
+    for i in range(250):
+        f.write(json.dumps({"type": "assistant", "cwd": root, "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "name": "Bash", "input": {"command": "make t%d" % i}}]}}) + '\n')
+        f.write(json.dumps({"type": "user", "cwd": root, "message": {"role": "user", "content": "reply %d" % i}}) + '\n')
+PY
+run --root "$M" --projects-dir "$PD" --json
+printf '%s' "$OUT" >"$J"
+chk "  200 listed, 50 more"                      "$(q '(d["listed"], len(d["candidates"]), d["more"])')" "(200, 200, 50)"
+run --root "$M" --projects-dir "$PD"
+has "  text mode says so"                        "$OUT" "50 more (only the first 200 are listed)"
+chk "  text mode lists 200 rows"                 "$(printf '%s\n' "$OUT" | grep -c '^\[[0-9a-f]\{10\}:')" 200
+
+echo; echo "AN ID FROM ANOTHER PROJECT IS REFUSED"
+run --root "$M" --projects-dir "$PD" --json
+printf '%s' "$OUT" >"$J"
+MID="$(q 'd["candidates"][0]["id"]')"
+run --root "$C" --projects-dir "$PD" --confirm "$MID" --json
+chk "  exit 2"                                   "$CODE" 2
+chk "  nothing on stdout"                        "$OUT" ""
+run --root "$M" --projects-dir "$PD" --confirm "$MID" --min 1 --json
+chk "  the same id in its own project is accepted" "$CODE" 0
 
 echo; echo "--git: THIS REPO'S HISTORY, READ-ONLY, BOUNDED"
 G="$T/gitrepo"; mkdir -p "$G"; REALGIT="$(command -v git)"
@@ -529,11 +561,12 @@ chk "  still only read-only subcommands"         "$(cat "$T/gitrefused")" ""
 
 echo; echo "--git: SESSION ROWS COME FIRST"
 GS="$PD/$(slug "$G")"; mkdir -p "$GS"; place corrections.jsonl "$G" "$GS"
-grun --root "$G" --projects-dir "$PD" --min 2 --git --json
+GIDS="$(allids "$G")"
+grun --root "$G" --projects-dir "$PD" --confirm "$GIDS" --min 2 --git --json
 printf '%s' "$OUT" >"$J"
 chk "  the two session rows (2 each) sit above a git row of 10" \
     "$(q '[(c["source"], c["count"]) for c in d["clusters"]][:3]')" "[('session', 2), ('session', 2), ('git', 10)]"
-grun --root "$G" --projects-dir "$PD" --min 2 --git
+grun --root "$G" --projects-dir "$PD" --confirm "$GIDS" --min 2 --git
 chk "  text mode: the first row is a session row" "$(printf '%s\n' "$OUT" | grep -m1 'source:' | sed 's/ *source: \([a-z]*\).*/\1/')" "session"
 rm -rf "$GS"
 
@@ -557,7 +590,7 @@ has   "  says no pattern repeats"                "$OUT" "No pattern repeats 5 or
 hasnt "  not 'No correction repeats'"            "$OUT" "No correction repeats"
 
 echo; echo "--git AND A FOLDER THAT IS NOT A GIT REPO"
-grun --root "$C" --projects-dir "$PD" --min 1 --git --json
+grun --root "$C" --projects-dir "$PD" --confirm "$(allids "$C")" --min 1 --git --json
 chk "exit 0"                                     "$CODE" 0
 printf '%s' "$OUT" >"$J"
 chk "  the session rows still show"              "$(q 'len(d["clusters"])')" 4
@@ -567,6 +600,7 @@ echo; echo "IT NEVER WRITES"
 before="$(cd "$T" && /usr/bin/find . -print | sort | cksum)"
 run --root "$P" --projects-dir "$PD"
 run --root "$P" --projects-dir "$PD" --json
+crun "$P" --min 1
 PATH="$SHIM:$PATH" "$PY" "$S" --root "$G" --projects-dir "$PD" --git >/dev/null 2>&1
 after="$(cd "$T" && /usr/bin/find . -print | sort | cksum)"
 chk "no file created or removed under the fixtures (err capture aside)" "$before" "$after"

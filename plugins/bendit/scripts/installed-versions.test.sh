@@ -88,13 +88,43 @@ chk "--json: each checkout's version, main first" \
   "$V [(True, False, '$OLD'), (False, True, '$V')]"
 
 echo
-echo "A CHECKOUT NEWER THAN THE RUNNING COPY"
-plugins "$T/new-wt.json" "$V" "$NEW"
-run --root "$MAIN" --plugins-file "$T/new-wt.json"
-chk "a different version, even a newer one, is a mismatch: exit 1" "$RC" 1
+echo "THE MAIN CHECKOUT NEWER THAN THE RUNNING COPY"
+plugins "$T/new-main.json" "$NEW" "$V"
+run --root "$WT" --plugins-file "$T/new-main.json"
+chk "main records a newer version than the running one: a mismatch, exit 1" "$RC" 1
 has "  ...says newer" "newer than" "$OUT"
-has "  ...and the checkout behind the newest gets the update command" \
-    "cd $MAIN && claude plugin update bendit@bendit --scope project" "$OUT"
+
+echo
+echo "THE WORKTREE LIVE CASE (2026-11-23): MAIN MATCHES, THE WORKTREE'S OWN RECORD IS STALE"
+# Claude Code loads the MAIN checkout's project install in a worktree. Running
+# 0.5.1, main recorded 0.5.1, the worktree's own record said 0.5.0, and
+# `claude plugin update` in the worktree said "already at the latest version".
+# Telling the person to update the worktree and reopen looped forever.
+plugins "$T/stale-wt.json" "$V" "$OLD"
+run --root "$WT" --plugins-file "$T/stale-wt.json"
+chk "main at the running version, the worktree's own record older: exit 0" "$RC" 0
+has "  ...the worktree's record is a note" "note: " "$OUT"
+has "  ...naming the stale record" "bendit $OLD" "$OUT"
+has "  ...and saying the main checkout's install is the one that loads" "loads the main checkout's install" "$OUT"
+hasnt "  ...no update command" "claude plugin update" "$OUT"
+hasnt "  ...never called older than the running copy" "bendit $OLD (bendit@bendit) is older than" "$OUT"
+hasnt "  ...and no mismatch footer" "is the one that has to match" "$OUT"
+J="$("$PY" "$S" --root "$WT" --plugins-file "$T/stale-wt.json" --json)"; JRC=$?
+chk "--json: exit 0, ok, the note on the worktree, no update" \
+  "$JRC|$(printf '%s' "$J" | "$PY" -c 'import json,sys; d=json.load(sys.stdin); w=d["checkouts"][1]; print(d["ok"], bool(w["info"]), w["update"], w["notes"])')" \
+  "0|True True [] []"
+run --root "$MAIN" --plugins-file "$T/stale-wt.json"
+chk "  ...the same answer from the main checkout (exit 0)" "$RC" 0
+plugins "$T/new-wt.json" "$V" "$NEW"
+run --root "$WT" --plugins-file "$T/new-wt.json"
+chk "a NEWER record in the worktree is not loaded either: exit 0" "$RC" 0
+has "  ...a note" "note: " "$OUT"
+hasnt "  ...no update command" "claude plugin update" "$OUT"
+plugins "$T/both-old.json" "$OLD" "$OLD"
+run --root "$WT" --plugins-file "$T/both-old.json"
+chk "main and worktree both older: exit 1 (main's is what loads)" "$RC" 1
+has "  ...main gets the update command" "cd $MAIN && claude plugin update bendit@bendit --scope project" "$OUT"
+hasnt "  ...the worktree gets none" "cd $WT &&" "$OUT"
 
 echo
 echo "THE WEB ADD-ON IS COMPARED TOO"

@@ -24,6 +24,15 @@ capitals on macOS still matches), else when its resolved path is equal.
 It reads that file directly and never runs `claude plugin list`, which can
 hang in a folder Claude Code has not seen yet. It changes nothing.
 
+WORKTREES (v0.5.2). On 2026-11-23 a worktree ran 0.5.1, the main checkout
+recorded 0.5.1 and the worktree's own record said 0.5.0; `claude plugin update`
+in the worktree said "already at the latest version". Claude Code loads the
+main checkout's project install in a worktree. So where the main checkout
+records a plugin, a worktree's own record of it is never compared: when it
+differs from main's it is printed as `note:` (no mismatch, no update command,
+no reopen). Where main records none, the worktree's own record is compared as
+before.
+
 OUTPUT. `running: bendit <version>`, then one line per checkout. A checkout
 whose version differs is said in plain words, and every checkout behind the
 newest version seen (running or recorded) gets the exact command that updates
@@ -205,14 +214,30 @@ def report(root, plugins_file):
         for name in PLUGINS:
             row[name] = [(e['id'], e['version']) for e in installs_for(installs, path, name)]
         rows.append(row)
-    # The newest version anywhere: a checkout behind it gets its update command.
-    seen = [running] + [v for r in rows for n in PLUGINS for _, v in r[n]]
+    # A linked worktree loads the MAIN checkout's project install (2026-11-23:
+    # running 0.5.1, main 0.5.1, the worktree's own record 0.5.0, and `claude
+    # plugin update` in the worktree said "already at the latest version"). So
+    # where main records a plugin, a worktree's own record of it is not what
+    # loads: a note, never a mismatch and never an update command.
+    main_row = next((r for r in rows if r['main']), None)
+    for r in rows:
+        r['shadowed'] = [n for n in PLUGINS if not r['main'] and main_row is not None and main_row[n]]
+    # The newest version that loads somewhere: a checkout behind it gets its update command.
+    seen = [running] + [v for r in rows for n in PLUGINS if n not in r['shadowed'] for _, v in r[n]]
     newest = max(seen, key=vkey)
     mismatch = False
     for r in rows:
-        r['notes'], r['update'] = [], []
+        r['notes'], r['update'], r['info'] = [], [], []
         q = shlex.quote(r['path'])
         for name in PLUGINS:
+            if name in r['shadowed']:
+                if r[name] and sorted(v for _, v in r[name]) != sorted(v for _, v in main_row[name]):
+                    r['info'].append('%s %s (%s) is recorded for this worktree\'s own folder, but a worktree '
+                                     'loads the main checkout\'s install (%s %s), so this record is not used: '
+                                     'nothing to update here, no need to reopen Claude'
+                                     % (name, '/'.join(v for _, v in r[name]), r[name][0][0], name,
+                                        '/'.join(v for _, v in main_row[name])))
+                continue
             if not r[name]:
                 # A worktree loads the main checkout's install: none there, while
                 # another checkout has one, is the incident itself.
@@ -238,9 +263,15 @@ def text(running, rows, mismatch, user):
         tags = [t for t, on in (('main checkout', r['main']), ('this folder', r['here'])) if on]
         label = r['path'] + ''.join(' (%s)' % t for t in tags)
         vers = ', '.join('%s %s' % (n, '/'.join(v for _, v in r[n]) or 'none') for n in PLUGINS)
-        state = '; '.join(r['notes']) if r['notes'] else (
-            'matches' if any(r[n] for n in PLUGINS) else 'no project-scope install recorded for this path')
+        if r['notes']:
+            state = '; '.join(r['notes'])
+        elif r['info']:
+            state = "loads the main checkout's install (its line above)"
+        else:
+            state = 'matches' if any(r[n] for n in PLUGINS) else 'no project-scope install recorded for this path'
         out.append('%s: %s -- %s' % (label, vers, state))
+        for note in r['info']:
+            out.append('  note: %s' % note)
         for cmd in r['update']:
             out.append('  to fix it: %s' % cmd)
     for name in PLUGINS:
@@ -255,8 +286,8 @@ def text(running, rows, mismatch, user):
         out.append('user scope: %s %s -- %s; a folder with no project-scope install loads it '
                    '(a project-scope install wins)' % (name, '/'.join(vs), state))
     if mismatch:
-        out.append('Checkouts of one repo can load each other\'s install (a worktree has been seen loading the '
-                   'main checkout\'s), so every checkout should have the same version.')
+        out.append('A worktree loads the main checkout\'s install, so the main checkout\'s version is the one '
+                   'that has to match.')
     out.append(SCOPE_NOTE)
     return '\n'.join(out)
 
@@ -290,7 +321,7 @@ def main(argv):
             {'path': r['path'], 'main': r['main'], 'here': r['here'],
              'bendit': '/'.join(v for _, v in r['bendit']) or None,
              'bendit-web': '/'.join(v for _, v in r['bendit-web']) or None,
-             'notes': r['notes'], 'update': r['update']} for r in rows],
+             'notes': r['notes'], 'info': r['info'], 'update': r['update']} for r in rows],
             'user': {n: '/'.join(user[n]) or None for n in PLUGINS}}))
     else:
         print(text(running, rows, mismatch, user))

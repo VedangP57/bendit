@@ -142,6 +142,12 @@ pin "$DR" '`claude plugin install bendit@bendit --scope project`'
 pin "$DR" 'paste claude plugin install bendit@bendit --scope project into a Terminal window'
 hasnt "$DR" 'install bendit@bendit`.'
 hasnt "$DR" 'install bendit@bendit into'
+# v0.5.2: in a worktree the main checkout's install is the one that loads; the
+# worktree's own stale record is a note, or the doctor loops on "update, reopen".
+pin "$DR" "In a git worktree, Claude Code loads the main checkout's project install"
+pin "$DR" 'never a WARN, never an update command, never a reason to reopen Claude'
+pin "$DR" 'a checkout with only a `note:` line is never WARN'
+hasnt "$DR" '(WARN when its version differs)'
 # Review M1: the report template names every copy: state.
 pin "$REF/quick.md" 'copy: <installed / installer copy / other copy>'
 # Review M2: the step 6 block itself says --pm is for Node only.

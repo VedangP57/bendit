@@ -56,12 +56,20 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/installed-versions.py" --root .
    may be another version. When it says `installed` at user scope, add one
    note: `/bendit:adopt` sets bendit up for this project, so every teammate
    gets the same version.
+   In a git worktree, Claude Code loads the main checkout's project install,
+   so there `installed` means the main checkout's install, at the running
+   version. A `note:` line under it names another version the worktree
+   recorded for its own folder: that record is not the one that loads. Report
+   it as a note: never a WARN, never an update command, never a reason to reopen Claude.
 5. **installed-versions** prints `running: bendit <version>`, then which
    bendit and bendit-web version every checkout of this repo (the main one and
    each `git worktree`) has installed for its folder, or `none`. Exit 1 means
    another checkout of this repo will load a different bendit (a worktree has
    been seen loading the main checkout's install): report it as a warning, and
-   give each update command exactly as printed. Exit 2 means the versions could not be read: say
+   give each update command exactly as printed. A worktree loads the main
+   checkout's install, so a worktree's own record that differs from the main
+   checkout's is printed as an indented `note:` line, with no update command,
+   and does not change the exit code: report it as a note, never a WARN. Exit 2 means the versions could not be read: say
    so, never call it fine. Only project-scope installs are compared between checkouts: say so
    with its result. Its `user scope:` line lists a user-scope bendit (what a
    folder with no project-scope install loads); it changes no exit code. It never changes anything; never run an update
@@ -93,7 +101,8 @@ not permitted`), that is the finding: report it as every guard OFF.
 Then print ONE table, a row per check from the first three outputs (a row per feature
 from the features table, and one for the add-on scope line) and one `live test`
 row (PASS, not a pass with what came back, or `skipped` with why), one `version` row: the `running: bendit <version>` line
-and the `copy:` line, and one row per checkout from installed-versions (WARN when its version differs),
+and the `copy:` line (and its `note:` line, if any), and one row per checkout from installed-versions (WARN
+only when its line says it differs from the running version or has a `to fix it:` command; a checkout with only a `note:` line is never WARN),
 without rewording their results:
 
 | check | result | evidence rung | detail |

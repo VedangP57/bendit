@@ -553,6 +553,68 @@ mkdir -p "$T/cfg/plugins/cache/bendit/bendit/$RV"
 record "$T/cfg/plugins" project "$LP" "$RV" "$T/cfg/plugins/cache/bendit/bendit/$RV"
 has "CLAUDE_CONFIG_DIR moves Claude's folder: installed there" "copy: installed" \
     "$(cp_line "$T/cfg/plugins/cache/bendit/bendit/$RV" HOME="$H" CLAUDE_CONFIG_DIR="$T/cfg")"
+# A git worktree loads the MAIN checkout's project install (2026-11-23: running
+# 0.5.1, main recorded 0.5.1, the worktree's own record 0.5.0, and `claude
+# plugin update` in the worktree said "already at the latest version"). The
+# doctor said "other copy", update and reopen, forever.
+WM="$T/cp-main"; WW="$T/cp-wt"; mkdir -p "$WM"; git -C "$WM" init -q
+git -C "$WM" -c user.name=t -c user.email=nobody commit -q --allow-empty -m init
+git -C "$WM" worktree add -q "$WW" -b wt 2>/dev/null
+wt_line() {  # wt_line <cwd> <plugin root> [env...] -- the copy: and note: lines --session prints
+  local dir="$1" root="$2"; shift 2
+  (cd "$dir" && env "$@" CLAUDE_PLUGIN_ROOT="$root" CLAUDE_CODE_SESSION_ID=win-started-here \
+     "$PY" "$KIT/scripts/selfcheck.py" --session 2>&1) | grep -E '^(copy|note):'
+}
+# wrecord <main version|-> <main installPath> <wt version|-> <wt installPath> [<user version>]
+wrecord() {
+  "$PY" -c 'import json,sys
+d, wm, ww, mv, mi, wv, wi = sys.argv[1:8]
+uv = sys.argv[8] if len(sys.argv) > 8 else "-"
+e = []
+if mv != "-": e.append({"scope": "project", "projectPath": wm, "version": mv, "installPath": mi})
+if wv != "-": e.append({"scope": "project", "projectPath": ww, "version": wv, "installPath": wi})
+if uv != "-": e.append({"scope": "user", "version": uv, "installPath": d + "/cache/bendit/bendit/" + uv})
+json.dump({"version": 2, "plugins": {"bendit@bendit": e}}, open(d + "/installed_plugins.json", "w"))' \
+    "$H/.claude/plugins" "$WM" "$WW" "$@"
+}
+wrecord "$RV" "$C/$RV" 0.0.1 "$C/0.0.1"
+OUTW="$(wt_line "$WW" "$C/$RV" HOME="$H")"
+has "worktree: main records the running copy, the worktree 0.0.1: copy: installed" "copy: installed" "$OUTW"
+has "  ...saying it is the main checkout's install" "main checkout" "$OUTW"
+has "  ...the worktree's own record is a note" "note: " "$OUTW"
+has "  ...naming its version" "0.0.1" "$OUTW"
+hasnt "  ...and never to reopen Claude" "open it again" "$OUTW"
+hasnt "  ...nor to update" "claude plugin update" "$OUTW"
+wrecord "$RV" "$C/$RV" "$RV" "$C/$RV"
+OUTW="$(wt_line "$WW" "$C/$RV" HOME="$H")"
+has "worktree and main both at the running copy: installed" "copy: installed" "$OUTW"
+hasnt "  ...and no note" "note: " "$OUTW"
+# Kept from v0.5.1: the 2026-11-22 incident. The worktree's own record is the
+# running copy, main records an older one: a reopened window runs main's.
+wrecord 0.0.1 "$C/0.0.1" "$RV" "$C/$RV"
+OUTW="$(wt_line "$WW" "$C/$RV" HOME="$H")"
+has "worktree at the running copy, main older: other copy" "copy: other copy" "$OUTW"
+has "  ...names what the main checkout records" "records bendit 0.0.1" "$OUTW"
+has "  ...and says to reopen Claude" "open it again" "$OUTW"
+# Main records nothing: the worktree's own record is read, as in v0.5.1.
+wrecord - - "$RV" "$C/$RV"
+has "main none, the worktree's own record at the running copy: installed (as in v0.5.1)" "copy: installed" \
+    "$(wt_line "$WW" "$C/$RV" HOME="$H")"
+wrecord - - 0.0.1 "$C/0.0.1"
+has "main none, the worktree's own record older: other copy" "copy: other copy" "$(wt_line "$WW" "$C/$RV" HOME="$H")"
+# The user-scope rule, in a worktree: no project install in either checkout.
+wrecord - - - - "$RV"
+has "worktree, no project install anywhere, user scope at the running copy: installed" "user scope" \
+    "$(wt_line "$WW" "$C/$RV" HOME="$H")"
+wrecord "$RV" "$C/$RV" - - "$RV"
+OUTW="$(wt_line "$WW" "$C/$RV" HOME="$H")"
+has "worktree, main has a project install: project scope wins over user scope" "project scope" "$OUTW"
+has "  ...installed" "copy: installed" "$OUTW"
+# From the main checkout itself nothing changes.
+wrecord "$RV" "$C/$RV" 0.0.1 "$C/0.0.1"
+OUTW="$(wt_line "$WM" "$C/$RV" HOME="$H")"
+has "from the main checkout: installed, project scope" "copy: installed (bendit $RV" "$OUTW"
+hasnt "  ...and no worktree note there" "note: " "$OUTW"
 startup "win-copy" startup
 win "win-copy"
 chk "the copy: line never changes --session's exit (still 0 when live)" "$WIN_RC" 0

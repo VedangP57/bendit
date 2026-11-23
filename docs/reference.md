@@ -245,6 +245,12 @@ nothing. Local-scope installs are not read, and the user scope line changes no
 exit code. The doctor shows it as a `version` row, WARN when a checkout
 differs.
 
+In a git worktree, Claude Code loads the main checkout's project install
+(v0.5.2). Where the main checkout records bendit, `copy: installed` means the
+main checkout's install, and a worktree's own record that differs is printed
+as a `note:` line by both scripts: no update command, no exit 1, no "reopen".
+Where the main checkout records none, the worktree's own record counts.
+
 ## Enforced and advice in full
 
 | | What | How |

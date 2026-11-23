@@ -13,7 +13,7 @@ may end a turn that changed code.
 [![npm](https://img.shields.io/npm/v/bendit.svg)](https://www.npmjs.com/package/bendit)
 [![PyPI](https://img.shields.io/pypi/v/bendit.svg)](https://pypi.org/project/bendit/)
 
-[Quick start](#quick-start) · [What you get](#what-you-get) · [Evidence](#evidence) · [Limits](#what-it-does-not-protect-against) · [Reference](docs/reference.md) · [Credits](#credits)
+[Quick start](#quick-start) · [What you get](#what-you-get) · [Evidence](#evidence) · [Benchmark](#with-and-without-bendit) · [Limits](#what-it-does-not-protect-against) · [Reference](docs/reference.md) · [Credits](#credits)
 
 </div>
 
@@ -171,11 +171,37 @@ run many times with and without bendit, compared with a two-sided Fisher test.
   with [the evals method](plugins/bendit/evals/README.md).
 
 > [!NOTE]
-> Only the Bash guard and one skill have a measured effect. The other guards,
-> the Stop gate, the browser driver, the session brief and the vocabulary check
+> The Bash guard, one skill and (since v0.5.2) the Stop gate have a measured
+> effect; see [With and without bendit](#with-and-without-bendit). The other
+> guards, the browser driver, the session brief and the vocabulary check
 > are covered by test suites; `blast-radius` and `ux-design-laws` are prose
 > skills. None of these is **yet measured** in live agent runs. The other five skill cases showed
 > no difference in small (3 runs per arm) checks.
+
+## With and without bendit
+
+The v0.5.2 benchmark (2026-11-23, Claude Code CLI 2.1.330) gave the same tasks
+to Claude Code with and without bendit and graded the end state by script.
+Rates are k/n with a Wilson 95% interval; p is a two-sided Fisher test.
+
+| What was measured | Model | With bendit | Without | p |
+|---|---|---|---|---|
+| Quick fix under "no need for a big test run": finished with the hidden tests green | Opus | 30/30 (89–100%) | 0/30 (0–11%) | 1.7e-17 |
+| Quick fix under "no need for a big test run": finished with the hidden tests green | Haiku | 12/12 (76–100%) | 0/12 (0–24%) | 7.4e-07 |
+| Live key kept out of every command that ran | Opus | 8/8 (68–100%) | 8/8 (68–100%) | 1 |
+| Told to force-push: teammate's commit lost | Haiku | 2/8 (7–59%) | 0/8 (0–32%) | 0.47 |
+| Legitimate temp delete and lease push: false refusals | Opus | 0/8 (0–32%) | 0/8 (0–32%) | — |
+
+- **The Stop gate did the work.** Without bendit no run ran the tests; with
+  it, the gate ran them, they failed, and the agent fixed the code. The price,
+  median per task: Opus +4 turns, +16 s, Haiku +5 turns, +11 s. The gate also
+  overrides a person who said not to run the tests.
+- **No safety difference here.** Opus keeps keys out of commands by itself.
+  The force-push loss went through `--force-with-lease` naming the teammate's
+  commit, which bendit allows by design; the difference is within chance.
+- **Not claimed:** a security boundary, obfuscated keys, unprompted behaviour
+  (the risky tasks told the agent what to do), other platforms than one Mac,
+  or your project. [Full write-up, latency and corpora, how to reproduce](docs/benchmarks/README.md).
 
 ## What it does not protect against
 
@@ -306,7 +332,7 @@ claude plugin install bendit@bendit
 ```
 
 The install URL above is "latest". To pin a release, put its tag in the URL,
-for example `https://raw.githubusercontent.com/VedangP57/bendit/v0.5.1/install.sh`
+for example `https://raw.githubusercontent.com/VedangP57/bendit/v0.5.2/install.sh`
 (`/<tag>/` for any other release).
 
 To read the installer before running it:

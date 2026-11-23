@@ -1,6 +1,6 @@
 {
   "name": "bendit",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Enforced rules for coding agents: fail-closed guard hooks, a verification gate, practice skills, and /bendit:adopt for any project.",
   "license": "MIT",
   "repository": {

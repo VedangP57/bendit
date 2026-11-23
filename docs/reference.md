@@ -42,7 +42,7 @@ bendit                 # run in your project folder
 ```
 
 That URL is "latest". To pin a release, put its tag in the URL, for example
-`https://raw.githubusercontent.com/VedangP57/bendit/v0.5.1/install.sh`
+`https://raw.githubusercontent.com/VedangP57/bendit/v0.5.2/install.sh`
 (`/<tag>/` for any other release).
 
 **What it does.** The installer checks that your machine has what bendit needs
@@ -236,14 +236,26 @@ would run a different bendit.
 `installed-versions.py` prints `running: bendit <version>`, then, for every
 checkout of the repo (the main one and each `git worktree`), the bendit and
 bendit-web versions recorded for it at project scope, then a `user scope:`
-line. Exit 1 means another checkout will load a different version (a worktree
-has been seen loading the main checkout's install), with the exact `cd <path>
-&& claude plugin update <id> --scope project` for each checkout behind. Exit 2
+line. Exit 1 means a checkout that loads its own install records a different
+version, or the main checkout has none while another checkout has one, with the
+exact `cd <path> && claude plugin update <id> --scope project` (or `install`)
+for each checkout behind. A worktree's own record where the main checkout
+records bendit is not compared (see below). Exit 2
 means it could not read the versions, never "all fine". It reads
 `installed_plugins.json` directly, never runs `claude plugin list`, and changes
 nothing. Local-scope installs are not read, and the user scope line changes no
 exit code. The doctor shows it as a `version` row, WARN when a checkout
-differs.
+differs or has a fix command; a `note:` line alone is never WARN.
+
+In a git worktree, Claude Code loads the main checkout's project install
+(v0.5.2). Where the main checkout records bendit, `copy: installed` means the
+main checkout's install, and a worktree's own record that differs is printed
+as a `note:` line by both scripts: no update command, no exit 1, no "reopen".
+Where the main checkout records none, only the `copy:` line reads the
+worktree's own record (`installed` when it is the running copy), and adds a
+`note:` that the main checkout has no bendit install, with the install command;
+installed-versions reports the main checkout as missing it (exit 1), with that
+same command. Which install Claude Code loads in that case is unverified.
 
 ## Enforced and advice in full
 

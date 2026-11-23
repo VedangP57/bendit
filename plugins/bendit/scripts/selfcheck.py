@@ -50,7 +50,9 @@ project scope (installPath the same folder, same version) -- the only copy a
 reopened window is known to run -- or the installer's download (under
 ${BENDIT_CACHE:-${XDG_CACHE_HOME:-~/.cache}/bendit}/, loaded with --plugin-dir
 as bendit@inline) or any folder outside Claude's plugin cache (`installer
-copy`), or some other copy in that cache (`other copy`).
+copy`), or some other copy in that cache (`other copy`). In a git worktree the
+main checkout's project install is the one Claude Code loads; the worktree's own
+differing record is printed as a `note:` line under it.
 
 Exit (table mode): 0 every hook answered, 1 something is OFF or unchecked.
 """
@@ -476,7 +478,11 @@ def copy_line():
     bendit@inline, or any folder outside Claude's plugin cache) or `other copy`
     (in Claude's plugin cache, but not what this project loads: a user-scope
     copy where a project install exists, another project's, another version,
-    or the record could not be read)."""
+    or the record could not be read).
+    In a linked git worktree whose MAIN checkout records bendit at project
+    scope, "this project" is the main checkout: Claude Code loads its install
+    there. The worktree's own record, when it differs, is a `note:` line (never
+    a reason to update or reopen). Main recording none: the worktree's own."""
     root = os.environ.get('CLAUDE_PLUGIN_ROOT') or KIT
     home = os.path.expanduser('~')
     claude_dir = os.environ.get('CLAUDE_CONFIG_DIR') or os.path.join(home, '.claude')
@@ -504,14 +510,41 @@ def copy_line():
         iv = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(iv)
         everything = iv.load_all(iv.default_plugins_file())
-        mine = iv.installs_for([e for e in everything if e['scope'] == 'project'], project, 'bendit')
+        projects = [e for e in everything if e['scope'] == 'project']
+        mine = iv.installs_for(projects, project, 'bendit')
         users = [e for e in everything if e['scope'] == 'user' and e['name'] == 'bendit']
+        # A linked worktree loads the MAIN checkout's project install (2026-11-23:
+        # main 0.5.1 ran, the worktree's own record said 0.5.0, and `claude plugin
+        # update` there said "already at the latest version"). Where main records
+        # bendit, that is this window's install; the worktree's own record is a note.
+        main = next((p for p, is_main in iv.checkouts(project) if is_main), None)
+        own, via_main, main_none = [], None, None
+        if main and not iv.same_path(main, project):
+            mains = iv.installs_for(projects, main, 'bendit')
+            if mains:
+                own, mine, via_main = mine, mains, main
+            elif mine:
+                main_none = main
     except Exception as e:  # noqa: BLE001 -- unreadable: never "installed"
         return (f'copy: other copy ({version}, {root}; which bendit this project records could not be read: '
                 f'{type(e).__name__}) -- {reopen}')
+    note = ''
+    if own and sorted(e['version'] for e in own) != sorted(e['version'] for e in mine):
+        note = ('\nnote: this worktree (%s) also records bendit %s for its own folder; Claude Code loads the main '
+                'checkout\'s install in a worktree, so that record is not used and needs no update'
+                % (project, ', '.join(sorted({e['version'] for e in own}))))
+    if main_none:
+        # Unverified which install Claude Code loads here; installed-versions
+        # says main is missing it (exit 1) with this same command.
+        note = ("\nnote: the main checkout (%s) has no bendit install; Claude Code may load the main checkout's "
+                'install for worktrees, so install it there too: cd %s && claude plugin install %s --scope project'
+                % (main_none, iv.shlex.quote(main_none), mine[0]['id']))
     for e in mine:
         if e['install'] and running and e['version'] == running and iv.same_path(e['install'], root):
-            return f'copy: installed ({version}, {root}; project scope)'
+            if via_main:
+                return (f"copy: installed ({version}, {root}; project scope: the main checkout's install "
+                        f'({via_main}), which Claude Code loads in this worktree)') + note
+            return f'copy: installed ({version}, {root}; project scope)' + note
     # No project-scope install here: Claude Code loads the user-scope one, so
     # a reopened window runs this same copy. A project install always wins.
     if not mine:
@@ -520,8 +553,10 @@ def copy_line():
                 return (f'copy: installed ({version}, {root}; user scope: this project ({project}) records no '
                         f'project-scope bendit, so a reopened window runs this same copy)')
     recorded = ', '.join(sorted({e['version'] for e in mine})) or 'none'
-    return (f'copy: other copy ({version}, {root}; this project ({project}) records bendit {recorded} at '
-            f'project scope) -- {reopen}')
+    whose = (f'the main checkout ({via_main}), whose install this worktree loads,' if via_main
+             else f'this project ({project})')
+    return (f'copy: other copy ({version}, {root}; {whose} records bendit {recorded} at '
+            f'project scope) -- {reopen}') + note
 
 
 def session_report():

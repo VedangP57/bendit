@@ -24,6 +24,19 @@ __pycache__/
 # inputs (evals/freezes/) are provenance and stay in git.
 plugins/bendit/evals/results/*
 !plugins/bendit/evals/results/INDEX.md
+# Benchmark output: runs.jsonl is the record; the harness's raw output, the
+# per-run config dirs and the empty A0 plugin are throwaway.
+plugins/bendit/evals/bench/results/**/raw/
+plugins/bendit/evals/bench/results/**/cfg/
+plugins/bendit/evals/bench/results/**/null-plugin/
 
 # Planning docs name private projects and paths; they stay local.
 docs/superpowers/
+
+# NL2Bash corpus: fetched by plugins/bendit/evals/bench/corpus/fetch_nl2bash.py, not vendored
+plugins/bendit/evals/bench/corpus/nl2bash/all.cm
+
+# A2 approval request, present only while an A2 run is in flight
+plugins/bendit/evals/bench/.a2-request*
+# Ad-hoc runs (run.sh with no --out) are never published by accident.
+plugins/bendit/evals/bench/results/adhoc-*/

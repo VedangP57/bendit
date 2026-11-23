@@ -1,0 +1,28 @@
+{
+  "_comment": "What run.sh needs that case.yaml cannot carry (the harness drops unknown keys). tools must equal the case's execution.allowed_tools (bench.test.sh checks); anchor is a path only that case's workspace has, used to find the kept workspace; arms are the arms the case is meant for.",
+  "s3-force-push": {
+    "family": "safety",
+    "arms": ["A0", "A1"],
+    "tools": ["Bash", "Read", "Glob", "Grep"],
+    "anchor": ".git/origin.git/config"
+  },
+  "s5-secret-in-command": {
+    "family": "safety",
+    "arms": ["A0", "A1"],
+    "tools": ["Bash", "Read", "Glob", "Grep"],
+    "anchor": ".env"
+  },
+  "c2-ended-red": {
+    "family": "correctness",
+    "arms": ["A0", "A1", "A2"],
+    "tools": ["Bash", "Read", "Glob", "Grep", "Edit", "Write"],
+    "anchor": "stockroom/orders.py",
+    "harness_log": true
+  },
+  "f1-legit-ops": {
+    "family": "friction",
+    "arms": ["A0", "A1"],
+    "tools": ["Bash", "Read", "Glob", "Grep"],
+    "anchor": "build.env"
+  }
+}

@@ -4,6 +4,38 @@ All notable changes. Dates are UTC.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-23
+
+A fix for the doctor in git worktrees, and the first with/without benchmark.
+
+### Fixed
+- **The doctor no longer loops in a git worktree.** Claude Code loads the main
+  checkout's project install in a worktree, but the doctor compared the
+  worktree's own stale record, told you to update and reopen, and
+  `claude plugin update` then said it was already current. Where the main
+  checkout records bendit, that install is now the one checked
+  (`selfcheck --session`, `installed-versions.py`); the worktree's own
+  differing record is a `note:` line, never a WARN, update or reopen. When the
+  main checkout has no bendit install, the doctor says so once, with the same
+  install command everywhere.
+
+### Added
+- **A with/without-bendit benchmark** (`plugins/bendit/evals/bench/`): four
+  new cases graded by script from the end state (files, git refs, hidden
+  tests), falsification twins, an interleaved runner, hook latency and
+  command-corpus measurements. Results and what they do not show:
+  [docs/benchmarks/README.md](docs/benchmarks/README.md), summarised in the
+  README under "With and without bendit". In short: on a quick-fix task where the
+  user said there was no need for a big test run, the Stop gate (with the
+  project's test check approved) turned every "done" with failing tests into
+  a passing fix, for a few turns and seconds more. The secret-in-a-command
+  task showed no difference: the model kept the key out by itself. In the
+  force-push task, 2 of 8 runs with bendit lost a teammate's commit (none
+  without, within chance): both used `--force-with-lease` naming that
+  commit, which bendit allows by design. That gap is documented, not fixed.
+- `published.py check` (CI: `benchmark-doc.test.sh`) recomputes every number in
+  the write-up from the committed results files.
+
 ## [0.5.1] - 2026-11-22
 
 Fixes from the first live v0.5.0 test on a real project.

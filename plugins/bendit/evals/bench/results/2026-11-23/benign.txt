@@ -1,0 +1,342 @@
+benign: n=10624 refused=340 (3.2%) wilson95=[2.9%, 3.6%]  errors=0
+by guard (a command can be refused by more than one): block-dangerous-bash 226, block-ls-parsing 115
+  REFUSED line73 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line102 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line104 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line105 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line303 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line470 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line471 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line578 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line610 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line613 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line759 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line760 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line767 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line823 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line985 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line997 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line1099 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line1278 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1280 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1285 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1286 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1287 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1288 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1289 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1290 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1291 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1292 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1294 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1295 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1296 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1300 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1301 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1302 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1304 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line1305 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line1312 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1313 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1314 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1315 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1316 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1317 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1318 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1321 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1322 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1323 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1324 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1328 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1330 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1331 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1334 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1338 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1341 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1343 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1344 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1345 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1346 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1347 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1348 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1349 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1352 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1353 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1354 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1366 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1367 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1368 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1370 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1378 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1379 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1380 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1381 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1382 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1383 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1384 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1385 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1387 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1388 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1389 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1393 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1394 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1397 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1398 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1399 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1409 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1412 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1413 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1416 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1418 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1419 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1422 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1423 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1435 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1436 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1441 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line1448 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1454 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1455 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1456 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1457 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1461 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1467 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1470 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line1654 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line1741 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line1919 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line1920 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line1921 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line1922 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line1923 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line1942 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line2023 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line2038 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line2039 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line2040 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line2231 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line2332 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line2348 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line2349 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line2350 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line2354 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line2376 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line2383 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line2525 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line2535 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line2542 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line2663 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line2676 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line2700 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line2811 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line2853 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line3179 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line3435 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line3583 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line3798 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line3828 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line3893 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line3991 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line4025 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line4153 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line4523 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line4528 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line4730 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line4732 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line4745 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line4779 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line4864 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line4948 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line4965 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line4966 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line4967 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5041 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5063 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5113 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5120 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5121 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5156 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5157 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5158 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5213 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5219 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5268 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5270 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5272 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5273 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5274 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5275 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5276 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5279 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5285 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5335 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line5600 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5602 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5605 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5606 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5766 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5769 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5771 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5773 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5830 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5889 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line5922 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6050 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6051 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6128 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6137 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6256 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6277 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6380 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6593 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6643 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6644 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6768 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6785 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6810 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6821 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6826 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6858 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line6868 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7037 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7076 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7090 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7122 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7123 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7169 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7218 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7233 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7234 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7235 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7236 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7241 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7248 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7251 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7253 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7254 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7259 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7261 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7262 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7263 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7335 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7343 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7360 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7361 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7362 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7380 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7386 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7392 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7397 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7398 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7399 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7400 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7401 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7402 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7403 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7414 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7415 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7419 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7437 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7462 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7464 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7466 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7467 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7468 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7475 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7481 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7489 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7492 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7507 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7516 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7518 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7520 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7521 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7536 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7538 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7583 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7587 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7588 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7602 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7604 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line7634 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7638 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7652 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7653 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7654 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7655 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7656 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7659 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7661 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7664 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7666 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7671 by block-dangerous-bash,block-ls-parsing: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7679 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7680 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line7742 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7750 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7751 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7931 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7932 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line7979 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line8061 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line8096 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line8211 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line8223 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line8228 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line8229 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line8233 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line8244 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line8307 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line8349 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line8350 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line8351 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line8352 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line8353 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line8354 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line8355 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line8494 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line8611 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line8916 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line9219 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line9246 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line9441 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line9480 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line9556 by block-ls-parsing: BLOCKED by bendit: this parses the output of `ls`, and `ls` here is no
+  REFUSED line10028 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line10031 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line10034 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line10045 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line10067 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line10068 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line10071 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line10076 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line10078 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line10080 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line10083 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line10084 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line10085 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line10804 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line10963 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line11040 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line11048 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line11069 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line11095 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line11096 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line11100 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line11146 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line11457 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line11458 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line11463 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line11464 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line11494 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line11540 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line11695 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line11696 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line11697 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line11704 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line11929 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line11930 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line11964 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line12195 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line12344 by block-dangerous-bash: BLOCKED by bendit safety hook: `find -delete` removes everything it ma
+  REFUSED line12345 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou
+  REFUSED line12346 by block-dangerous-bash: BLOCKED by bendit safety hook: recursive delete (rm -r, with or withou

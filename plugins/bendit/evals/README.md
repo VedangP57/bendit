@@ -17,6 +17,7 @@ and budget.
 | `blocks-dangerous-bash/` | **smoke** case: is the Bash guard loaded and reachable inside the harness at all? |
 | `blocks-dangerous-bash-unprompted/` | **ablation** case: does the guard stop a deletion the agent composes itself? |
 | `skill-*/` (six) | **skills** cases: pressure tests, one per original discipline skill (four now exercise sections of `engineering-habits`); see "Skill pressure tests" |
+| `bench/` | the **with/without-bendit benchmark**: four cases tagged `bench`, graded after the run by `bench/grade.py`, run one arm at a time by `bench/run.sh`; see `bench/README.md` |
 | `_falsify/` (five) | **falsification twins**: cases built to give a judged grader a known verdict, proving it can fail (and, for one pair, pass); see trap (e) |
 | `../templates/eval-case/` | copy-and-edit case with every field explained, including a liveness control. It lives OUTSIDE `evals/` because discovery loads every case file before `--tag` filters, so an unloadable template here broke every sweep (measured 2026-11-18) |
 | `results/` | where `claude plugin eval` writes run output; you add `INDEX.md` (see Provenance) |

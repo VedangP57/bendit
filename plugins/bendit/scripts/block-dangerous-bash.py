@@ -88,6 +88,7 @@ if __name__ == '__main__':
     sys.excepthook = _refuse_uncaught
 try:
     from shell_text import SHELLS, SQL_CLIENTS, _match_close, lex, shell_c_string, simple_commands, unwrap  # noqa: E402
+    from shell_text import _ASSIGN, _FUNC_HEADER, _RESERVED, _WRAPPERS, _command_name  # noqa: E402
 except SystemExit as _exc:   # a helper that exits on import never reaches excepthook
     raise ImportError(f'shell_text.py raised SystemExit on import (exit {_exc.code})') from None
 
@@ -561,10 +562,20 @@ def push_deletes_remote_refs(s):
 # `branch.<b>.merge`..., `--config-env`) or as GIT_CONFIG_PARAMETERS /
 # GIT_CONFIG_COUNT / GIT_CONFIG_KEY_* / GIT_CONFIG_VALUE_* in the environment.
 #
+# A lease push launched by something that runs a command or appends to it is
+# refused outright: xargs (it supplies words at run time -- `xargs -I{} git
+# push --force-with-lease origin {}` lost sam's commit for real), find -exec,
+# parallel, eval, source/., `sh -c` and a shell fed by a pipe, here-string or
+# heredoc, env -S, watch, script, su, sudo -s/-i, a trap, a function or alias
+# defined in the line, and a git alias given with `git -c alias.*`. nohup,
+# timeout, nice, stdbuf, time, command, exec, env and plain sudo with literal
+# words are read through, as before.
+#
 # KNOWN LIMITS: authorship is the author email, which anyone can set. The
 # tracking ref is assumed to be refs/remotes/<remote>/<branch> (the default
 # fetch refspec). A cd inside `( )` before the push is read as if it moved the
-# push's shell. `git -c alias.x=push x ...` is not seen as a push.
+# push's shell. An alias in git's config on disk is not followed, and nor is a
+# lease flag that only a file or another command supplies (`xargs -a args`).
 _LEASE_DEADLINE_S = 6.0   # every git call for one command; the hook's timeout is 10 s
 _HEXISH = re.compile(r'^[0-9a-fA-F]{7,40}$')
 # Variables that make git use another repository, worktree or config than the
@@ -622,6 +633,112 @@ def _runtime_word(s):
     for hd in s.cmd.heredocs:
         if not hd.quoted and re.search(r'[$`]', hd.body):
             return f'<<{hd.delim}'
+    return None
+
+
+# Wrappers whose words the guard reads through, as long as they are literal
+# (`_runtime_word` refuses any that are not) -- with the options that make them
+# run a shell or move to another folder refused.
+_READ_THROUGH = frozenset({'nohup', 'time', 'nice', 'ionice', 'timeout', 'gtimeout',
+                           'stdbuf', 'command', 'builtin', 'exec', 'noglob', 'nocorrect',
+                           'chronic', 'caffeinate', 'env', 'sudo', 'doas'})
+# Commands that run another command, from their words, a string, or stdin.
+_LAUNCHERS = frozenset({'xargs', 'parallel', 'sem', 'find', 'eval', 'source', '.', 'watch',
+                        'script', 'su', 'runuser', 'alias', 'trap', 'env', 'sudo', 'doas',
+                        'nohup', 'timeout', 'gtimeout', 'nice', 'stdbuf', 'time', 'exec',
+                        'command', 'builtin'}) | SHELLS
+_LEASE_TEXT = re.compile(r'--force-w')   # any spelling git accepts of --force-with-lease
+_FUNC_DEF = re.compile(r'(?:^|[\s;&|({])function\s+[\w.:-]+|[\w.:-]\s*\(\s*\)\s*[{(]')
+
+
+def _bad_option(name, x):
+    """An option that makes a read-through wrapper run a shell or change folder."""
+    if name in ('sudo', 'doas'):
+        if x.startswith('--'):
+            return x.split('=', 1)[0] in ('--shell', '--login', '--chdir')
+        return any(ch in 'siD' for ch in x[1:])
+    if name == 'env':
+        if x.startswith('--'):
+            return x.split('=', 1)[0] in ('--chdir', '--split-string')
+        return any(ch in 'CS' for ch in x[1:])
+    return False
+
+
+_IN_FUNCTION = 'is inside a function defined in this command, which runs only when it is called'
+
+
+def _launcher(s):
+    """How this lease push is launched when the guard cannot read the push
+    through it -- a wrapper, a string a shell runs, a heredoc fed to a shell, a
+    function -- or None when the push is written out as its own command."""
+    if s.via:
+        return f'is run through `{s.via[-1]}`'
+    fed = s.cmd.fed_by
+    if fed is not None and fed.fed_to & _LAUNCHERS:
+        return f'is run through `{sorted(fed.fed_to & _LAUNCHERS)[0]} <<{fed.delim}`'
+    if _FUNC_DEF.search(_COMMAND[0]):
+        return _IN_FUNCTION
+    raw = s.cmd.argv
+    k = next((n for n, w in enumerate(raw)
+              if _command_name(w) == 'git' and unwrap(raw[n:]) == s.argv), None)
+    if k is None:   # env -S, a container runner: the push is not a suffix of the words
+        shown = ' '.join(raw[:2]) if raw else 'a wrapper'
+        return f'is run through `{shown if len(shown) <= 40 else shown[:37] + "..."}`'
+    p = 0
+    while p < k:
+        w = raw[p]
+        if w in _RESERVED or _ASSIGN.match(w):
+            p += 1
+            continue
+        if w == 'function' or _FUNC_HEADER.fullmatch(w):
+            return _IN_FUNCTION
+        name = _command_name(w)
+        if name not in _READ_THROUGH:
+            return f'is run through `{w}`'
+        with_arg, positional, _stop = _WRAPPERS[name]
+        p += 1
+        while p < k and raw[p].startswith('-') and raw[p] != '-':
+            x = raw[p]
+            if x == '--':
+                p += 1
+                break
+            if _bad_option(name, x):
+                return f'is run through `{w} {x}`'
+            p += 2 if x in with_arg else 1
+        p += positional
+    return None
+
+
+def _git_push(argv) -> bool:
+    i, _ = _git(argv) if argv else (None, [])
+    return i is not None and argv[i] == 'push'
+
+
+def _lease_run_unseen(s):
+    """For a command that is not itself a git push: the launcher that would
+    run a lease push the guard cannot read -- `watch`, `alias`, `source <(...)`,
+    an `xargs` or shell fed it on stdin, `git -c alias.p='push --force-with-lease'`
+    -- or None."""
+    a = s.argv
+    if a[0] == 'git':
+        _, configs = _git(a)
+        for c in configs:
+            if c.lower().startswith('alias.') and _LEASE_TEXT.search(c):
+                return 'git -c ' + c.split('=', 1)[0]
+        for k in range(1, len(a)):
+            if a[k].startswith('--config-env') and 'alias.' in a[k].lower():
+                return 'git --config-env alias'
+    names = {_command_name(w) for w in s.cmd.argv} | {a[0]}
+    hit = sorted(names & _LAUNCHERS)
+    if not hit:
+        return None
+    cmds = [s.cmd]
+    if s.cmd in s.cmd.pipe:   # what reaches it on stdin, except a lease push run as itself
+        cmds = [c for c in s.cmd.pipe[:s.cmd.pipe.index(s.cmd)] if not _git_push(unwrap(c.argv))] + cmds
+    for c in cmds:
+        texts = c.argv + list(c.herestrings) + [h.body for h in c.heredocs]
+        if any(_LEASE_TEXT.search(t) for t in texts):
+            return hit[0] if a[0] not in _LAUNCHERS else a[0]
     return None
 
 
@@ -888,11 +1005,21 @@ def force_with_lease_foreign(s):
     someone else wrote. Returns the reason, naming them, or False."""
     i, _ = _git(s.argv)
     if i is None or s.argv[i] != 'push':
+        unseen = _lease_run_unseen(s)
+        if unseen:
+            return (f'`{unseen}` would run a `git push --force-with-lease` that bendit cannot '
+                    f'read ahead of time, so it cannot tell what the push would discard — write '
+                    f'the push out literally as its own command')
         return False
     leases, remote, refspecs, all_refs = _push_leases(s.argv[i + 1:])
     if not leases:
         return False
     written = leases[0][2]
+    launcher = _launcher(s)
+    if launcher is not None:
+        return (f'`{written}` {launcher}: the push\'s words, or when it runs, are decided '
+                f'only at run time, so bendit cannot tell what this push would discard — write '
+                f'the push out literally as its own command')
     env = _GIT_ENV.search(_COMMAND[0]) or next(
         (m for m in map(_GIT_ENV.match, s.cmd.argv) if m), None)
     if env:

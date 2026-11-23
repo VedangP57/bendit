@@ -772,6 +772,9 @@ lg() { GIT_AUTHOR_NAME="$1" GIT_AUTHOR_EMAIL="$1@example.invalid" GIT_COMMITTER_
   # noid: a clone with no user.email, squashing my commits.
   git clone -q -b squash "$LT/remote.git" "$LT/noid"
   lg me 8 "$LT/noid" reset -q --soft HEAD~2; lg me 8 "$LT/noid" commit -qm "squash: both"
+  # onsolo: my repository with solo checked out, so a push with no refspec
+  # names solo while a wrapper may hand it feature/checkout.
+  git -C "$LT/me" worktree add -q "$LT/onsolo" solo
 } >/dev/null 2>&1
 TM=$(git -C "$LT/me" rev-parse origin/feature/checkout)    # sam's commit
 BASE=$(git -C "$LT/me" rev-parse feature/checkout~1)      # an ancestor of HEAD
@@ -950,6 +953,67 @@ run_in 0 "CONTROL: lease on HEAD itself"       "$ME" "git push --force-with-leas
 run_in 0 "CONTROL: lease on 'must not exist'"  "$ME" "git push --force-with-lease=feature/new: origin HEAD:feature/new"
 run_in 0 "CONTROL: --no-force-with-lease drops it" "$ME" "git push --force-with-lease=feature/checkout:$S --no-force-with-lease origin feature/checkout"
 run_in 0 "CONTROL: a commit message about it"  "$ME" "git commit --allow-empty -m 'never --force-with-lease=feature/checkout:$S'"
+
+echo
+echo "A LEASE PUSH RUN THROUGH A WRAPPER"
+# A wrapper that runs a command, or appends arguments to it, decides at run
+# time what the push is: `xargs -I{} ... {}` hands it the branch, `sh -c` and
+# `eval` run a string, a function or alias runs later. The guard reads the
+# words as written, so it judged a different push -- and sam's commit was lost
+# for real. A lease push launched that way is refused: write it out as its own
+# command. Every push here would be allowed if written out literally (solo).
+OS="$LT/onsolo"
+run_in 2 "xargs -I{} supplies the branch (N3)"   "$ME" 'git branch --show-current | xargs -I{} git push --force-with-lease origin {}'
+run_in 2 "xargs -I% supplies the branch"         "$ME" 'git branch --show-current | xargs -I% git push --force-with-lease origin %'
+run_in 2 "plain xargs appends the branch"        "$OS" 'echo feature/checkout | xargs git push --force-with-lease origin'
+run_in 2 "xargs with every word literal"         "$ME" 'echo | xargs git push --force-with-lease origin solo'
+run_in 2 "xargs -0 -n1"                          "$ME" "printf 'solo\\0' | xargs -0 -n1 git push --force-with-lease origin"
+run_in 2 "xargs -I{} sh -c '... {}'"             "$ME" "echo solo | xargs -I{} sh -c 'git push --force-with-lease origin {}'"
+run_in 2 "find -exec"                            "$ME" 'find . -maxdepth 0 -exec git push --force-with-lease origin solo \;'
+run_in 2 "find -execdir"                         "$ME" 'find . -maxdepth 0 -execdir git push --force-with-lease origin solo \;'
+run_in 2 "find -ok"                              "$ME" 'find . -maxdepth 0 -ok git push --force-with-lease origin solo \;'
+run_in 2 "GNU parallel"                          "$ME" 'parallel git push --force-with-lease origin ::: feature/checkout'
+run_in 2 "eval"                                  "$ME" 'eval git push --force-with-lease origin solo'
+run_in 2 "eval of a quoted string"               "$ME" "eval 'git push --force-with-lease origin solo'"
+run_in 2 "source <(echo ...)"                    "$ME" 'source <(echo git push --force-with-lease origin feature/checkout)'
+run_in 2 ". /dev/stdin <<< '...'"                "$ME" ". /dev/stdin <<< 'git push --force-with-lease origin feature/checkout'"
+run_in 2 "sh -c, literal"                        "$ME" "sh -c 'git push --force-with-lease origin solo'"
+run_in 2 "bash -c, literal"                      "$ME" "bash -c 'git push --force-with-lease origin solo'"
+run_in 2 "zsh -c, literal"                       "$ME" "zsh -c 'git push --force-with-lease origin solo'"
+run_in 2 "dash -c, literal"                      "$ME" "dash -c 'git push --force-with-lease origin solo'"
+run_in 2 "echo '...' | sh"                       "$ME" "echo 'git push --force-with-lease origin solo' | sh"
+run_in 2 "bash <<< '...'"                        "$ME" "bash <<< 'git push --force-with-lease origin solo'"
+run_in 2 "a quoted heredoc fed to sh"            "$ME" $'sh <<\'EOF\'\ngit push --force-with-lease origin solo\nEOF'
+run_in 2 "env -S"                                "$ME" "env -S 'git push --force-with-lease origin solo'"
+run_in 2 "env --split-string="                   "$ME" "env '--split-string=git push --force-with-lease origin solo'"
+run_in 2 "watch"                                 "$ME" 'watch -n 60 git push --force-with-lease origin feature/checkout'
+run_in 2 "script -c"                             "$ME" "script -q -c 'git push --force-with-lease origin feature/checkout' /dev/null"
+run_in 2 "su -c"                                 "$ME" "su me -c 'git push --force-with-lease origin feature/checkout'"
+run_in 2 "sudo -s"                               "$ME" 'sudo -s git push --force-with-lease origin solo'
+run_in 2 "sudo -i"                               "$ME" 'sudo -i git push --force-with-lease origin solo'
+run_in 2 "sudo sh -c"                            "$ME" "sudo sh -c 'git push --force-with-lease origin solo'"
+run_in 2 "trap ... EXIT"                         "$ME" "trap 'git push --force-with-lease origin solo' EXIT"
+run_in 2 "timeout \"\$T\" (a run-time word)"     "$ME" 'timeout "$T" git push --force-with-lease origin solo'
+run_in 2 "a function defined on the line"        "$ME" 'p() { git push --force-with-lease origin solo; }; p'
+run_in 2 "a function over several lines"         "$ME" $'function p {\n  git push --force-with-lease origin solo\n}\np'
+run_in 2 "an alias defined on the line"          "$ME" "alias p='git push --force-with-lease origin feature/checkout'; p"
+run_in 2 "a git alias given with -c"             "$ME" "git -c alias.p='push --force-with-lease' p origin feature/checkout"
+run_in 2 "a git shell alias given with -c"       "$ME" "git -c 'alias.p=!git push --force-with-lease origin feature/checkout' p"
+run_in 0 "CONTROL: nohup, literal"               "$ME" 'nohup git push --force-with-lease origin solo'
+run_in 0 "CONTROL: timeout 30, literal"          "$ME" 'timeout 30 git push --force-with-lease origin solo'
+run_in 0 "CONTROL: nice -n 5, literal"           "$ME" 'nice -n 5 git push --force-with-lease origin solo'
+run_in 0 "CONTROL: stdbuf -oL, literal"          "$ME" 'stdbuf -oL git push --force-with-lease origin solo'
+run_in 0 "CONTROL: time, literal"                "$ME" 'time git push --force-with-lease origin solo'
+run_in 0 "CONTROL: an xargs after the push"      "$ME" 'git push --force-with-lease origin solo 2>&1 | xargs echo'
+run_in 0 "CONTROL: echo text about a lease"      "$ME" 'echo "run git push --force-with-lease yourself"'
+run_in 0 "CONTROL: lease text in a heredoc to a file" "$ME" $'cat > /dev/null <<\'EOF\'\ngit push --force-with-lease origin feature/checkout\nEOF'
+
+echo
+echo "PROCESS SUBSTITUTION AS A REDIRECTION is not an argument"
+run 0 "rm -rf /tmp/x 2> >(cat)"                  'rm -rf /tmp/x 2> >(cat)'
+run 0 "sudo rm -rf /tmp/x 2> >(logger)"          'sudo rm -rf /tmp/x 2> >(logger)'
+run 2 "rm -rf ./src 2> >(cat) still refused"     'rm -rf ./src 2> >(cat)'
+run 2 "rm -rf in the >(...) still refused"       'true 2> >(rm -rf ./src)'
 
 echo
 echo "WHAT IT SAYS (snapshot)"

@@ -2071,9 +2071,7 @@ If this is genuinely required, ask the human to run it.
 === foreign lease inside sh -c
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
-    c3673ae sam: coupon: keep the discount on retry
-Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+BLOCKED by bendit safety hook: `sh` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
 If this is genuinely required, ask the human to run it.
 
 === foreign lease after FOO=1
@@ -2248,7 +2246,7 @@ If this is genuinely required, ask the human to run it.
 === fetch && lease inside sh -c
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` comes after `git fetch origin` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+BLOCKED by bendit safety hook: `sh` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
 If this is genuinely required, ask the human to run it.
 
 === fetch in a subshell; lease
@@ -2556,4 +2554,272 @@ exit 0
 === CONTROL: a commit message about it
 exit 0
 (silent)
+
+=== xargs -I{} supplies the branch (N3)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `xargs`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== xargs -I% supplies the branch
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `xargs`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== plain xargs appends the branch
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `xargs`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== xargs with every word literal
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `xargs`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== xargs -0 -n1
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `xargs`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== xargs -I{} sh -c '... {}'
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `sh` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== find -exec
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `find` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== find -execdir
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `find` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== find -ok
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `find` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== GNU parallel
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `parallel` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== eval
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `eval` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== eval of a quoted string
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `eval` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== source <(echo ...)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `source` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== . /dev/stdin <<< '...'
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `.` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== sh -c, literal
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `sh` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== bash -c, literal
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `bash` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== zsh -c, literal
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `zsh` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== dash -c, literal
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `dash` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== echo '...' | sh
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `sh` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== bash <<< '...'
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `bash` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== a quoted heredoc fed to sh
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `sh` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== env -S
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `env -S`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== env --split-string=
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `env --split-string=git push --force-w...`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== watch
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `watch` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== script -c
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `script` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== su -c
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `su` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== sudo -s
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `sudo -s`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== sudo -i
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `sudo -i`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== sudo sh -c
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `sh` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== trap ... EXIT
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `trap` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== timeout "$T" (a run-time word)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `$T`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== a function defined on the line
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is inside a function defined in this command, which runs only when it is called: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== a function over several lines
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is inside a function defined in this command, which runs only when it is called: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== an alias defined on the line
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `alias` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== a git alias given with -c
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git -c alias.p` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== a git shell alias given with -c
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git -c alias.p` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: nohup, literal
+exit 0
+(silent)
+
+=== CONTROL: timeout 30, literal
+exit 0
+(silent)
+
+=== CONTROL: nice -n 5, literal
+exit 0
+(silent)
+
+=== CONTROL: stdbuf -oL, literal
+exit 0
+(silent)
+
+=== CONTROL: time, literal
+exit 0
+(silent)
+
+=== CONTROL: an xargs after the push
+exit 0
+(silent)
+
+=== CONTROL: echo text about a lease
+exit 0
+(silent)
+
+=== CONTROL: lease text in a heredoc to a file
+exit 0
+(silent)
+
+=== rm -rf /tmp/x 2> >(cat)
+exit 0
+(silent)
+
+=== sudo rm -rf /tmp/x 2> >(logger)
+exit 0
+(silent)
+
+=== rm -rf ./src 2> >(cat) still refused
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
+
+=== rm -rf in the >(...) still refused
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
+If this is genuinely required, ask the human to run it.
 

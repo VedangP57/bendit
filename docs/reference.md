@@ -340,7 +340,14 @@ It refuses:
   routing config on the command line (`git -c push.default=…`,
   `remote.<r>.push`, `branch.<b>.merge`, `--config-env`) or in
   `GIT_CONFIG_PARAMETERS`/`GIT_CONFIG_COUNT`. Write the branch and commit
-  out literally. Rule id `force-with-lease-foreign`.
+  out literally. So is a lease push launched by something that runs it or
+  adds to its words: `xargs`, `find -exec`, `parallel`, `eval`, `source`/`.`,
+  `sh -c` or a shell fed by a pipe, here-string or heredoc, `env -S`,
+  `watch`, `script`, `su`, `sudo -s`/`-i`, a `trap`, a function or alias
+  defined in the same command, or a `git -c alias.…` holding one. `nohup`,
+  `timeout`, `nice`, `stdbuf`, `time` and plain `sudo` with literal words
+  are read through. Write the push out as its own command. Rule id
+  `force-with-lease-foreign`.
   Known limit: authorship is the commit's author email, which anyone can set;
 - `git reset --hard`, `git checkout .`, `git restore .`, `git clean -f`;
 - deleting the folder the shell is in, or a parent of it;

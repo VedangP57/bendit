@@ -37,4 +37,6 @@ docs/superpowers/
 plugins/bendit/evals/bench/corpus/nl2bash/all.cm
 
 # A2 approval request, present only while an A2 run is in flight
-plugins/bendit/evals/bench/.a2-request
+plugins/bendit/evals/bench/.a2-request*
+# Ad-hoc runs (run.sh with no --out) are never published by accident.
+plugins/bendit/evals/bench/results/adhoc-*/

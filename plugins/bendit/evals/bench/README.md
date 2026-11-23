@@ -23,9 +23,16 @@ calls). The pilot (below) is what turns it into a measurement.
 hooks (CLI 2.1.330, probed in the pilot): both run with
 `HOME=<sandbox>/home`, and the scaffold runs from its real path in the
 plugin, in `<sandbox>/home/cwd`. So `run.sh` asks for the A2 approval with a
-request file, `evals/bench/.a2-request` (git-ignored), that exists only while
-an A2 run is in flight. The fixture uses it up, and refuses (failing the
-scaffold) unless `HOME` has the sandbox's shape and is not your real home.
+request file, `evals/bench/.a2-request.<runner pid>` (git-ignored), that
+exists only while that runner's A2 run is in flight. The fixture uses it up,
+and refuses (failing the scaffold) unless `HOME` has the sandbox's shape and
+is not your real home, or when it finds more than one request (two runners at
+once). If an A2 scaffold never reads its request, the row is an `error` (not
+an A2 result), the run prints `ARM NOT IN EFFECT: ...` and exits 1. Any arm
+whose evidence does not match its name is handled the same way. Run one
+sweep at a time: the fixture cannot tell which runner a request belongs to,
+so an overlapping A1 can pick up another runner's request. That too ends as a
+loud error, never as a silent result.
 `run.sh` refuses a results folder inside your real `~/.config/bendit`. Your
 own approval list is never read or written.
 
@@ -117,7 +124,9 @@ spreads every arm across the sweep. `-j 1` keeps runs from sharing a rate
 limit. `--trust-plugin` is passed only if you pass it to `run.sh`; without
 it the harness may ask you to trust the empty A0 plugin the first time.
 
-Output, in `evals/bench/results/<UTC date>/` (or `--out`):
+Output, in a new `evals/bench/results/adhoc-<YYYYmmdd-HHMMSS>/` (git-ignored),
+or in `--out`. An `--out` that holds a committed `runs.jsonl` is refused, so
+an ad-hoc run never appends to published results:
 
 - `runs.jsonl`, one row per run: `case, arm, run, pass, live, status,
   graded_pass, evidence, secondary, wall_s, turns, agent_cost_usd,

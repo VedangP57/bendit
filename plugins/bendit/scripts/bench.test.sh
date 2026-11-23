@@ -230,7 +230,9 @@ echo "C2 fixture: the A2 approval goes where the hooks read it, the sandbox's HO
 # PATH, TMPDIR and a few more: HOME=<sandbox>/home, cwd=<sandbox>/home/cwd.
 # No BENDIT_* variable reaches it or the hooks. The runner asks for the
 # approval with a request file beside the cases, present only during A2.
-REQ="$B/.a2-request"
+# Requests are per runner (.a2-request.<id>): the test suite and a real
+# sweep running at the same time must never use or delete each other's.
+REQ="$B/.a2-request.test$$"
 fx() {  # fx <sandbox dir> [request json]: run the fixture the way the harness does
   local sb="$1"; mkdir -p "$sb/home/cwd" "$sb/tmp"
   [ -n "${2:-}" ] && printf '%s' "$2" > "$REQ"
@@ -249,7 +251,11 @@ chk "  ...the request was used up" "$([ -e "$REQ" ] && echo left || echo gone)" 
 fx "$T/sbReal" '{"run": "r9-c2-ended-red-A2", "real_home": "'"$T/sbReal/home"'"}'
 chk "request, but HOME is the person's real home: the scaffold fails" "$?" 3
 chk "  ...and approves nothing" "$(/usr/bin/find "$T/sbReal" -name trusted-harnesses.json | wc -l | tr -d ' ')" 0
-rm -f "$REQ"
+printf '{"run": "rA", "real_home": "/nonexistent"}' > "$B/.a2-request.test$$-other"
+fx "$T/sbTwo" '{"run": "rB", "real_home": "/nonexistent"}'
+chk "two requests at once (two runners): the scaffold fails, never guesses" "$?" 3
+chk "  ...and approves nothing" "$(/usr/bin/find "$T/sbTwo" -name trusted-harnesses.json | wc -l | tr -d ' ')" 0
+rm -f "$REQ" "$B/.a2-request.test$$-other"
 
 echo "runner: a full run against a fake harness"
 export BENDIT_BENCH_CLAUDE="$PY $B/twins/fake_claude.py" FAKE_CLAUDE_LOG="$T/argv.jsonl" FAKE_SANDBOX_ROOT="$T/sandboxes"
@@ -298,7 +304,7 @@ chk "A0 targets the empty plugin, A1/A2 bendit" \
     "['null-plugin', 'bendit', 'null-plugin', 'bendit', 'bendit']"
 chk "only the A2 call has an approval request present" \
     "$(inv '[c["a2_request"] for c in calls]')" "[False, False, False, False, True]"
-chk "no request is left after the sweep" "$([ -e "$B/.a2-request" ] && echo left || echo gone)" gone
+chk "no request is left after the sweep" "$(/bin/ls "$B" | grep -c '^\.a2-request')" 0
 chk "the approval exists only in one sandbox HOME (the A2 run's)" \
     "$(/usr/bin/find "$T/sandboxes" "$O" -name trusted-harnesses.json 2>/dev/null | sed 's|.*/sealed/|sealed/|')" "sealed/home/.config/bendit/trusted-harnesses.json"
 chk "the real config dir was never created" "$([ -e "$HOME/.config/bendit" ] && echo exists || echo none)" none
@@ -310,6 +316,33 @@ chk "pilot: exit 1" "$?" 1
 chk "pilot: names the arm and the missing gate run" "$(grep -c '^  run 1 c2-ended-red A2: .*gate never ran' "$T/scrub.out")" 1
 chk "  ...and the row says the arm is invalid" \
     "$("$PY" -c 'import json,sys; print(json.loads(open(sys.argv[1]).readline())["arm_valid"])' "$T/out-scrub/runs.jsonl" 2>&1)" False
+
+echo "runner: an A2 that did not take effect is loud even without --pilot (owner's terminal run)"
+FAKE_SCAFFOLD_COPY=1 bash "$B/run.sh" --cases c2-ended-red --arms A2 --runs 1 --model fake-model --out "$T/out-loud" > "$T/loud.out" 2>&1
+chk "exit 1" "$?" 1
+chk "the row is an error, not a graded A2 result" "$("$PY" -c 'import json,sys; print(json.loads(open(sys.argv[1]).readline())["status"])' "$T/out-loud/runs.jsonl" 2>&1)" error
+chk "  ...naming the unread request" "$(grep -c 'never read the A2 approval request' "$T/out-loud/runs.jsonl")" 1
+chk "the run says so on screen" "$(grep -c '^ARM NOT IN EFFECT: run 1 c2-ended-red A2' "$T/loud.out")" 1
+printf '{"run": "elsewhere", "real_home": "/nonexistent"}' > "$B/.a2-request.otherrunner"
+bash "$B/run.sh" --cases c2-ended-red --arms A0 --runs 1 --model fake-model --out "$T/out-other0" > /dev/null 2>&1
+chk "the runner never deletes another runner's request" "$([ -e "$B/.a2-request.otherrunner" ] && echo kept || echo deleted)" kept
+# A fixture cannot tell which runner it belongs to: an A1 run that picks up
+# another runner's request is approved -- and must then be loud, never a
+# silent A1 result.
+bash "$B/run.sh" --cases c2-ended-red --arms A1 --runs 1 --model fake-model --out "$T/out-other1" > "$T/other1.out" 2>&1
+chk "an A1 that used a stray request: exit 1" "$?" 1
+chk "  ...its row is an error naming the approval" "$(grep -c 'arm not in effect: A1 has an approved harness' "$T/out-other1/runs.jsonl")" 1
+rm -f "$B/.a2-request.otherrunner"
+
+echo "runner: ad-hoc runs never touch published results"
+RR="$T/results-root"
+BENDIT_BENCH_RESULTS="$RR" bash "$B/run.sh" --cases c2-ended-red --arms A1 --runs 1 --model fake-model > /dev/null 2>&1
+chk "no --out: a new folder named with the time" \
+    "$(/bin/ls "$RR" 2>/dev/null | grep -cE '^adhoc-[0-9]{8}-[0-9]{6}$')" 1
+BENDIT_BENCH_CLAUDE="$T/no-claude" bash "$B/run.sh" --cases c2-ended-red --arms A1 --runs 1 --model m \
+  --out "$B/results/2026-11-23" > /dev/null 2>&1
+chk "--out at a folder with a committed runs.jsonl is refused" "$?" 2
+chk "  ...and nothing was called" "$([ -e "$T/claude-was-called" ] && echo called || echo none)" none
 
 echo "runner: an S5 leak is graded, and the key never reaches a row"
 FAKE_SCENARIO=leak bash "$B/run.sh" --cases s5-secret-in-command --arms A0 --runs 1 --model fake-model --out "$T/out-s5" > "$T/s5.out" 2>&1

@@ -75,7 +75,7 @@ def main(argv: list) -> int:
         with open(log, 'a') as fh:
             fh.write(json.dumps({'argv': argv, 'env': {k: v for k, v in os.environ.items()
                                                       if k.startswith('BENDIT_')},
-                                 'a2_request': (twins.BENCH / '.a2-request').exists()}) + '\n')
+                                 'a2_request': any(twins.BENCH.glob('.a2-request*'))}) + '\n')
     target = Path(o['target'])
     case = o['--case']
     name = json.loads((target / '.claude-plugin' / 'plugin.json').read_text())['name']

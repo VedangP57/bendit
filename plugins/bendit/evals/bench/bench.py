@@ -55,7 +55,10 @@ import summarise  # noqa: E402
 
 PLUGIN = HERE.parent.parent
 ARMS = ('A0', 'A1', 'A2')
-REQUEST = HERE / '.a2-request'   # present only while an A2 run is in flight
+# Present only while THIS runner's A2 run is in flight. Named per runner, so
+# a second runner (or the test suite) never uses or deletes another's.
+REQUEST = HERE / f'.a2-request.{os.getpid()}'
+PUBLISHED_RUNS = 'runs.jsonl'
 
 
 def load_cases() -> dict:
@@ -157,6 +160,21 @@ def assert_isolated(path: Path) -> None:
         if p == r or p.startswith(r + os.sep):
             raise Usage(f'{path} is inside the real bendit config dir ({d}); the benchmark writes '
                         'approvals into isolated dirs only')
+
+
+def refuse_published(out: Path) -> None:
+    """Refuse a results folder whose runs.jsonl git tracks: published rows
+    are never appended to."""
+    f = out / PUBLISHED_RUNS
+    if not f.exists():
+        return
+    try:
+        tracked = subprocess.run(['git', '-C', str(out), 'ls-files', '--error-unmatch', PUBLISHED_RUNS],
+                                 capture_output=True, text=True).returncode == 0
+    except OSError:
+        tracked = True                 # cannot tell: fail closed
+    if tracked:
+        raise Usage(f'{f} is a committed result; give a new --out (or none, for a timestamped folder)')
 
 
 def plugin_commit() -> str:
@@ -281,7 +299,8 @@ def _cost(v):
         return None
 
 
-def build_row(r: int, case: str, arm: str, raw: Path, sid: str, commit: str, model_requested=None) -> dict:
+def build_row(r: int, case: str, arm: str, raw: Path, sid: str, commit: str, model_requested=None,
+              request_read=None) -> dict:
     """One row. `status` is one of ok / error / not_finished / contaminated
     (not_finished: the recorded stop reason is the turn limit, nothing else),
     and `pass` is null unless status is ok and the run is live: the
@@ -328,9 +347,21 @@ def build_row(r: int, case: str, arm: str, raw: Path, sid: str, commit: str, mod
     try:
         row['arm_evidence'] = arm_evidence(case, events, sid, ws)
         row['arm_problems'] = check_arm(case, arm, row['arm_evidence'], sid)
-        row['arm_valid'] = not row['arm_problems'] and row['error'] is None
     except Exception as e:
         row['arm_problems'] = [f'arm evidence unreadable: {type(e).__name__}: {e}']
+    if request_read is False:
+        row['arm_evidence']['approval_request_read'] = False
+        row['arm_problems'].insert(0, f'A2: the scaffold never read the A2 approval request ({REQUEST.name} '
+                                      f'beside the cases): the fixture did not run from {HERE}, or '
+                                      'something removed the file')
+    elif request_read is True:
+        row['arm_evidence']['approval_request_read'] = True
+    row['arm_valid'] = not row['arm_problems'] and row['error'] is None
+    # An arm that is not what its name says is never a graded result of that
+    # arm: the row is an error (attrition, flagged), and the run exits 1.
+    if row['arm_problems'] and row['status'] != 'error':
+        row['status'] = 'error'
+        row['error'] = 'arm not in effect: ' + '; '.join(row['arm_problems'])
     # A hook refused something in the no-bendit arm: some other guard was
     # active, so this run is not a clean A0.
     if arm == 'A0' and row['status'] in ('ok', 'not_finished') and row['arm_evidence'].get('hook_refusals'):
@@ -347,7 +378,7 @@ def pilot_problems(rows: list) -> list:
         if x.get('harness_error'):
             bad.append(f'{who}: harness error: {x["harness_error"]}')
         if x['status'] == 'error':
-            if not x.get('harness_error'):
+            if not x.get('harness_error') and not str(x.get('error') or '').startswith('arm not in effect'):
                 bad.append(f'{who}: not graded ({x["error"]})')
         elif x['status'] == 'not_finished':
             bad.append(f'{who}: not finished ({x.get("not_finished")})')
@@ -380,7 +411,8 @@ def run_step(r: int, case: str, arm: str, out: Path, null: Path, a, commit: str)
     env.pop('CLAUDE_PROJECT_DIR', None)
     target = null if arm == 'A0' else PLUGIN
     cmd = eval_command(case, target, raw, a.model, a.trust_plugin)
-    _clear_request()                 # a stale request must never approve A1
+    _clear_request()                 # our own stale request must never approve A1
+    request_read = None
     try:
         if arm == 'A2':
             REQUEST.write_text(json.dumps({'run': sid, 'real_home': str(Path.home())}) + '\n')
@@ -389,9 +421,11 @@ def run_step(r: int, case: str, arm: str, out: Path, null: Path, a, commit: str)
                 subprocess.run(cmd, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=3600)
             except (OSError, subprocess.TimeoutExpired) as e:
                 log.write(f'\nbench: the harness did not complete: {e}\n')
+        if arm == 'A2':
+            request_read = not REQUEST.exists()   # the fixture uses it up
     finally:
         _clear_request()
-    return build_row(r, case, arm, raw, sid, commit, a.model)
+    return build_row(r, case, arm, raw, sid, commit, a.model, request_read)
 
 
 def _clear_request() -> None:
@@ -415,8 +449,9 @@ def dry_run(steps: list, skipped: list, a) -> int:
                            a.trust_plugin)
         print(f'  {c}: ' + ' '.join(shlex.quote(x) for x in cmd))
         print(f'      target {target}')
-    print('A2 only: evals/bench/.a2-request exists during the run; the fixture uses it up and '
-          'approves the harness in the sandbox HOME/.config/bendit')
+    print('A2 only: evals/bench/.a2-request.<runner pid> exists during the run; the fixture uses it '
+          'up and approves the harness in the sandbox HOME/.config/bendit')
+    print(f'results: {a.out_dir}')
     print('dry run: nothing was called and nothing was written')
     return 0
 
@@ -427,8 +462,14 @@ def main(argv: list) -> int:
         steps, skipped = plan(a.cases, a.arms, a.runs)
         if not steps:
             raise Usage('no case is meant for any of the arms asked for')
-        out = Path(a.out) if a.out else HERE / 'results' / time.strftime('%Y-%m-%d', time.gmtime())
+        # Ad-hoc runs never write into a published results folder: with no
+        # --out, a new folder named with the time; an --out that holds a
+        # runs.jsonl git tracks is refused.
+        root = Path(os.environ.get('BENDIT_BENCH_RESULTS') or HERE / 'results')
+        out = Path(a.out) if a.out else root / time.strftime('adhoc-%Y%m%d-%H%M%S', time.localtime())
         assert_isolated(out)
+        refuse_published(out)
+        a.out_dir = out
     except Usage as e:
         print(f'run.sh: {e}', file=sys.stderr)
         return 2
@@ -452,6 +493,9 @@ def main(argv: list) -> int:
     errors = [x for x in rows if x['error']]
     print()
     print(summarise.render(rows))
+    for x in rows:
+        if x['arm_problems']:
+            print(f'ARM NOT IN EFFECT: run {x["run"]} {x["case"]} {x["arm"]}: ' + '; '.join(x['arm_problems']))
     if a.pilot:
         bad = pilot_problems(rows)
         if bad:

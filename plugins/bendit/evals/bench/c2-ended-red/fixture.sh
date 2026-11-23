@@ -163,8 +163,16 @@ git commit -q -m "stockroom: supplier import and orders"
 # approval into $HOME/.config/bendit -- the sandbox's. It refuses (exit 3, so
 # the scaffold fails, never silently running as A1) unless HOME has the
 # sandbox's shape and is not the person's real home.
-req="$(cd "$(dirname "$0")/.." && pwd)/.a2-request"
-if [ -f "$req" ]; then
+here="$(cd "$(dirname "$0")/.." && pwd)"
+set +e
+reqs=$(/bin/ls -A "$here" | grep '^\.a2-request')
+set -e
+if [ "$(printf '%s' "$reqs" | grep -c .)" -gt 1 ]; then
+  echo "fixture: refusing: more than one A2 request beside the cases (two runners at once?): $reqs" >&2
+  exit 3
+fi
+req="$here/$reqs"
+if [ -n "$reqs" ] && [ -f "$req" ]; then
   plugin="$(cd "$(dirname "$0")/../../.." && pwd)"
   python3 -I - "$req" "$plugin/scripts/require-verification.py" <<'PY' || exit 3
 import importlib.util

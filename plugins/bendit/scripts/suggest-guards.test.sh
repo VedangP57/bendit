@@ -372,16 +372,127 @@ chk "exit 0"                                     "$CODE" 0
 printf '%s' "$OUT" >"$J"
 chk "  six confirmed"                            "$(q 'd["confirmed"]')" 6
 chk "  each aimed at the call before it"         "$(q 'sorted((c["tool"], c["command"], c["count"]) for c in d["clusters"])')" \
-    "[('Bash', 'git push', 2), ('Bash', 'npm publish', 1), ('Bash', 'rm', 1), ('Edit', '*.ts', 2)]"
+    "[('Bash', 'git push', 2), ('Bash', 'npm publish', 1), ('Bash', 'rm', 1), ('Edit', 'app.ts', 2)]"
 chk "  every session row says source: session"   "$(q 'sorted({c["source"] for c in d["clusters"]})')" "['session']"
 
 echo; echo "LABELS ARE WHOLE WORDS, NEVER STEMS"
 P1="$(q '[c["pattern"] for c in d["clusters"] if c["command"] == "git push"][0]')"
 has   "  the git push label says 'anything'"     "$P1" "anything"
 hasnt "  and never the stem 'anyth'"             "$(q 'd["clusters"]' | sed 's/anything//g')" "anyth"
-P2="$(q '[c["pattern"] for c in d["clusters"] if c["command"] == "*.ts"][0]')"
+P2="$(q '[c["pattern"] for c in d["clusters"] if c["command"] == "app.ts"][0]')"
 has   "  'page' and 'pages' still join one cluster, labelled with a whole word" "$P2" "login"
 case "$P2" in *"pag,"*|*"pag"|*"pag "*) bad "  no 'pag' stem" "$P2";; *) ok "  no 'pag' stem";; esac
+
+echo; echo "CONFIRMED CORRECTIONS GROUP BY THE COMMAND CORRECTED, NEVER BY THEIR WORDS"
+# A reviewer's probe: the same command corrected in words that share nothing.
+X="$T/words"; XS="$PD/$(slug "$X")"; mkdir -p "$X" "$XS"
+"$PY" - "$XS/s.jsonl" "$X" <<'PY'
+import json, sys
+path, root = sys.argv[1:3]
+rows = [('Bash', {'command': 'git push --force origin main'}, 'stop pushing to main'),
+        ('Bash', {'command': 'git push -f'}, 'why did you force it, the remote history is gone now'),
+        ('Edit', {'file_path': '/w/src/App.tsx'}, 'dude the layout is totally wrecked'),
+        ('Edit', {'file_path': '/w/other/App.tsx'}, 'honestly this is on you'),
+        ('Edit', {'file_path': '/w/src/Nav.tsx'}, 'what did you do to the router')]
+with open(path, 'w') as f:
+    for name, inp, text in rows:
+        f.write(json.dumps({"type": "assistant", "cwd": root, "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "name": name, "input": inp}]}}) + '\n')
+        f.write(json.dumps({"type": "user", "cwd": root, "message": {"role": "user", "content": text}}) + '\n')
+PY
+run --root "$X" --projects-dir "$PD" --json
+printf '%s' "$OUT" >"$J"
+XPUSH="$(q '",".join(c["id"] for c in d["candidates"] if c["command"] == "git push")')"
+XAPP="$(q '",".join(c["id"] for c in d["candidates"] if c["tool"] == "Edit" and c["command"] == "App.tsx")')"
+XNAV="$(q '",".join(c["id"] for c in d["candidates"] if c["command"] == "Nav.tsx")')"
+chk "  (two push ids, two App.tsx ids, one Nav.tsx id)" "$(printf '%s;%s;%s' "$XPUSH" "$XAPP" "$XNAV" | tr ';,' '\n\n' | grep -c .)" 5
+crun "$X" --json
+chk "exit 0"                                     "$CODE" 0
+printf '%s' "$OUT" >"$J"
+chk "  two git push corrections sharing no word are ONE cluster; the same file name is one too" \
+    "$(q 'sorted((c["tool"], c["command"], c["count"]) for c in d["clusters"])')" "[('Bash', 'git push', 2), ('Edit', 'App.tsx', 2)]"
+chk "  every example of the push cluster is shown" "$(q '[len(c["examples"]) for c in d["clusters"] if c["command"] == "git push"]')" "[2]"
+chk "  grouped by the command"                   "$(q 'sorted({c["grouped_by"] for c in d["clusters"]})')" "['command']"
+
+echo; echo "CLAUDE CAN GROUP THE IDS ITSELF: --confirm 'label=id,id;label=id'"
+XA1="${XAPP%%,*}"
+run --root "$X" --projects-dir "$PD" --confirm "router breaks=$XA1,$XNAV;never force push=$XPUSH" --json
+chk "exit 0"                                     "$CODE" 0
+printf '%s' "$OUT" >"$J"
+chk "  one cluster per label, across files and words" \
+    "$(q 'sorted((c["pattern"], c["count"]) for c in d["clusters"])')" "[('never force push', 2), ('router breaks', 2)]"
+chk "  marked as grouped by Claude's label"      "$(q 'sorted({c["grouped_by"] for c in d["clusters"]})')" "['label']"
+chk "  a label over files says no single command" "$(q '[(c["tool"], c["command"]) for c in d["clusters"] if c["pattern"] == "router breaks"]')" "[('Edit', '')]"
+run --root "$X" --projects-dir "$PD" --confirm "only one=$XNAV;never force push=$XPUSH" --json
+printf '%s' "$OUT" >"$J"
+chk "  a label of one still meets --min 2 only by its count" "$(q '[c["pattern"] for c in d["clusters"]]')" "['never force push']"
+run --root "$X" --projects-dir "$PD" --confirm "$XAPP;never force push=$XPUSH" --json
+printf '%s' "$OUT" >"$J"
+chk "  an unlabelled group still clusters by command" \
+    "$(q 'sorted((c["grouped_by"], c["count"]) for c in d["clusters"])')" "[('command', 2), ('label', 2)]"
+run --root "$X" --projects-dir "$PD" --confirm "a=$XNAV;b=$XNAV,$XA1" --json
+chk "  an id in two groups is refused: exit 2"   "$CODE" 2
+chk "  and nothing on stdout"                    "$OUT" ""
+run --root "$X" --projects-dir "$PD" --confirm "=$XPUSH" --json
+chk "  an empty label is refused: exit 2"        "$CODE" 2
+run --root "$X" --projects-dir "$PD" --confirm "x=" --json
+chk "  a label with no ids is refused: exit 2"   "$CODE" 2
+run --root "$X" --projects-dir "$PD" --confirm "x=0123456789:1" --json
+chk "  an unknown id in a label is refused: exit 2" "$CODE" 2
+run --root "$X" --projects-dir "$PD" --confirm "$(printf 'no \033[31m%s %s=' "$STRIPE" "$(printf 'w%.0s' $(seq 60))")$XPUSH" --json
+chk "  a label holding a key and an escape: exit 0" "$CODE" 0
+printf '%s' "$OUT" >"$J"
+chk "  the label is cut to 40 characters"       "$(q 'len(d["clusters"][0]["pattern"]) <= 40')" True
+chk "  no part of the key"                       "$(printf '%s' "$OUT" >"$T/l.out"; leaks "$T/l.out" "$STRIPE")" ""
+chk "  no ESC"                                   "$(printf '%s' "$OUT" | LC_ALL=C grep -c "$(printf '\033')")" 0
+run --root "$X" --projects-dir "$PD" --confirm "never force push=$XPUSH"
+chk "text mode: exit 0"                          "$CODE" 0
+has "  prints the label"                         "$OUT" "never force push  (2 times)"
+
+echo; echo "A MESSAGE RECORDED IN TWO SESSION FILES COUNTS ONCE; ITS IDS STAY STABLE"
+D="$T/dup"; DS="$PD/$(slug "$D")"; mkdir -p "$D" "$DS"
+# dupline <file> <uuid|-> <session> <stamp> <text>: a tool call and a reply.
+dupline() {
+  "$PY" -c 'import json,sys
+path, uid, sid, ts, text, root = sys.argv[1:7]
+extra = {"sessionId": sid, "timestamp": ts}
+if uid != "-": extra["uuid"] = uid
+with open(path, "a") as f:
+    f.write(json.dumps(dict({"type": "assistant", "cwd": root, "message": {"role": "assistant", "content": [
+        {"type": "tool_use", "name": "Bash", "input": {"command": "git push --force"}}]}}, sessionId=sid)) + "\n")
+    f.write(json.dumps(dict({"type": "user", "cwd": root, "message": {"role": "user", "content": text}}, **extra)) + "\n")' "$@" "$D"
+}
+dupline "$DS/orig-1.jsonl" u-1 orig-1 2026-01-01T00:00:00Z "no, never force push DUPCANARY"
+run --root "$D" --projects-dir "$PD" --json
+printf '%s' "$OUT" >"$J"
+DID0="$(q 'd["candidates"][0]["id"]')"
+# A resumed session copies the same line (same uuid) into a NEWER file.
+dupline "$DS/resumed-2.jsonl" u-1 orig-1 2026-01-01T00:00:00Z "no, never force push DUPCANARY"
+touch -t 203001010000 "$DS/resumed-2.jsonl"
+run --root "$D" --projects-dir "$PD" --json
+printf '%s' "$OUT" >"$J"
+chk "  the copy is listed once"                  "$(q 'd["listed"]')" 1
+chk "  and keeps the id it had before the copy appeared" "$(q 'd["candidates"][0]["id"]')" "$DID0"
+DCOPY="$("$PY" -c 'import hashlib,sys; print(hashlib.sha1(b"resumed-2.jsonl").hexdigest()[:10] + ":2")')"
+run --root "$D" --projects-dir "$PD" --confirm "$DID0,$DCOPY" --json
+chk "  confirming both copies: exit 0 (the copy's id still resolves)" "$CODE" 0
+printf '%s' "$OUT" >"$J"
+chk "  one confirmed correction, not two"        "$(q 'd["confirmed"]')" 1
+chk "  so it cannot reach --min 2"               "$(q 'len(d["clusters"])')" 0
+run --root "$D" --projects-dir "$PD" --confirm "a=$DID0;b=$DCOPY" --json
+chk "  two copies of one message in two labels: refused" "$CODE" 2
+# No uuid: the same session, time and text is one message.
+dupline "$DS/orig-3.jsonl" - orig-3 2026-02-01T00:00:00Z "stop pushing to main"
+dupline "$DS/copy-4.jsonl" - orig-3 2026-02-01T00:00:00Z "stop pushing to main"
+# Two DIFFERENT messages that read the same are two corrections.
+dupline "$DS/orig-5.jsonl" u-5 orig-5 2026-03-01T00:00:00Z "stop pushing to main"
+run --root "$D" --projects-dir "$PD" --json
+printf '%s' "$OUT" >"$J"
+chk "  no uuid: same session, time and text listed once; a different message kept" "$(q 'd["listed"]')" 3
+chk "  the copies are counted"                   "$(q 'd["duplicates"]')" 2
+crun "$D" --json
+printf '%s' "$OUT" >"$J"
+chk "  confirm all: one push cluster of 3 messages" "$(q '[(c["command"], c["count"]) for c in d["clusters"]]')" "[('git push', 3)]"
 
 echo; echo "RECALL IS STRUCTURAL: CORRECTIONS NO KEYWORD LIST CAUGHT ARE STILL LISTED"
 # A reviewer's fresh corrections that held none of the old marker words.

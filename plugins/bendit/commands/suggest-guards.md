@@ -36,8 +36,17 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/suggest-guards.py" --min 2 --confirm <id,
 ```
 
 Only the confirmed ids are clustered; nothing unconfirmed can count toward
-`--min`. Each cluster shows every example. An id that is not one of this
-project's replies is refused (exit 2): fix the list, never drop the check.
+`--min`. They cluster by the command they corrected (`Bash git push`, or the
+file name for a file tool), never by their words. Each cluster shows every
+example. An id that is not one of this project's replies is refused (exit 2):
+fix the list, never drop the check.
+
+**Group them yourself when the command is the wrong key.** Too coarse: one
+`Bash git push` holds a force push and a push to the wrong branch. Too fine:
+the same mistake hit `App.tsx` and `Nav.tsx`. Then pass your groups instead,
+each a short label (at most 40 characters) and its ids:
+`--confirm "label=id,id;label=id"`. Each label is one cluster. Put each id in
+one group only; an id in two groups is refused (exit 2).
 If you confirmed none, skip this step unless `--git` was asked; then run it
 with `--confirm ""`.
 

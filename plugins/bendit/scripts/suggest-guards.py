@@ -2,7 +2,7 @@
 """Find the corrections you keep repeating, in THIS project's past sessions.
 
     suggest-guards.py [--root DIR] [--projects-dir DIR] [--json] [--git] [--min 2]
-                      [--confirm ID,ID,...]
+                      [--confirm 'ID,ID,...' | 'label=ID,ID;label=ID']
 
 TWO STEPS. The script does only deterministic work; a person's meaning is
 read by Claude, never guessed from keywords.
@@ -11,9 +11,12 @@ read by Claude, never guessed from keywords.
      the redacted text cut to 160 characters: newest sessions first, those
      that look like corrections first (an ordering hint only), at most 200.
   2. Claude reads every listed reply and picks the ids that correct the
-     agent. `--confirm <ids>` then clusters ONLY those ids, applies --min,
-     and shows every example of each cluster. An id that is not one of this
-     project's replies is refused (exit 2): nothing unconfirmed can count.
+     agent. `--confirm <ids>` then clusters ONLY those ids, by the command
+     they corrected, applies --min, and shows every example of each cluster.
+     Claude may group them itself instead: `label=id,id;label=id` makes one
+     cluster per label. An id that is not one of this project's replies, or
+     one named in two groups, is refused (exit 2): nothing unconfirmed can
+     count, and nothing counts twice.
 
 Adapted from the `ruminate` idea in poteto's brainmaxxing (mine old
 transcripts for repeated corrections, keep patterns, drop incidents). Here it
@@ -49,6 +52,14 @@ made a tool call and before the person's next message. Its id is a short
 hash of the session file's name and the message's line number, so it stays
 the same between runs. It is paired with the last tool call before it.
 
+ONE MESSAGE, ONE ROW. Claude Code can record the same message in more than
+one session file (a resumed session copies its history). Copies are found by
+the message's `uuid`, or, with none, by its sessionId, timestamp and text;
+a line with neither is its own message. Each message is listed and counted
+once, under the copy in the file named after its own session (else the
+smallest id); every copy's id still resolves to it under --confirm, so an
+id once listed keeps working, and confirming two copies counts one.
+
 REDACTED FIRST. Every piece of text taken from a transcript -- the person's
 words, the agent's command, a file path -- goes through fire_log.redact (the
 one definition of redaction) before anything else touches it: before
@@ -60,12 +71,15 @@ dropped. A command word or tool name that is not a plain name prints as `?`.
 And every printed field passes through redact once more, with control
 characters replaced, at render time.
 
-HOW IT CLUSTERS. By the tool and command corrected -- for Bash, the first word
-of the command (and the subcommand of git, npm, pnpm and the like, so it reads
-`git push`), skipping `cd x &&` and VAR=value; for a file tool, the file's
-extension -- then, within that, corrections sharing a keyword join one
-cluster (two shared keywords when no tool call came before). Keywords match
-by a crude stem (page, pages) but a label prints the whole word.
+HOW IT CLUSTERS. Only by the tool and command corrected, never by the words
+used -- for Bash, the first word of the command (and the subcommand of git,
+npm, pnpm and the like, so it reads `git push`), skipping `cd x &&` and
+VAR=value; for a file tool, the file's name (not its folder). When that key
+is too coarse or too fine, Claude passes its own groups as
+`label=id,id;label=id`: each label is one cluster, its text kept to plain
+characters, redacted, a token-like word shown as `?`, cut to 40 characters.
+Shared keywords only decorate a command cluster's label (by a crude stem,
+page and pages, printed as the whole word).
 
 --git ALSO READS THIS REPO'S HISTORY. One read-only `git log` of the last
 2 000 commits (subject, time and files changed). A commit is a candidate when
@@ -274,8 +288,9 @@ def command_of(tool):
         return (name, '')
     if raw_name in FILE_TOOLS:
         path = inp.get('file_path') or inp.get('notebook_path') or ''
-        ext = os.path.splitext(redact(path))[1] if isinstance(path, str) and len(path) <= CMD_CAP else ''
-        return (name, '*' + ext if re.fullmatch(r'\.[A-Za-z0-9]{1,10}', ext) else '')
+        if not isinstance(path, str) or not path or len(path) > CMD_CAP:
+            return (name, '')
+        return (name, plain(os.path.basename(redact(path)), r'[A-Za-z0-9._+-]{1,64}'))
     return (name, '')
 
 
@@ -349,11 +364,23 @@ def reply_id(path: str, lineno: int) -> str:
 _ID = re.compile(r'[0-9a-f]{10}:[0-9]{1,9}')
 
 
+def message_key(obj, text: str, rid: str):
+    """What makes two lines one message: its uuid; else its session, time
+    and text; else (neither recorded) the line itself."""
+    uid, sid, ts = obj.get('uuid'), obj.get('sessionId'), obj.get('timestamp')
+    if isinstance(uid, str) and uid:
+        return ('uuid', uid)
+    if isinstance(sid, str) and sid and isinstance(ts, str) and ts:
+        return ('stamp', sid, ts, hashlib.sha1(text.encode('utf-8', 'surrogateescape')).hexdigest())
+    return ('line', rid)
+
+
 def collect(folder: str, roots, stats: Counter):
-    """Every reply the person typed right after an agent tool call, in this
-    project's transcripts (a line's cwd under one of `roots`), as dicts:
+    """(replies, alias). Replies: every message the person typed right
+    after an agent tool call, in this project's transcripts (a line's cwd
+    under one of `roots`), ONCE each however many files hold it, as dicts:
     id, age (0 = newest session), line, key (tool, command), kw, text
-    (REDACTED), hint."""
+    (REDACTED), hint. Alias: every copy's id -> its message's id."""
     files = []
     for entry in os.scandir(folder):
         if entry.name.endswith('.jsonl') and entry.is_file(follow_symlinks=False):
@@ -389,9 +416,13 @@ def collect(folder: str, roots, stats: Counter):
                     if text is None:
                         continue
                     if tool and text:
-                        replies.append({'id': reply_id(path, lineno), 'age': age, 'line': lineno,
+                        rid = reply_id(path, lineno)
+                        sid = obj.get('sessionId')
+                        replies.append({'id': rid, 'age': age, 'line': lineno,
                                         'key': command_of(tool), 'kw': keywords(text), 'text': text,
-                                        'hint': looks_like_correction(text)})
+                                        'hint': looks_like_correction(text),
+                                        'msg': message_key(obj, text, rid),
+                                        'own': isinstance(sid, str) and os.path.basename(path) == sid + '.jsonl'})
                     tool = None   # a new turn: the next reply is about what follows
                 except Exception:
                     stats['malformed'] += 1
@@ -399,7 +430,24 @@ def collect(folder: str, roots, stats: Counter):
             stats['unreadable'] += 1
         if mine:
             stats['sessions'] += 1
-    return replies
+    return dedupe(replies, stats)
+
+
+def dedupe(replies, stats: Counter):
+    """One reply per message. The copy kept is the one in the file named
+    after the message's own session, else the smallest id: neither depends
+    on file times, so a copy appearing later never moves the id."""
+    copies = {}
+    for r in replies:
+        copies.setdefault(r['msg'], []).append(r)
+    kept, alias = [], {}
+    for group in copies.values():
+        keep = min(group, key=lambda r: (not r['own'], r['id']))
+        kept.append(keep)
+        for r in group:
+            alias[r['id']] = keep['id']
+        stats['duplicates'] += len(group) - 1
+    return kept, alias
 
 
 def listed(r):
@@ -408,30 +456,34 @@ def listed(r):
             'hint': 'likely' if r['hint'] else '', 'text': safe(example_of(r['text']))}
 
 
-def cluster(replies):
-    clusters = []   # each: {'key', 'words', 'kw' (Counter of stems), 'surface', 'items'}
-    for r in replies:
-        key, kw = r['key'], r['kw']
-        stems = set(kw)
-        need = 2 if key[0] == '-' else 1
-        home = None
-        for c in clusters:
-            if c['key'] != key:
-                continue
-            if key[0] != '-' and (not stems or not c['words']):
-                home = c
-                break
-            if len(stems & c['words']) >= need:
-                home = c
-                break
-        if home is None:
-            home = {'key': key, 'words': set(), 'kw': Counter(), 'surface': {}, 'items': []}
-            clusters.append(home)
-        home['words'] |= stems
-        home['kw'].update(stems)
-        for st, word in kw.items():
-            home['surface'].setdefault(st, Counter())[word] += 1
-        home['items'].append(r)
+def new_cluster(key, label=None):
+    return {'key': key, 'label': label, 'kw': Counter(), 'surface': {}, 'items': []}
+
+
+def add(c, r):
+    c['kw'].update(set(r['kw']))
+    for st, word in r['kw'].items():
+        c['surface'].setdefault(st, Counter())[word] += 1
+    c['items'].append(r)
+
+
+def cluster(groups):
+    """`groups` from confirmed(): a labelled group is one cluster, as Claude
+    grouped it; unlabelled replies cluster by (tool, command) alone. Words
+    never decide membership."""
+    clusters, by_key = [], {}
+    for label, items in groups:
+        if label is not None:
+            c = new_cluster(None, label)
+            clusters.append(c)
+            for r in items:
+                add(c, r)
+            continue
+        for r in items:
+            if r['key'] not in by_key:
+                by_key[r['key']] = new_cluster(r['key'])
+                clusters.append(by_key[r['key']])
+            add(by_key[r['key']], r)
     return clusters
 
 
@@ -444,11 +496,20 @@ def shared_words(c):
 
 
 def describe(c):
-    tool, command = c['key']
-    shared = shared_words(c)
-    label = ' '.join(x for x in (tool if tool != '-' else 'no tool call', command) if x)
-    pattern = label + (': ' + ', '.join(shared) if shared else '')
+    if c['label'] is not None:
+        # Claude's group: one tool or command only when every member shares it.
+        tools = {r['key'][0] for r in c['items']}
+        keys = {r['key'] for r in c['items']}
+        tool = tools.pop() if len(tools) == 1 else ''
+        command = keys.pop()[1] if len(keys) == 1 else ''
+        pattern, grouped_by = c['label'], 'label'
+    else:
+        tool, command = c['key']
+        shared = shared_words(c)
+        label = ' '.join(x for x in (tool if tool != '-' else 'no tool call', command) if x)
+        pattern, grouped_by = label + (': ' + ', '.join(shared) if shared else ''), 'command'
     return {'source': 'session', 'pattern': safe(pattern), 'count': len(c['items']),
+            'grouped_by': grouped_by,
             'tool': safe(tool) if tool != '-' else '', 'command': safe(command), 'file': '',
             'ids': [r['id'] for r in c['items']],
             'examples': [safe(example_of(r['text'])) for r in c['items']]}
@@ -597,22 +658,53 @@ class Refused(Exception):
     """A --confirm id that is not one of this project's listed replies."""
 
 
-def confirmed(replies, spec: str):
-    """The replies whose ids `spec` (comma-separated) names. Every id must be
-    well formed and one of THIS project's replies, or the whole run is
-    refused: an unknown id never silently drops, and nothing else counts."""
-    ids = [x.strip() for x in spec.split(',') if x.strip()]
-    bad = [x for x in ids if not _ID.fullmatch(x)]
-    if bad:
-        raise Refused(f'{len(bad)} malformed id(s); an id looks like 0123456789:42')
+LABEL_MAX = 40
+
+
+def clean_label(raw: str) -> str:
+    """Claude's group label, safe to print: plain characters only, any
+    token-like word as `?`, redacted, cut to LABEL_MAX."""
+    text = re.sub(r"[^A-Za-z0-9 ._,'/:+-]", ' ', raw[:CMD_CAP])
+    words = [UNKNOWN if looks_like_token(w) or re.search(r'[A-Za-z0-9_-]{16,}', w) and re.search(r'\d', w)
+             else w for w in text.split()]
+    return safe(' '.join(words))[:LABEL_MAX].strip()
+
+
+def confirmed(replies, alias, spec: str):
+    """[(label or None, replies)] for `spec`: groups split by `;`, each
+    `id,id,...` or `label=id,id,...`. Every id must be well formed and one
+    of THIS project's replies (any copy's id names its message), and no
+    message may sit in two groups, or the whole run is refused: an unknown
+    id never silently drops, nothing else counts, nothing counts twice."""
+    groups, seen = [], set()
     known = {r['id']: r for r in replies}
-    unknown = [x for x in ids if x not in known]
-    if unknown:
-        raise Refused(f"{len(unknown)} id(s) are not replies in this project's sessions: "
-                      + ', '.join(unknown[:5]))
-    want = set(ids)
-    # Oldest first, so a cluster's examples read in the order they happened.
-    return sorted((r for r in replies if r['id'] in want), key=lambda r: (-r['age'], r['line']))
+    for seg in spec.split(';'):
+        if not seg.strip():
+            continue
+        label = None
+        if '=' in seg:
+            raw, seg = seg.split('=', 1)
+            label = clean_label(raw)
+            if not label:
+                raise Refused('a group has an empty label; write label=id,id')
+        ids = [x.strip() for x in seg.split(',') if x.strip()]
+        if label is not None and not ids:
+            raise Refused('a labelled group names no ids')
+        bad = [x for x in ids if not _ID.fullmatch(x)]
+        if bad:
+            raise Refused(f'{len(bad)} malformed id(s); an id looks like 0123456789:42')
+        unknown = [x for x in ids if x not in alias]
+        if unknown:
+            raise Refused(f"{len(unknown)} id(s) are not replies in this project's sessions: "
+                          + ', '.join(unknown[:5]))
+        want = {alias[x] for x in ids}
+        twice = want & seen
+        if twice:
+            raise Refused(f'{len(twice)} message(s) named in two groups: ' + ', '.join(sorted(twice)[:5]))
+        seen |= want
+        # Oldest first, so a cluster's examples read in the order they happened.
+        groups.append((label, sorted((known[x] for x in want), key=lambda r: (-r['age'], r['line']))))
+    return groups
 
 
 def git_section(args, root):
@@ -653,12 +745,13 @@ def run(args) -> int:
     roots = sorted({os.path.realpath(root), os.path.abspath(root)})
     folder = session_dir(root, args.projects_dir)
     stats = Counter()
-    replies = []
+    replies, alias = [], {}
     if os.path.isdir(folder) and not os.path.islink(folder):
-        replies = collect(folder, roots, stats)
+        replies, alias = collect(folder, roots, stats)
     if args.confirm is not None:
         try:
-            chosen = confirmed(replies, args.confirm)
+            groups = confirmed(replies, alias, args.confirm)
+            chosen = [r for _label, items in groups for r in items]
         except Refused as e:
             print(safe(f'suggest-guards: refused: {e}. Nothing was clustered.'), file=sys.stderr)
             return 2
@@ -677,7 +770,7 @@ def run(args) -> int:
     head = {'sessions': stats['sessions'], 'min': args.min,
             'skipped_malformed': stats['malformed'], 'skipped_oversized': stats['oversized'],
             'skipped_links': stats['links'], 'unreadable': stats['unreadable'],
-            'skipped_other_project': stats['other_project']}
+            'skipped_other_project': stats['other_project'], 'duplicates': stats['duplicates']}
     if not stats['sessions']:
         head['message'] = NO_SESSIONS
     if args.git:
@@ -685,7 +778,8 @@ def run(args) -> int:
     skipped = [f'{stats[k]} {label}' for k, label in
                (('malformed', 'malformed lines'), ('oversized', 'lines over 1 MiB'),
                 ('links', 'linked files'), ('unreadable', 'unreadable files'),
-                ('other_project', "lines from another project's sessions")) if stats[k]]
+                ('other_project', "lines from another project's sessions"),
+                ('duplicates', 'copies of a message already read (counted once)')) if stats[k]]
 
     if args.confirm is None:
         # STEP 1: list every reply after a tool call, for Claude to read.
@@ -719,7 +813,7 @@ def run(args) -> int:
         return 0
 
     # STEP 2: cluster only what Claude confirmed. Session rows first, always.
-    found = sorted((d for d in (describe(c) for c in cluster(chosen)) if d['count'] >= args.min),
+    found = sorted((d for d in (describe(c) for c in cluster(groups)) if d['count'] >= args.min),
                    key=lambda d: (-d['count'], d['pattern']))
     if args.json:
         head.update({'confirmed': len(chosen), 'clusters': found + git_found})
@@ -734,7 +828,8 @@ def run(args) -> int:
     for i, d in enumerate(found, 1):
         print()
         print(f"[{i}] {d['pattern']}  ({d['count']} times)")
-        print(f"    source: session   tool: {d['tool'] or '-'}   command: {d['command'] or '-'}")
+        print(f"    source: session   tool: {d['tool'] or '-'}   command: {d['command'] or '-'}"
+              f"   grouped by: {'your label' if d['grouped_by'] == 'label' else 'command'}")
         for rid, ex in zip(d['ids'], d['examples']):
             print(f'    {rid}: "{ex}"')
     if args.git:
@@ -751,8 +846,9 @@ def main(argv=None) -> int:
     ap.add_argument('--projects-dir', default=os.path.join(os.path.expanduser('~'), '.claude', 'projects'),
                     help='where Claude Code keeps per-project transcript folders')
     ap.add_argument('--min', type=int, default=2, help='show clusters seen at least this often (default 2)')
-    ap.add_argument('--confirm', metavar='ID,ID,...',
-                    help='cluster ONLY these listed replies (the ones Claude confirmed as corrections)')
+    ap.add_argument('--confirm', metavar='ID,ID,...|LABEL=ID,ID;LABEL=ID',
+                    help='cluster ONLY these listed replies (the ones Claude confirmed as corrections): '
+                         'by command, or one cluster per label')
     ap.add_argument('--json', action='store_true', help='print JSON')
     ap.add_argument('--git', action='store_true',
                     help="also mine this repo's last %d commits (fix, revert and quick follow-up commits)" % GIT_MAX)

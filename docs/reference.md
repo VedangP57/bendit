@@ -424,10 +424,11 @@ typed right after an agent tool call (a stable id, the tool, the command
 head, the redacted text cut to 160 characters; newest sessions first, at
 most 200). Claude reads every row and picks the ids that correct the agent,
 saying how many it read, confirmed and dropped. Then `--confirm <ids>`
-clusters only those ids, by the tool call before them and shared words
-(labels are whole words), and shows every example, with secrets redacted
-before anything
-else happens. A correction seen once is left out (`--min 2`). The command then
+clusters only those ids, by the command they corrected (never by their
+words), or by Claude's own groups (`label=id,id;label=id`) when that key is
+too coarse or too fine, and shows every example, with secrets redacted
+before anything else happens. A message recorded in two session files counts
+once. A correction seen once is left out (`--min 2`). The command then
 proposes the cheapest layer for each cluster (delete, structure, guard or
 prose, from [the ladder](#the-ladder)), asks once which rows to build, and
 runs `/bendit:new-guard` only for the guard rows you pick, one PR per row.

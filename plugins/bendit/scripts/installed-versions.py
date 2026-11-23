@@ -245,7 +245,7 @@ def report(root, plugins_file):
                 if r['main'] and others:
                     mismatch = True
                     r['notes'].append('%s is not installed here, but another checkout has it, and a worktree '
-                                      'loads the main checkout\'s install' % name)
+                                      'may load the main checkout\'s install' % name)
                     r['update'].append('cd %s && claude plugin install %s --scope project' % (q, others[0]))
                 continue
             for pid, v in r[name]:

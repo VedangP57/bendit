@@ -61,6 +61,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/installed-versions.py" --root .
    version. A `note:` line under it names another version the worktree
    recorded for its own folder: that record is not the one that loads. Report
    it as a note: never a WARN, never an update command, never a reason to reopen Claude.
+   When the main checkout has no bendit install but this worktree's own record
+   is the running copy, the copy line stays `installed` and its `note:` says
+   the main checkout has no bendit install, with the install command: that is
+   the same step as installed-versions' WARN for the main checkout, so give it
+   once, and it is not a reason to reopen Claude.
 5. **installed-versions** prints `running: bendit <version>`, then which
    bendit and bendit-web version every checkout of this repo (the main one and
    each `git worktree`) has installed for its folder, or `none`. Exit 1 means

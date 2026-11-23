@@ -598,8 +598,15 @@ has "  ...names what the main checkout records" "records bendit 0.0.1" "$OUTW"
 has "  ...and says to reopen Claude" "open it again" "$OUTW"
 # Main records nothing: the worktree's own record is read, as in v0.5.1.
 wrecord - - "$RV" "$C/$RV"
-has "main none, the worktree's own record at the running copy: installed (as in v0.5.1)" "copy: installed" \
-    "$(wt_line "$WW" "$C/$RV" HOME="$H")"
+OUTW="$(wt_line "$WW" "$C/$RV" HOME="$H")"
+has "main none, the worktree's own record at the running copy: installed (as in v0.5.1)" "copy: installed" "$OUTW"
+# Review I1: installed-versions says main is missing it (exit 1, an install
+# command); the copy line says so too, once, the same way, and never "reopen".
+has "  ...with a note that the main checkout has no bendit install" \
+    "note: the main checkout ($WM) has no bendit install; Claude Code may load the main checkout's install for worktrees, so install it there too: cd $WM && claude plugin install bendit@bendit --scope project" "$OUTW"
+hasnt "  ...and never to reopen Claude" "open it again" "$OUTW"
+IVW="$(cd "$WW" && HOME="$H" "$PY" "$KIT/scripts/installed-versions.py" --root "$WW" 2>&1)"
+has "  ...installed-versions gives the very same command" "to fix it: cd $WM && claude plugin install bendit@bendit --scope project" "$IVW"
 wrecord - - 0.0.1 "$C/0.0.1"
 has "main none, the worktree's own record older: other copy" "copy: other copy" "$(wt_line "$WW" "$C/$RV" HOME="$H")"
 # The user-scope rule, in a worktree: no project install in either checkout.

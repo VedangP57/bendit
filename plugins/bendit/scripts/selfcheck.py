@@ -518,11 +518,13 @@ def copy_line():
         # update` there said "already at the latest version"). Where main records
         # bendit, that is this window's install; the worktree's own record is a note.
         main = next((p for p, is_main in iv.checkouts(project) if is_main), None)
-        own, via_main = [], None
+        own, via_main, main_none = [], None, None
         if main and not iv.same_path(main, project):
             mains = iv.installs_for(projects, main, 'bendit')
             if mains:
                 own, mine, via_main = mine, mains, main
+            elif mine:
+                main_none = main
     except Exception as e:  # noqa: BLE001 -- unreadable: never "installed"
         return (f'copy: other copy ({version}, {root}; which bendit this project records could not be read: '
                 f'{type(e).__name__}) -- {reopen}')
@@ -531,12 +533,18 @@ def copy_line():
         note = ('\nnote: this worktree (%s) also records bendit %s for its own folder; Claude Code loads the main '
                 'checkout\'s install in a worktree, so that record is not used and needs no update'
                 % (project, ', '.join(sorted({e['version'] for e in own}))))
+    if main_none:
+        # Unverified which install Claude Code loads here; installed-versions
+        # says main is missing it (exit 1) with this same command.
+        note = ("\nnote: the main checkout (%s) has no bendit install; Claude Code may load the main checkout's "
+                'install for worktrees, so install it there too: cd %s && claude plugin install %s --scope project'
+                % (main_none, iv.shlex.quote(main_none), mine[0]['id']))
     for e in mine:
         if e['install'] and running and e['version'] == running and iv.same_path(e['install'], root):
             if via_main:
                 return (f"copy: installed ({version}, {root}; project scope: the main checkout's install "
                         f'({via_main}), which Claude Code loads in this worktree)') + note
-            return f'copy: installed ({version}, {root}; project scope)'
+            return f'copy: installed ({version}, {root}; project scope)' + note
     # No project-scope install here: Claude Code loads the user-scope one, so
     # a reopened window runs this same copy. A project install always wins.
     if not mine:
@@ -549,6 +557,7 @@ def copy_line():
              else f'this project ({project})')
     return (f'copy: other copy ({version}, {root}; {whose} records bendit {recorded} at '
             f'project scope) -- {reopen}') + note
+
 
 def session_report():
     sid = os.environ.get('CLAUDE_CODE_SESSION_ID', '')

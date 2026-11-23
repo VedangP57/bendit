@@ -148,6 +148,7 @@ pin "$DR" "In a git worktree, Claude Code loads the main checkout's project inst
 pin "$DR" 'never a WARN, never an update command, never a reason to reopen Claude'
 pin "$DR" 'a checkout with only a `note:` line is never WARN'
 hasnt "$DR" '(WARN when its version differs)'
+pin "$DR" 'the main checkout has no bendit install'
 # Review M1: the report template names every copy: state.
 pin "$REF/quick.md" 'copy: <installed / installer copy / other copy>'
 # Review M2: the step 6 block itself says --pm is for Node only.

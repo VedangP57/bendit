@@ -761,6 +761,12 @@ lg() { GIT_AUTHOR_NAME="$1" GIT_AUTHOR_EMAIL="$1@example.invalid" GIT_COMMITTER_
   git -C "$LT/up" branch -q --set-upstream-to=origin/feature/checkout co
   git -C "$LT/up" config push.default upstream
   git -C "$LT/up" remote add team/r2 "$LT/remote.git"; git -C "$LT/up" fetch -q team/r2
+  # cur: push.default=current on disk; co tracks origin/feature/checkout.
+  git clone -q -b main "$LT/remote.git" "$LT/cur"
+  git -C "$LT/cur" config user.email me@example.invalid
+  git -C "$LT/cur" checkout -qb co origin/main
+  git -C "$LT/cur" branch -q --set-upstream-to=origin/feature/checkout co
+  git -C "$LT/cur" config push.default current
   # other: an unrelated repo with an origin and nothing fetched.
   git init -q "$LT/other"; git -C "$LT/other" remote add origin "$LT/remote.git"
   # noid: a clone with no user.email, squashing my commits.
@@ -878,6 +884,60 @@ run_in 2 "GIT_DIR= prefix (I3)"                "$LT/other" "GIT_DIR=$ME/.git git
 run_in 2 "export GIT_DIR earlier (I3)"         "$LT/other" "export GIT_DIR=$ME/.git; git push --force-with-lease origin feature/checkout"
 run_in 2 "GIT_WORK_TREE= prefix"               "$ME" "GIT_WORK_TREE=. git push --force-with-lease origin solo"
 run_in 0 "CONTROL: plain lease from a repo with nothing fetched" "$LT/other" "git push --force-with-lease origin feature/checkout"
+
+echo
+echo "A LEASE PUSH BENDIT CANNOT READ AHEAD OF TIME"
+# The check reads the words as written; the shell expands them only when the
+# command runs. A substitution can name the branch (sam's commit then lost) or
+# run a fetch first. Any run-time word in the push -- argument, refspec,
+# redirection, prefix, unquoted heredoc -- is refused.
+run_in 2 "\$(git branch --show-current) refspec (N1)" "$ME" 'git push --force-with-lease origin "$(git branch --show-current)"'
+run_in 2 "HEAD:\$(git rev-parse ...) refspec"   "$ME" 'git push --force-with-lease origin "HEAD:$(git rev-parse --abbrev-ref HEAD)"'
+run_in 2 "B=...; \$B refspec"                   "$ME" 'B=feature/checkout; git push --force-with-lease origin "$B"'
+run_in 2 "\$(fetch; echo fc2) refspec"          "$ME" 'git push --force-with-lease origin "$(git fetch -q origin; echo fc2)"'
+run_in 2 "backticks refspec"                     "$ME" 'git push --force-with-lease origin "`git fetch -q origin; echo fc2`"'
+run_in 2 "\$(fetch; echo origin) as the remote" "$ME" 'git push --force-with-lease "$(git fetch -q origin; echo origin)" fc2'
+run_in 2 "bare \$(fetch) as an argument"        "$ME" 'git push --force-with-lease $(git fetch -q origin) origin fc2'
+run_in 2 "git -c x.y=\$(fetch)"                 "$ME" 'git -c x.y="$(git fetch -q origin)" push --force-with-lease origin fc2'
+run_in 2 "redirection target \$(fetch)"         "$ME" 'git push --force-with-lease origin fc2 2>"$(git fetch -q origin; echo /dev/null)"'
+run_in 2 "redirection into >(fetch)"             "$ME" 'git push --force-with-lease origin fc2 2> >(git fetch -q origin)'
+run_in 2 "\${B:-solo} refspec"                  "$ME" 'git push --force-with-lease origin "${B:-solo}"'
+run_in 2 "arithmetic \$((...)) in a refspec"    "$ME" 'git push --force-with-lease origin "solo$((0))"'
+run_in 2 "a glob refspec"                        "$ME" 'git push --force-with-lease origin sol?'
+run_in 2 "a brace expansion"                     "$ME" 'git push --force-with-lease origin {solo,squash}'
+run_in 2 "a ~user word"                          "$ME" 'git push --force-with-lease origin ~solo'
+run_in 2 "<(...) as an argument"                 "$ME" 'git push --force-with-lease origin solo <(git fetch -q origin)'
+run_in 2 "a variable redirection target"         "$ME" 'git push --force-with-lease origin solo 2>"$LOG"'
+run_in 2 "an unquoted heredoc with \$(fetch)"   "$ME" $'git push --force-with-lease origin solo <<EOF\n$(git fetch -q origin)\nEOF'
+run_in 2 "a VAR=\$(fetch) prefix"               "$ME" 'X="$(git fetch -q origin)" git push --force-with-lease origin solo'
+run_in 2 "\$(...) as the -C folder"             "$LT" 'git -C "$(echo me)" push --force-with-lease origin solo'
+run_in 0 "CONTROL: literal, quoted, piped"       "$ME" "git push --force-with-lease origin 'solo' 2>&1 | grep -v hint"
+run_in 0 "CONTROL: literal redirection"          "$ME" 'git push --force-with-lease origin solo 2>/dev/null'
+run_in 0 "CONTROL: a quoted heredoc stays data"  "$ME" $'git push --force-with-lease origin solo <<\'EOF\'\n$(git fetch -q origin)\nEOF'
+
+echo
+echo "CONFIG GIVEN ON THE COMMAND LINE decides where the push goes"
+# The guard reads the config on disk; `git -c` and GIT_CONFIG_* change what git
+# uses. Here push.default=current on disk and co tracks origin/feature/checkout.
+run_in 2 "git -c push.default=upstream (N2)"     "$LT/cur" 'git -c push.default=upstream push --force-with-lease origin'
+run_in 2 "git -c remote.origin.push=..."         "$LT/cur" 'git -c remote.origin.push=refs/heads/co:refs/heads/feature/checkout push --force-with-lease origin'
+run_in 2 "git -c remote.origin.push=..., no remote" "$LT/cur" 'git -c remote.origin.push=refs/heads/co:refs/heads/feature/checkout push --force-with-lease'
+run_in 2 "git -c branch.co.merge=..."            "$LT/cur" 'git -c branch.co.merge=refs/heads/feature/checkout push --force-with-lease origin'
+run_in 2 "git -c branch.co.pushRemote=..."       "$LT/cur" 'git -c branch.co.pushRemote=origin push --force-with-lease'
+run_in 2 "git --config-env=push.default=PD"      "$LT/cur" 'git --config-env=push.default=PD push --force-with-lease origin'
+run_in 2 "GIT_CONFIG_PARAMETERS= prefix"         "$LT/cur" "GIT_CONFIG_PARAMETERS=\"'push.default'='upstream'\" git push --force-with-lease origin"
+run_in 2 "GIT_CONFIG_COUNT= prefix"              "$LT/cur" 'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=push.default GIT_CONFIG_VALUE_0=upstream git push --force-with-lease origin'
+# ...and set in the environment the hook runs in.
+payload=$(python3 -c '
+import json,sys; print(json.dumps({"tool_name":"Bash","cwd":sys.argv[2],"tool_input":{"command":sys.argv[1]}}))' \
+  "git push --force-with-lease origin solo" "$ME")
+expect_capture "GIT_CONFIG_COUNT in the hook's environment" env GIT_CONFIG_COUNT=0 python3 "$HOOK" <<<"$payload"
+if [ "$EXPECT_CODE" -eq 2 ] && [ -n "$EXPECT_STDERR" ]; then
+  printf '  ok    %-46s\n' "GIT_CONFIG_COUNT in the hook's environment"; pass=$((pass+1))
+else
+  printf '  FAIL  %-46s exit %s\n' "GIT_CONFIG_COUNT in the hook's environment" "$EXPECT_CODE"; fail=$((fail+1))
+fi
+run_in 0 "CONTROL: git -c of an unrelated key"   "$ME" 'git -c color.ui=never push --force-with-lease origin solo'
 
 echo
 echo "A MERGE SOMEONE ELSE MADE, with a change of its own"

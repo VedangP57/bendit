@@ -553,6 +553,13 @@ def push_deletes_remote_refs(s):
 # branch.<b>.merge, branch.<b>.pushRemote and remote.pushDefault decide it,
 # and a remote.<r>.push mapping, which is not followed, refuses. A merge by
 # someone else whose OWN change (a conflict fix) would be lost counts as lost.
+# A push bendit cannot read ahead of time is refused: any run-time word in it
+# (`$(...)`, backticks, `$VAR`, `${...}`, `$((...))`, a glob, a brace
+# expansion, `~user`, `<(...)`/`>(...)`, in an argument, a prefix, a
+# redirection, a here-string or an unquoted heredoc), and any routing config
+# given on the command line (`git -c push.default=...`, `remote.<r>.push`,
+# `branch.<b>.merge`..., `--config-env`) or as GIT_CONFIG_PARAMETERS /
+# GIT_CONFIG_COUNT / GIT_CONFIG_KEY_* / GIT_CONFIG_VALUE_* in the environment.
 #
 # KNOWN LIMITS: authorship is the author email, which anyone can set. The
 # tracking ref is assumed to be refs/remotes/<remote>/<branch> (the default
@@ -563,6 +570,15 @@ _HEXISH = re.compile(r'^[0-9a-fA-F]{7,40}$')
 # Variables that make git use another repository, worktree or config than the
 # folder the check runs in. Seen anywhere in a command with a lease push: refuse.
 _GIT_ENV = re.compile(r'(?<![\w$])(GIT_DIR|GIT_WORK_TREE|GIT_COMMON_DIR|GIT_NAMESPACE|GIT_CONFIG\w*)=')
+# A word the shell changes when the command runs: a substitution, a variable,
+# arithmetic, a glob, a brace expansion, process substitution. Read as written
+# it names nothing real, and a substitution may itself fetch first.
+_RUNTIME = re.compile(r'[$`*?\[]|^[<>]\(|\{[^}]*(?:,|\.\.)[^}]*\}')
+# Config that decides where a push goes, which remote, and what it tracks.
+_ROUTING_KEY = re.compile(r'(?i)^(?:push\.default|remote\.pushdefault|'
+                          r'remote\..+\.(?:push|pushurl|url|fetch)|'
+                          r'branch\..+\.(?:merge|pushremote|remote))$')
+_CONFIG_ENV = ('GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT')
 _CWD = [None]       # the payload's cwd; set by inspect()
 _SIMPLES = [[]]     # every simple command of the command being judged; set by _verdict()
 _COMMAND = ['']     # the text of the command being judged; set by _verdict()
@@ -589,6 +605,44 @@ def _read_only(c) -> bool:
         named = any(not x.startswith('-') for x in rest)
         return opts <= _BRANCH_READ_OPTS and (not named or bool(opts & {'--list', '-l'}))
     return sub == 'remote' and all(x in ('-v', '--verbose') for x in rest)
+
+
+def _runtime_word(s):
+    """The first word of the push -- argument, prefix, redirection target,
+    here-string, unquoted heredoc -- that the shell expands at run time, or None."""
+    words = s.cmd.argv
+    for k, w in enumerate(words):
+        if _RUNTIME.search(w):
+            return w
+        if w.startswith('~') and not (k and words[k - 1] == '-C' and (w == '~' or w.startswith('~/'))):
+            return w   # ~user, or a ~ anywhere but a literal -C path
+    for w in [r.value for r in getattr(s.cmd, 'redirs', [])] + list(s.cmd.herestrings):
+        if _RUNTIME.search(w) or w.startswith('~'):
+            return w
+    for hd in s.cmd.heredocs:
+        if not hd.quoted and re.search(r'[$`]', hd.body):
+            return f'<<{hd.delim}'
+    return None
+
+
+def _routing_config(s):
+    """A push-routing config key set on the command line (`git -c`,
+    `--config-env`), or a GIT_CONFIG_* list in the hook's environment."""
+    a = s.argv
+    i, configs = _git(a)
+    keys = [c.split('=', 1)[0] for c in configs]
+    for k in range(1, i or 1):
+        if a[k].startswith('--config-env='):
+            keys.append(a[k].split('=', 1)[1].split('=', 1)[0])
+        elif a[k] == '--config-env' and k + 1 < len(a):
+            keys.append(a[k + 1].split('=', 1)[0])
+    for key in keys:
+        if _ROUTING_KEY.match(key):
+            return f'git -c {key}'
+    for name in os.environ:
+        if name in _CONFIG_ENV or name.startswith(('GIT_CONFIG_KEY_', 'GIT_CONFIG_VALUE_')):
+            return name
+    return None
 
 
 def _runs_before(s):
@@ -845,6 +899,17 @@ def force_with_lease_foreign(s):
         return (f'`{written}` runs with {env.group(1)} set in this command, so git would push '
                 f'from a different repository or config than the one bendit can check — run the '
                 f'push as its own command, without {env.group(1)}, from the repository itself')
+    config = _routing_config(s)
+    if config:
+        return (f'`{written}` runs with `{config}`, which can change where git pushes and what '
+                f'it compares against, while bendit reads the config on disk — run the push '
+                f'as its own command without it, or set it in the repository first')
+    word = _runtime_word(s)
+    if word is not None:
+        shown = word if len(word) <= 60 else word[:57] + '...'
+        return (f'`{written}` contains `{shown}`, which the shell expands only when the command '
+                f'runs, so bendit cannot tell what this push would discard — write the branch '
+                f'and commit out literally so bendit can check them')
     before = _runs_before(s)
     if before is not None:
         shown = ' '.join(before.argv)

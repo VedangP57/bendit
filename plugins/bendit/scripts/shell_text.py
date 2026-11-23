@@ -119,7 +119,7 @@ class Heredoc:
 class Cmd:
     """One simple command as written: its words and what is attached to it."""
     __slots__ = ('words', 'seq', 'subshell', 'pipe', 'heredocs', 'herestrings',
-                 'cond', 'chain')
+                 'cond', 'chain', 'redirs')
 
     def __init__(self, seq, subshell, pipe, cond=False, chain=0):
         self.words: List[Word] = []
@@ -134,6 +134,9 @@ class Cmd:
         self.chain = chain
         self.heredocs: List[Heredoc] = []
         self.herestrings: List[str] = []
+        # The target word of each redirection (`2>"$F"`), quotes removed,
+        # nothing expanded. Heredoc delimiters are in heredocs instead.
+        self.redirs: List[Word] = []
 
     @property
     def argv(self):
@@ -456,6 +459,9 @@ class _Lexer:
                 if j >= end or t[j] in '\n;&|)':
                     i = j
                     continue
+                if t[j] in '<>' and j + 1 < end and t[j + 1] == '(':
+                    i = j   # `2> >(cmd)`: the target is a process substitution, lexed next
+                    continue
                 val, j2, quoted = self.read_word(j, end)
                 if op in ('<<', '<<-'):
                     hd = Heredoc(val, quoted, op == '<<-', cmd)
@@ -464,6 +470,8 @@ class _Lexer:
                     self.pending.append(hd)
                 elif op == '<<<':
                     cmd.herestrings.append(val)
+                else:
+                    cmd.redirs.append(Word(val, j, j2))
                 i = max(j2, j + 1) if j2 == j else j2
                 continue
             start = i

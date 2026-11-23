@@ -2335,6 +2335,196 @@ If this is genuinely required, ask the human to run it.
 exit 0
 (silent)
 
+=== $(git branch --show-current) refspec (N1)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `$(git branch --show-current)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== HEAD:$(git rev-parse ...) refspec
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `HEAD:$(git rev-parse --abbrev-ref HEAD)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== B=...; $B refspec
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `$B`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== $(fetch; echo fc2) refspec
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `$(git fetch -q origin; echo fc2)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== backticks refspec
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains ``git fetch -q origin; echo fc2``, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== $(fetch; echo origin) as the remote
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `$(git fetch -q origin; echo origin)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== bare $(fetch) as an argument
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `$(git fetch -q origin)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== git -c x.y=$(fetch)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `x.y=$(git fetch -q origin)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== redirection target $(fetch)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `$(git fetch -q origin; echo /dev/null)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== redirection into >(fetch)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `>(git fetch -q origin)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== ${B:-solo} refspec
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `${B:-solo}`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== arithmetic $((...)) in a refspec
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `solo$((0))`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== a glob refspec
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `sol?`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== a brace expansion
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `{solo,squash}`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== a ~user word
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `~solo`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== <(...) as an argument
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `<(git fetch -q origin)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== a variable redirection target
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `$LOG`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== an unquoted heredoc with $(fetch)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `<<EOF`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== a VAR=$(fetch) prefix
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `X=$(git fetch -q origin)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== $(...) as the -C folder
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` contains `$(echo me)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: literal, quoted, piped
+exit 0
+(silent)
+
+=== CONTROL: literal redirection
+exit 0
+(silent)
+
+=== CONTROL: a quoted heredoc stays data
+exit 0
+(silent)
+
+=== git -c push.default=upstream (N2)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `git -c push.default`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== git -c remote.origin.push=...
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `git -c remote.origin.push`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== git -c remote.origin.push=..., no remote
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `git -c remote.origin.push`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== git -c branch.co.merge=...
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `git -c branch.co.merge`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== git -c branch.co.pushRemote=...
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `git -c branch.co.pushRemote`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== git --config-env=push.default=PD
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `git -c push.default`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== GIT_CONFIG_PARAMETERS= prefix
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with GIT_CONFIG_PARAMETERS set in this command, so git would push from a different repository or config than the one bendit can check — run the push as its own command, without GIT_CONFIG_PARAMETERS, from the repository itself.
+If this is genuinely required, ask the human to run it.
+
+=== GIT_CONFIG_COUNT= prefix
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with GIT_CONFIG_COUNT set in this command, so git would push from a different repository or config than the one bendit can check — run the push as its own command, without GIT_CONFIG_COUNT, from the repository itself.
+If this is genuinely required, ask the human to run it.
+
+=== GIT_CONFIG_COUNT in the hook's environment
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_COUNT`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: git -c of an unrelated key
+exit 0
+(silent)
+
 === sam's merge with its own fix is lost (M2)
 exit 2
 --- stderr

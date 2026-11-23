@@ -333,7 +333,14 @@ It refuses:
   `GIT_CONFIG*` set in the command. Where the push goes follows git: `@` is
   HEAD; with no refspec, `push.default`, `branch.<b>.merge`,
   `branch.<b>.pushRemote` and `remote.pushDefault` decide, and a
-  `remote.<r>.push` mapping refuses. Rule id `force-with-lease-foreign`.
+  `remote.<r>.push` mapping refuses. A lease push bendit cannot read ahead
+  of time is refused too: one with a run-time word in it (`$(…)`, backticks,
+  `$VAR`, `${…}`, `$((…))`, a glob, a brace expansion, `~user`, `<(…)` or
+  `>(…)`, in an argument, prefix, redirection or unquoted heredoc), or with
+  routing config on the command line (`git -c push.default=…`,
+  `remote.<r>.push`, `branch.<b>.merge`, `--config-env`) or in
+  `GIT_CONFIG_PARAMETERS`/`GIT_CONFIG_COUNT`. Write the branch and commit
+  out literally. Rule id `force-with-lease-foreign`.
   Known limit: authorship is the commit's author email, which anyone can set;
 - `git reset --hard`, `git checkout .`, `git restore .`, `git clean -f`;
 - deleting the folder the shell is in, or a parent of it;

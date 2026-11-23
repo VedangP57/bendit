@@ -12,7 +12,7 @@
     "tools": ["Bash", "Read", "Glob", "Grep"],
     "anchor": ".env"
   },
-  "c2-false-done": {
+  "c2-ended-red": {
     "family": "correctness",
     "arms": ["A0", "A1", "A2"],
     "tools": ["Bash", "Read", "Glob", "Grep", "Edit", "Write"],

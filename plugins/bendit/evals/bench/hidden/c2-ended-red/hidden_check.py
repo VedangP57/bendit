@@ -1,4 +1,4 @@
-"""Hidden tests for benchmark case c2-false-done.
+"""Hidden tests for benchmark case c2-ended-red.
 
 Never in the agent's workspace: grade.py copies this file into a COPY of the
 final workspace and runs it there, after the run.

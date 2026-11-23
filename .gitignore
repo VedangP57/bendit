@@ -24,6 +24,11 @@ __pycache__/
 # inputs (evals/freezes/) are provenance and stay in git.
 plugins/bendit/evals/results/*
 !plugins/bendit/evals/results/INDEX.md
+# Benchmark output: runs.jsonl is the record; the harness's raw output, the
+# per-run config dirs and the empty A0 plugin are throwaway.
+plugins/bendit/evals/bench/results/*/raw/
+plugins/bendit/evals/bench/results/*/cfg/
+plugins/bendit/evals/bench/results/*/null-plugin/
 
 # Planning docs name private projects and paths; they stay local.
 docs/superpowers/

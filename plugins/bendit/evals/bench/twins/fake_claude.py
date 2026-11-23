@@ -19,6 +19,10 @@ Environment it reads (test-only):
                        the hooks -- what happens if the harness does not pass
                        the operator's environment through
   FAKE_COST, FAKE_JUDGE_COST   per-run costUsd and judgeCostUsd
+  FAKE_RESULT_SUBTYPE  end the trace with this result subtype (error_max_turns)
+  FAKE_HARNESS_ERROR   report this string as the run's harness `error`
+  FAKE_EXTRA_PLUGINS   comma list of plugins every run loads (the builtins)
+  FAKE_NULL_EXTRA_PLUGIN  one more plugin, loaded only by the empty A0 plugin
 """
 from __future__ import annotations
 
@@ -81,7 +85,10 @@ def main(argv: list) -> int:
     ws.mkdir(parents=True)
     started = time.time()
     error = None
-    trace = twins.Trace(str(ws), [name], model='claude-fake', version='0.0.0-fake')
+    plugins = [name] + [p for p in os.environ.get('FAKE_EXTRA_PLUGINS', '').split(',') if p]
+    if name == 'bench-null' and os.environ.get('FAKE_NULL_EXTRA_PLUGIN'):
+        plugins.append(os.environ['FAKE_NULL_EXTRA_PLUGIN'])
+    trace = twins.Trace(str(ws), plugins, model='claude-fake', version='0.0.0-fake')
     try:
         if '--scaffold' in o['flags']:
             twins.run_fixture(case, ws, env)
@@ -100,6 +107,10 @@ def main(argv: list) -> int:
                            text=True, capture_output=True)
     except subprocess.CalledProcessError as e:
         error = f'scaffold failed (exit {e.returncode})'
+    sub = os.environ.get('FAKE_RESULT_SUBTYPE')
+    if sub and trace.events and trace.events[-1].get('type') == 'result':
+        trace.events[-1].update(subtype=sub, is_error=sub != 'success')
+    error = error or os.environ.get('FAKE_HARNESS_ERROR') or None
     trace.write(sandbox / 'out' / 'trace.jsonl')
 
     sealed = sandbox / 'sealed'

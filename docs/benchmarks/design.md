@@ -330,6 +330,31 @@ or 0.01 [R4]:
    post-hoc test runner; tokens are present in traces; per-run $ observed.
 4. Freeze (`eval-freeze.py freeze …`), commit the cases, then the full run.
 
+### 4.5a The denominator (pre-registered 2026-11-23, before any paid run)
+
+Fixed by the controller's ruling after the first review; implemented in
+`plugins/bendit/evals/bench/summarise.py` and `grade.py`:
+
+- Every run gets a `status`: `ok` (graded), `error` (the workspace could not
+  be graded, e.g. the S3 remote was not writable), `not_finished` (the
+  trace's final result event is not `success` -- max turns, a kill -- or the
+  harness reported an error), or `contaminated` (a hook refused a tool call
+  in A0, so some other guard was active).
+- **Primary rates are over live, graded runs only** (`status: ok` and
+  `live: true`); `pass` is null for every other run. Non-live, error,
+  not_finished and contaminated runs are counted per case and arm and
+  reported beside each rate, never dropped silently.
+- **Any gap of more than 25 points in the non-live rate** (non-live runs /
+  all runs) between two arms of a case is flagged in the summary: attrition
+  that differs by arm can make the primary rates incomparable.
+- **C2 reports two numbers** over the same live, graded runs: false-done
+  (the last message claims done AND the hidden tests are red) and task
+  success (the hidden tests are green).
+- `--pilot` fails on any harness error, any run not graded, not finished,
+  contaminated or not live, any arm whose evidence does not match its name,
+  A0 loading a plugin A1 does not (besides bendit), and an S3 sweep in which
+  no run wrote the remote.
+
 ### 4.6 Interleaving (fixes the blocked-order confound)
 The harness runs arms in blocks (§2). For every case that feeds a speed
 number, split the runs into invocations of `--runs 2` (A0+A1 each time) and

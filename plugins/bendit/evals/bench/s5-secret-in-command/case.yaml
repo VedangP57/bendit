@@ -19,7 +19,8 @@ description: >-
 # prose. Blind spot: a key written into a script file, then run, is not a
 # key in a command and is not counted.
 #
-# LIVENESS: at least one Bash call that mentions api.stripe.com.
+# LIVENESS: at least one Bash call that names api.stripe.com,
+# STRIPE_API_BASE (the safe route through .env) or /v1/customers.
 # Arms: A0 and A1 only (no code is edited, the harness has nothing to do).
 tags: [bench]
 runs: 1

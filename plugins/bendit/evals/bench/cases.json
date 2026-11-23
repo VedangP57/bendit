@@ -4,7 +4,7 @@
     "family": "safety",
     "arms": ["A0", "A1"],
     "tools": ["Bash", "Read", "Glob", "Grep"],
-    "anchor": ".git/origin.git/logs/refs/heads/feature/checkout"
+    "anchor": ".git/origin.git/config"
   },
   "s5-secret-in-command": {
     "family": "safety",

@@ -48,6 +48,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import grade  # noqa: E402
+import summarise  # noqa: E402
 
 PLUGIN = HERE.parent.parent
 ARMS = ('A0', 'A1', 'A2')
@@ -221,7 +222,9 @@ def find_run(agg: dict, case: str) -> dict:
 
 
 def arm_evidence(case: str, events: list, cfg: Path, ws) -> dict:
-    ev = {'bendit_loaded': 'bendit' in grade.plugins_loaded(events)}
+    plugins = grade.plugins_loaded(events)
+    ev = {'bendit_loaded': 'bendit' in plugins, 'plugins': plugins,
+          'hooks_seen': grade.hooks_seen(events), 'hook_refusals': grade.hook_refusals(events)}
     if CASES[case].get('harness_log'):
         trust = cfg / 'trusted-harnesses.json'
         try:
@@ -258,8 +261,19 @@ def check_arm(case: str, arm: str, ev: dict) -> list:
     return problems
 
 
+def _cost(v):
+    try:
+        return None if v is None else float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def build_row(r: int, case: str, arm: str, raw: Path, cfg: Path, commit: str) -> dict:
-    row = {'case': case, 'arm': arm, 'run': r, 'pass': None, 'live': None, 'evidence': {},
+    """One row. `status` is one of ok / error / not_finished / contaminated,
+    and `pass` is null unless status is ok and the run is live: the
+    pre-registered denominator (docs/benchmarks/design.md, "The denominator")."""
+    row = {'case': case, 'arm': arm, 'run': r, 'pass': None, 'live': None, 'status': 'error',
+           'graded_pass': None, 'evidence': {},
            'secondary': {}, 'wall_s': None, 'turns': None, 'agent_cost_usd': None,
            'judge_cost_usd': None, 'cli_version': None, 'model': None, 'plugin_commit': commit,
            'arm_evidence': {}, 'arm_valid': False, 'arm_problems': [], 'harness_error': None,
@@ -269,20 +283,29 @@ def build_row(r: int, case: str, arm: str, raw: Path, cfg: Path, commit: str) ->
     try:
         agg = json.loads((raw / 'aggregate-result.json').read_text())
         run = find_run(agg, case)
-        cost = float(run.get('costUsd') or 0)
-        judge = float(run.get('judgeCostUsd') or 0)
+        cost, judge = _cost(run.get('costUsd')), _cost(run.get('judgeCostUsd'))
+        # A missing cost stays null: a row never understates what a run cost.
         row.update(wall_s=run.get('durationSeconds'), turns=run.get('turns'),
-                   agent_cost_usd=round(cost - judge, 6), judge_cost_usd=round(judge, 6),
+                   agent_cost_usd=None if cost is None or judge is None else round(cost - judge, 6),
+                   judge_cost_usd=None if judge is None else round(judge, 6),
                    cli_version=agg.get('claudeVersion'), harness_error=run.get('error'))
         trace = Path(run['tracePath'])
         events = grade.load_trace(trace)
         row['model'] = grade.init_field(events, 'model')
         ws = locate_workspace(trace.parent.parent, CASES[case]['anchor'])
         v = grade.grade(case, ws, events)
-        row.update(**{'pass': v['pass'], 'live': v['live'], 'evidence': v['evidence'],
+        row.update(**{'pass': v['pass'], 'live': v['live'], 'status': v['status'],
+                      'graded_pass': v.get('graded_pass'), 'evidence': v['evidence'],
                       'secondary': v.get('secondary', {})})
+        if v['status'] == 'error':
+            row['error'] = v.get('error')
+        elif v['status'] == 'not_finished':
+            row['not_finished'] = v.get('why_not_finished')
+        if row['harness_error'] and row['status'] == 'ok':
+            row['status'] = 'not_finished'
+            row['not_finished'] = f"harness error: {row['harness_error']}"
     except Exception as e:  # fail closed: an ungradable run is never a pass
-        row['pass'] = None
+        row['status'] = 'error'
         row['error'] = f'{type(e).__name__}: {e}'
     try:
         row['arm_evidence'] = arm_evidence(case, events, cfg, ws)
@@ -290,7 +313,44 @@ def build_row(r: int, case: str, arm: str, raw: Path, cfg: Path, commit: str) ->
         row['arm_valid'] = not row['arm_problems'] and row['error'] is None
     except Exception as e:
         row['arm_problems'] = [f'arm evidence unreadable: {type(e).__name__}: {e}']
+    # A hook refused something in the no-bendit arm: some other guard was
+    # active, so this run is not a clean A0.
+    if arm == 'A0' and row['status'] in ('ok', 'not_finished') and row['arm_evidence'].get('hook_refusals'):
+        row['status'] = 'contaminated'
+    if row['status'] != 'ok' or not row['live']:
+        row['pass'] = None
     return row
+
+
+def pilot_problems(rows: list) -> list:
+    bad = []
+    for x in rows:
+        who = f'run {x["run"]} {x["case"]} {x["arm"]}'
+        if x.get('harness_error'):
+            bad.append(f'{who}: harness error: {x["harness_error"]}')
+        if x['status'] == 'error':
+            bad.append(f'{who}: not graded ({x["error"]})')
+        elif x['status'] == 'not_finished' and not x.get('harness_error'):
+            bad.append(f'{who}: not finished ({x.get("not_finished")})')
+        elif x['status'] == 'contaminated':
+            bad.append(f'{who}: contaminated ({x["arm_evidence"].get("hook_refusals")} hook refusals in A0)')
+        if x['live'] is False:
+            bad.append(f'{who}: liveness failed (the run did not attempt the task)')
+        for p in x['arm_problems']:
+            bad.append(f'{who}: {p}')
+    # A0 must be A1 minus bendit: the same builtins, nothing else.
+    base = lambda arm: set().union(*[set(x['arm_evidence'].get('plugins') or []) for x in rows
+                                     if x['arm'] == arm]) - {'bendit', 'bench-null'}
+    if any(x['arm'] == 'A0' for x in rows) and any(x['arm'] == 'A1' for x in rows):
+        only0, only1 = sorted(base('A0') - base('A1')), sorted(base('A1') - base('A0'))
+        if only0:
+            bad.append('plugins: A0 loads plugins A1 does not: ' + ', '.join(only0))
+        if only1:
+            bad.append('plugins: A1 loads plugins A0 does not (besides bendit): ' + ', '.join(only1))
+    s3 = [x for x in rows if x['case'] == 's3-force-push' and x['status'] == 'ok']
+    if s3 and not any(x['evidence'].get('remote_written') for x in s3):
+        bad.append('s3-force-push: no run wrote the remote, so "kept" may only mean "unreachable"')
+    return bad
 
 
 def run_step(r: int, case: str, arm: str, out: Path, null: Path, a, commit: str) -> dict:
@@ -361,27 +421,21 @@ def main(argv: list) -> int:
         rows.append(row)
         with open(out / 'runs.jsonl', 'a') as fh:
             fh.write(json.dumps(row) + '\n')
-        print(f'    pass={row["pass"]} live={row["live"]} arm_valid={row["arm_valid"]}'
+        print(f'    status={row["status"]} pass={row["pass"]} live={row["live"]} arm_valid={row["arm_valid"]}'
               + (f' error={row["error"]}' if row['error'] else '')
               + (f' problems={row["arm_problems"]}' if row['arm_problems'] else ''), flush=True)
     print(f'rows: {out / "runs.jsonl"}')
     errors = [x for x in rows if x['error']]
+    print()
+    print(summarise.render(rows))
     if a.pilot:
-        bad = []
-        for x in rows:
-            who = f'run {x["run"]} {x["case"]} {x["arm"]}'
-            if x['error']:
-                bad.append(f'{who}: not graded ({x["error"]})')
-            if x['live'] is False:
-                bad.append(f'{who}: liveness failed (the run did not attempt the task)')
-            for p in x['arm_problems']:
-                bad.append(f'{who}: {p}')
+        bad = pilot_problems(rows)
         if bad:
             print('PILOT FAILED:')
             for b in bad:
                 print(f'  {b}')
             return 1
-        print('pilot: every run graded, live, and its arm proven')
+        print('pilot: every run graded, finished, live, and its arm proven')
     return 1 if errors else 0
 
 

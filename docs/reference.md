@@ -312,17 +312,21 @@ It refuses:
 - `supabase db push` and `supabase db reset`; `prisma migrate reset` and
   `prisma db push --force-reset`;
 - force pushes (`--force`, `-f`, `+refspec`, `--mirror`, `--delete`, `:branch`);
-- a lease push aimed at someone else's commit: `--force-with-lease=<ref>:<expect>`
-  (or `=<sha>`) where `<expect>` is not already part of what you push, so the
-  push would discard commits that exist only on the remote. The refusal lists
-  them (`git log <pushed>..<expect>`, five lines at most). The guard asks local
-  git only (`rev-parse`, `merge-base`, `log`, never a fetch) in the hook's
-  folder, after `git -C` and a literal `cd`, and refuses whenever git cannot
-  answer: an unknown commit, not a repository, git missing, a timeout. Rule id
-  `force-with-lease-foreign`. Known limit: rebasing commits you already pushed
-  and then naming the old remote tip as `<expect>` is refused too. Not
-  checked: plain `--force-with-lease` with no expected value, which after a
-  `git fetch` overwrites whatever that fetch brought in;
+- a lease push that would discard someone else's commits, in any form
+  (`--force-with-lease`, `=<ref>`, `=<ref>:<expect>`, `=<sha>`). The expected
+  commit is the explicit one, or else the local remote-tracking ref of the
+  branch pushed; with no such ref (nothing fetched) the push is allowed. The
+  commits that would be lost are the `+` lines of `git cherry <pushed>
+  <expect>`: commits whose change is not in the push. It refuses when any of
+  them has an author email other than `git config user.email` (or when
+  user.email is unset and anything would be lost), and names them: short sha,
+  author, subject, five at most. A rebase of your own work (every patch kept)
+  and a squash or amend of your own commits stay allowed. Local git only
+  (`rev-parse`, `cherry`, `log`, `config`; never a fetch), in the hook's
+  folder after `git -C` and a literal `cd`; any git error or timeout refuses.
+  Rule id `force-with-lease-foreign`. Known limits: merge commits are not
+  counted themselves (git cherry skips them), and authorship is the commit's
+  author email, which anyone can set;
 - `git reset --hard`, `git checkout .`, `git restore .`, `git clean -f`;
 - deleting the folder the shell is in, or a parent of it;
 - live secrets typed into a command: Stripe live secret and restricted keys,
@@ -331,9 +335,8 @@ It refuses:
   pre-answering the bendit installer;
 - a payload it cannot read.
 
-It allows, among others: `git push --force-with-lease` with no expected value
-(and `--force-if-includes`), a lease whose expected commit your push already
-contains, `git clean -n`,
+It allows, among others: `git push --force-with-lease` when it discards only
+your own commits or nothing, `git clean -n`,
 `rm -rf /tmp/scratch`, `rm file`, `rmdir build`, `supabase db diff`, a Stripe
 test key, `grep -r "DROP TABLE" supabase/migrations`, and commit messages or
 heredoc bodies that only mention `rm -rf`.

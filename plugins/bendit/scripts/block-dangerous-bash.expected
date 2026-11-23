@@ -2023,147 +2023,195 @@ exit 0
 === the benchmark's exact command
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would overwrite c3673ae on the remote, and c3673ae is not part of what you are pushing (feature/checkout) — the push would discard these commits, which exist only there:
-    c3673ae coupon: keep the discount on retry
-    1bf7b37 checkout: first pass
-Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already seen and chose to overwrite.
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
 === lease on a full teammate sha
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673aef6329c37fec88ec1454a33abad2bb94d5` would overwrite c3673ae on the remote, and c3673ae is not part of what you are pushing (feature/checkout) — the push would discard these commits, which exist only there:
-    c3673ae coupon: keep the discount on retry
-    1bf7b37 checkout: first pass
-Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already seen and chose to overwrite.
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673aef6329c37fec88ec1454a33abad2bb94d5` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
 === lease on a short teammate sha
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673aef6` would overwrite c3673ae on the remote, and c3673ae is not part of what you are pushing (feature/checkout) — the push would discard these commits, which exist only there:
-    c3673ae coupon: keep the discount on retry
-    1bf7b37 checkout: first pass
-Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already seen and chose to overwrite.
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673aef6` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
 === lease names only the teammate sha
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=c3673ae` would overwrite c3673ae on the remote, and c3673ae is not part of what you are pushing (feature/checkout) — the push would discard these commits, which exist only there:
-    c3673ae coupon: keep the discount on retry
-    1bf7b37 checkout: first pass
-Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already seen and chose to overwrite.
+BLOCKED by bendit safety hook: `--force-with-lease=c3673ae` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
 === expect given as origin/<branch>
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:origin/feature/checkout` would overwrite c3673ae on the remote, and c3673ae is not part of what you are pushing (feature/checkout) — the push would discard these commits, which exist only there:
-    c3673ae coupon: keep the discount on retry
-    1bf7b37 checkout: first pass
-Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already seen and chose to overwrite.
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:origin/feature/checkout` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
 === expect as refs/remotes/origin/...
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=refs/heads/feature/checkout:refs/remotes/origin/feature/checkout` would overwrite c3673ae on the remote, and c3673ae is not part of what you are pushing (HEAD) — the push would discard these commits, which exist only there:
-    c3673ae coupon: keep the discount on retry
-    1bf7b37 checkout: first pass
-Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already seen and chose to overwrite.
+BLOCKED by bendit safety hook: `--force-with-lease=refs/heads/feature/checkout:refs/remotes/origin/feature/checkout` would discard 1 commit(s) by someone else from the remote's refs/heads/feature/checkout — they are on c3673ae and their changes are not in what you push (HEAD):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
 === foreign lease inside sh -c
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would overwrite c3673ae on the remote, and c3673ae is not part of what you are pushing (feature/checkout) — the push would discard these commits, which exist only there:
-    c3673ae coupon: keep the discount on retry
-    1bf7b37 checkout: first pass
-Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already seen and chose to overwrite.
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
 === foreign lease after FOO=1
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would overwrite c3673ae on the remote, and c3673ae is not part of what you are pushing (feature/checkout) — the push would discard these commits, which exist only there:
-    c3673ae coupon: keep the discount on retry
-    1bf7b37 checkout: first pass
-Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already seen and chose to overwrite.
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
 === foreign lease with --force-if-includes
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would overwrite c3673ae on the remote, and c3673ae is not part of what you are pushing (feature/checkout) — the push would discard these commits, which exist only there:
-    c3673ae coupon: keep the discount on retry
-    1bf7b37 checkout: first pass
-Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already seen and chose to overwrite.
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
 === git -C <dir> from another folder
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would overwrite c3673ae on the remote, and c3673ae is not part of what you are pushing (feature/checkout) — the push would discard these commits, which exist only there:
-    c3673ae coupon: keep the discount on retry
-    1bf7b37 checkout: first pass
-Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already seen and chose to overwrite.
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
 === cd <dir> && foreign lease
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would overwrite c3673ae on the remote, and c3673ae is not part of what you are pushing (feature/checkout) — the push would discard these commits, which exist only there:
-    c3673ae coupon: keep the discount on retry
-    1bf7b37 checkout: first pass
-Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already seen and chose to overwrite.
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
 === two refspecs, one lease foreign
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would overwrite c3673ae on the remote, and c3673ae is not part of what you are pushing (feature/checkout) — the push would discard these commits, which exist only there:
-    c3673ae coupon: keep the discount on retry
-    1bf7b37 checkout: first pass
-Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already seen and chose to overwrite.
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
 === abbreviated --force-with=...
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with=feature/checkout:c3673ae` would overwrite c3673ae on the remote, and c3673ae is not part of what you are pushing (feature/checkout) — the push would discard these commits, which exist only there:
-    c3673ae coupon: keep the discount on retry
-    1bf7b37 checkout: first pass
-Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already seen and chose to overwrite.
+BLOCKED by bendit safety hook: `--force-with=feature/checkout:c3673ae` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
 === unknown sha: fail closed
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:0123456789abcdef` names 0123456789abcdef as the remote commit to overwrite, and git could not check here that your push already contains it (git here does not know a commit 0123456789abcdef: an unknown commit, or not a git repository) — a lease with an explicit expected commit is only allowed when it is part of what you push. Run `git log 0123456789abcdef` to see what you would discard, and leave this push to the human if it must happen.
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:0123456789abcdef`: git could not check here whether this push discards someone else's commits (git here does not know a commit 0123456789abcdef: an unknown commit, or not a git repository), so it is refused. Run `git fetch` and `git log <your branch>..<remote>/<branch>` to see what is on the remote, and leave this push to the human if it must happen.
 If this is genuinely required, ask the human to run it.
 
 === not a git repo: fail closed
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` names c3673ae as the remote commit to overwrite, and git could not check here that your push already contains it (git here does not know a commit c3673ae: an unknown commit, or not a git repository) — a lease with an explicit expected commit is only allowed when it is part of what you push. Run `git log c3673ae` to see what you would discard, and leave this push to the human if it must happen.
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae`: git could not check here whether this push discards someone else's commits (git here does not know a commit c3673ae: an unknown commit, or not a git repository), so it is refused. Run `git fetch` and `git log <your branch>..<remote>/<branch>` to see what is on the remote, and leave this push to the human if it must happen.
 If this is genuinely required, ask the human to run it.
 
 === git missing: fail closed
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` names c3673ae as the remote commit to overwrite, and git could not check here that your push already contains it (git could not run (FileNotFoundError: [Errno 2] No such file or directory: 'git')) — a lease with an explicit expected commit is only allowed when it is part of what you push. Run `git log c3673ae` to see what you would discard, and leave this push to the human if it must happen.
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae`: git could not check here whether this push discards someone else's commits (git could not run (FileNotFoundError: [Errno 2] No such file or directory: 'git')), so it is refused. Run `git fetch` and `git log <your branch>..<remote>/<branch>` to see what is on the remote, and leave this push to the human if it must happen.
 If this is genuinely required, ask the human to run it.
 
-=== CONTROL: plain --force-with-lease
+=== plain lease after a fetch brought sam's commit
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+If this is genuinely required, ask the human to run it.
+
+=== plain lease, no refspec at all
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (HEAD):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+If this is genuinely required, ask the human to run it.
+
+=== lease on a refname only
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+If this is genuinely required, ask the human to run it.
+
+=== plain lease + --force-if-includes
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+If this is genuinely required, ask the human to run it.
+
+=== sam's commit hidden among my own
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` would discard 1 commit(s) by someone else from the remote's mixed — they are on cc7d999 and their changes are not in what you push (mixed):
+    3d3c7f1 sam: mixed: sam's fix
+Look at them first: `git log --stat b4e5036..cc7d999`. To keep them, rebase onto them (`git rebase cc7d999`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+If this is genuinely required, ask the human to run it.
+
+=== user.email unset, something lost
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` would discard 2 commit(s) that may not be yours (`git config user.email` is not set, so bendit cannot tell whose they are) from the remote's squash — they are on 9518eb2 and their changes are not in what you push (squash):
+    bc0531d me: squash: one
+    9518eb2 me: squash: two
+Look at them first: `git log --stat 2b9cea9..9518eb2`. To keep them, rebase onto them (`git rebase 9518eb2`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: plain lease, no tracking ref
 exit 0
 (silent)
 
-=== CONTROL: lease on a refname only
+=== CONTROL: plain lease to a bare URL
 exit 0
 (silent)
 
-=== CONTROL: lease + --force-if-includes
+=== CONTROL: my rebase, explicit expect
+exit 0
+(silent)
+
+=== CONTROL: my rebase, plain lease
+exit 0
+(silent)
+
+=== CONTROL: my squash, plain lease
+exit 0
+(silent)
+
+=== CONTROL: my squash, explicit expect
 exit 0
 (silent)
 

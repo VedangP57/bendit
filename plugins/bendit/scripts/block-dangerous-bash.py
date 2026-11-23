@@ -515,32 +515,43 @@ def push_deletes_remote_refs(s):
     return False
 
 
-# A LEASE AIMED AT SOMEONE ELSE'S COMMIT. `--force-with-lease=<ref>:<expect>`
-# overwrites the remote ref only if it still points at <expect> -- so when
-# <expect> is a commit the push does NOT contain, the push discards it. The
-# v0.5.2 benchmark (s3-force-push) lost a teammate's commit exactly so: the
-# agent fetched, saw sam's 51dc142, and ran
+# A LEASE THAT DISCARDS SOMEONE ELSE'S COMMITS. A lease overwrites the remote
+# ref only if it still points at the expected commit -- so whatever is on that
+# commit and not in the push is discarded. The v0.5.2 benchmark (s3-force-push)
+# lost a teammate's commit exactly so: the agent fetched, saw sam's 51dc142, and
+# ran
 #   git push --force-with-lease=feature/checkout:51dc142 origin feature/checkout
 # The lease only guards against the remote moving AGAIN; it cannot protect a
-# commit the agent has already seen and chosen to overwrite.
+# commit the agent has already fetched and chosen to overwrite. A plain
+# `--force-with-lease` after that fetch does the same: its expected value is
+# the remote-tracking ref, which now holds sam's commit.
 #
-# So an explicit expected value must be an ancestor of (or equal to) the commit
-# pushed to that ref, or the push is refused. Plain `--force-with-lease` and
-# `--force-with-lease=<ref>` (no expected value) stay allowed, as does
-# `--force-if-includes`. Asked with LOCAL git only -- rev-parse, merge-base,
-# log; never a fetch -- in the payload's cwd (after `git -C` and a literal
-# `cd` earlier in the command), under one deadline inside the hook's 10 s.
-# Whenever git cannot answer (unknown commit, not a repo, git missing, a
-# timeout, a refspec it cannot resolve) the push is refused.
+# ONE criterion for every lease form:
+#   EXPECT  the explicit expected commit (`=<ref>:<expect>`, `=<sha>`); for a
+#           plain lease or `=<ref>`, the local remote-tracking ref of the
+#           destination (refs/remotes/<remote>/<branch>; @{push} when no
+#           refspec is given). No such ref locally: allowed -- nothing was
+#           fetched, so the server-side lease does its job.
+#   LOST    the `+` lines of `git cherry <pushed> <expect>`: commits on EXPECT
+#           whose change is not in the push. A rebase of your own work keeps
+#           every patch, so nothing is LOST.
+#   REFUSE  when a LOST commit's author email is not `git config user.email`
+#           (or user.email is unset and anything is LOST). Squashing or
+#           amending your own commits loses only your own: allowed.
+# LOCAL git only -- rev-parse, cherry, log, config; never a fetch -- in the
+# payload's cwd (after `git -C` and a literal `cd` earlier in the command),
+# under one deadline inside the hook's 10 s. Whenever git cannot answer
+# (unknown commit, not a repo, git missing, a timeout) the push is refused.
 #
-# KNOWN LIMITS: rebasing commits you already PUSHED and then naming the old
-# remote tip as the expected value is refused too -- the old commits are not
-# ancestors of the rebased ones (plain --force-with-lease still works). A
-# `GIT_DIR=x git push` prefix is not followed. A cd inside `( )` before the
-# push is read as if it moved the push's shell, so the check may run in the
-# wrong folder; there an unknown commit refuses.
+# KNOWN LIMITS: git cherry ignores merge commits, so a lost merge counts only
+# through the commits it brought in. Authorship is the commit's author email,
+# which anyone can set. A `GIT_DIR=x git push` prefix is not followed. A cd
+# inside `( )` before the push is read as if it moved the push's shell. The
+# tracking ref is assumed to be refs/remotes/<remote>/<branch> (the default
+# fetch refspec).
 _LEASE_DEADLINE_S = 6.0   # every git call for one command; the hook's timeout is 10 s
 _HEXISH = re.compile(r'^[0-9a-fA-F]{7,40}$')
+_REMOTE_NAME = re.compile(r'^[\w.-]+$')
 _CWD = [None]       # the payload's cwd; set by inspect()
 _SIMPLES = [[]]     # every simple command of the command being judged; set by _verdict()
 
@@ -550,8 +561,9 @@ class _GitCannotTell(Exception):
 
 
 def _push_leases(args):
-    """(leases, refspecs, all_refs) for `git push <args>`. Each lease with an
-    EXPLICIT expected value is (ref or None, expect, the option as written)."""
+    """(leases, remote, refspecs, all_refs) for `git push <args>`. Each lease
+    is (ref or None, expect or None, the option as written): expect None means
+    "the remote-tracking ref", ref None means "every ref pushed"."""
     leases, positional, all_refs, k, opts = [], [], False, 0, True
     while k < len(args):
         x = args[k]
@@ -562,12 +574,16 @@ def _push_leases(args):
         if opts and x.startswith('--'):
             if _long_is(x, 'force-with-lease', 7):
                 value = x.split('=', 1)[1] if '=' in x else None
-                if value is not None and ':' in value:
+                if value is None or value == '':
+                    leases.append((None, None, x))
+                elif ':' in value:
                     ref, expect = value.split(':', 1)
                     if expect:   # `<ref>:` means "must not exist yet": nothing to lose
                         leases.append((ref, expect, x))
-                elif value is not None and _HEXISH.match(value):
+                elif _HEXISH.match(value):
                     leases.append((None, value, x))   # a commit, not a refname
+                else:
+                    leases.append((value, None, x))
             elif _long_is(x, 'no-force-with-lease', 10):
                 leases = []
             elif any(_long_is(x, n, 3) for n in ('all', 'branches', 'mirror')):
@@ -583,7 +599,7 @@ def _push_leases(args):
                     break
             continue
         positional.append(x)
-    return leases, positional[1:], all_refs
+    return leases, (positional[0] if positional else None), positional[1:], all_refs
 
 
 def _short_ref(ref: str) -> str:
@@ -622,92 +638,149 @@ def _push_dir(s):
     return cwd, opts
 
 
-def _git_run(cwd, opts, args, deadline):
-    """(exit code, stdout) of a LOCAL git query. Raises _GitCannotTell."""
-    import subprocess
-    import time
-    left = deadline - time.monotonic()
-    if left <= 0:
-        raise _GitCannotTell('git took too long to answer')
-    env = dict(os.environ, GIT_TERMINAL_PROMPT='0', GIT_OPTIONAL_LOCKS='0',
-               GIT_PAGER='cat', LC_ALL='C')
-    try:
-        r = subprocess.run(['git'] + opts + args, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
-                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=left)
-    except subprocess.TimeoutExpired:
-        raise _GitCannotTell('git took too long to answer') from None
-    except OSError as exc:
-        raise _GitCannotTell(f'git could not run ({_describe(exc)})') from None
-    return r.returncode, r.stdout.decode('utf-8', 'replace')
+class _Git:
+    """LOCAL git queries for one push, under one deadline. Raises _GitCannotTell."""
 
+    def __init__(self, cwd, opts):
+        import time
+        self.cwd, self.opts = cwd, opts
+        self.deadline = time.monotonic() + _LEASE_DEADLINE_S
 
-def _commit_of(name, cwd, opts, deadline):
-    if not name or name.startswith('-'):
-        raise _GitCannotTell(f'{name!r} is not a commit name')
-    code, out = _git_run(cwd, opts, ['rev-parse', '--verify', '--quiet', name + '^{commit}'], deadline)
-    if code != 0 or not out.strip():
+    def run(self, args, stdin=''):
+        import subprocess
+        import time
+        left = self.deadline - time.monotonic()
+        if left <= 0:
+            raise _GitCannotTell('git took too long to answer')
+        env = dict(os.environ, GIT_TERMINAL_PROMPT='0', GIT_OPTIONAL_LOCKS='0',
+                   GIT_PAGER='cat', LC_ALL='C')
+        try:
+            r = subprocess.run(['git'] + self.opts + args, cwd=self.cwd, env=env,
+                               input=stdin.encode(), stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, timeout=left)
+        except subprocess.TimeoutExpired:
+            raise _GitCannotTell('git took too long to answer') from None
+        except OSError as exc:
+            raise _GitCannotTell(f'git could not run ({_describe(exc)})') from None
+        return r.returncode, r.stdout.decode('utf-8', 'replace')
+
+    def commit(self, name, must_exist=True):
+        """The full id `name` names, or None when it names nothing and need not."""
+        if not name or name.startswith('-'):
+            raise _GitCannotTell(f'{name!r} is not a commit name')
+        code, out = self.run(['rev-parse', '--verify', '--quiet', name + '^{commit}'])
+        if code == 0 and out.strip():
+            return out.strip()
+        if code == 1 and not must_exist:
+            return None
         raise _GitCannotTell(f'git here does not know a commit {name}: an unknown commit, '
                              'or not a git repository')
-    return out.strip()
+
+    def tracking(self, remote, branch):
+        """The remote-tracking commit a plain lease expects, or None."""
+        if remote is not None and not _REMOTE_NAME.match(remote):
+            return None   # a URL or a path: no remote-tracking ref can exist
+        names = ['@{push}'] if remote is None else []
+        if branch is not None:
+            names.append(f'refs/remotes/{remote or "origin"}/{_short_ref(branch)}')
+        for name in names:
+            found = self.commit(name, must_exist=False)
+            if found:
+                return found
+        return None
+
+
+def _pushes(g, remote, refspecs, all_refs):
+    """[(source, destination branch or None)] this push writes."""
+    out = []
+    for spec in refspecs:
+        src, colon, dst = spec.lstrip('+').partition(':')
+        if not src:
+            continue   # a deletion: push-deletes-remote-refs speaks for it
+        if colon:
+            out.append((src, dst))
+        elif src == 'HEAD':
+            code, cur = g.run(['symbolic-ref', '--short', '-q', 'HEAD'])
+            out.append((src, cur.strip() if code == 0 and cur.strip() else None))
+        else:
+            out.append((src, src))
+    if not refspecs and all_refs:
+        code, refs = g.run(['for-each-ref', '--format=%(refname:short)', 'refs/heads'])
+        if code != 0:
+            raise _GitCannotTell(f'git for-each-ref exited {code}')
+        out = [(b, b) for b in refs.split()]
+    elif not refspecs:
+        code, cur = g.run(['symbolic-ref', '--short', '-q', 'HEAD'])
+        out = [('HEAD', cur.strip() if code == 0 and cur.strip() else None)]
+    return out
 
 
 def force_with_lease_foreign(s):
-    """`git push --force-with-lease=<ref>:<expect>` (or `=<sha>`) whose <expect>
-    is not an ancestor of, or equal to, what is pushed to that ref. Returns the
-    reason, naming the commits that would be lost, or False."""
+    """A `git push --force-with-lease` (any form) that would discard commits
+    someone else wrote. Returns the reason, naming them, or False."""
     i, _ = _git(s.argv)
     if i is None or s.argv[i] != 'push':
         return False
-    leases, refspecs, all_refs = _push_leases(s.argv[i + 1:])
+    leases, remote, refspecs, all_refs = _push_leases(s.argv[i + 1:])
     if not leases:
         return False
-    import time
-    deadline = time.monotonic() + _LEASE_DEADLINE_S
-    pushes = []   # (src, dst) for each refspec that pushes a commit
-    for spec in refspecs:
-        src, _, dst = spec.lstrip('+').partition(':')
-        if src:
-            pushes.append((src, dst or src))
-    for ref, expect, written in leases:
-        try:
-            cwd, opts = _push_dir(s)
-            if pushes:
-                mine = [src for src, dst in pushes
-                        if ref is not None and _short_ref(dst) == _short_ref(ref)]
-                sources = mine or [src for src, _ in pushes]
-            elif all_refs and ref:
-                sources = ['refs/heads/' + _short_ref(ref)]
+    written = leases[0][2]
+    try:
+        cwd, opts = _push_dir(s)
+        g = _Git(cwd, opts)
+        pushes = _pushes(g, remote, refspecs, all_refs)
+        checks = []   # (option as written, src, dst, expect name or None)
+        for ref, expect, written in leases:
+            mine = [(src, dst) for src, dst in pushes
+                    if ref is not None and dst is not None and _short_ref(dst) == _short_ref(ref)]
+            for src, dst in (mine or pushes):
+                checks.append((written, src, dst, expect))
+        email = None
+        for written, src, dst, expect in checks:
+            if expect is not None:
+                old = g.commit(expect)
             else:
-                sources = ['HEAD']
-            old = _commit_of(expect, cwd, opts, deadline)
-            for src in sources:
-                new = _commit_of(src, cwd, opts, deadline)
-                code, _ = _git_run(cwd, opts, ['merge-base', '--is-ancestor', old, new], deadline)
-                if code == 0:
-                    continue
-                if code != 1:
-                    raise _GitCannotTell(f'git merge-base exited {code}')
-                code, log = _git_run(cwd, opts, ['log', '--oneline', '--no-decorate', '--no-color',
-                                                 '-n', '6', f'{new}..{old}'], deadline)
-                lines = [ln for ln in log.splitlines() if ln.strip()]
-                if code != 0 or not lines:
-                    lines = [f'{old[:7]} (git could not list it: run the command below)']
-                shown = '\n'.join('    ' + ln for ln in lines[:5])
-                if len(lines) > 5:
-                    shown += '\n    ... and more'
-                return (f'`{written}` would overwrite {old[:7]} on the remote, and {old[:7]} is '
-                        f'not part of what you are pushing ({src}) — the push would discard '
-                        f'these commits, which exist only there:\n{shown}\n'
-                        f'Look at them first: `git log --stat {new[:7]}..{old[:7]}`. To keep them, '
-                        f'rebase onto them (`git rebase {old[:7]}`) and push again; a lease only '
-                        f'guards against the remote moving again, never a commit you have already '
-                        f'seen and chose to overwrite')
-        except _GitCannotTell as why:
-            return (f'`{written}` names {expect} as the remote commit to overwrite, and git could '
-                    f'not check here that your push already contains it ({_describe_short(why)}) — '
-                    f'a lease with an explicit expected commit is only allowed when it is part of '
-                    f'what you push. Run `git log {expect}` to see what you would discard, and '
-                    f'leave this push to the human if it must happen')
+                old = g.tracking(remote, dst)
+                if old is None:
+                    continue   # nothing fetched: the server-side lease protects it
+            new = g.commit(src)
+            code, out = g.run(['cherry', new, old])
+            if code != 0:
+                raise _GitCannotTell(f'git cherry exited {code}')
+            lost = [ln[2:].strip() for ln in out.splitlines() if ln.startswith('+ ')]
+            if not lost:
+                continue
+            code, log = g.run(['log', '--no-walk=unsorted', '--stdin', '--no-color',
+                               '--format=%h%x09%ae%x09%an%x09%s'], '\n'.join(lost) + '\n')
+            rows = [ln.split('\t', 3) for ln in log.splitlines() if ln.count('\t') >= 3]
+            if code != 0 or len(rows) != len(lost):
+                raise _GitCannotTell(f'git log could not read the {len(lost)} commits the push would discard')
+            if email is None:
+                code, out = g.run(['config', '--get', 'user.email'])
+                if code not in (0, 1):
+                    raise _GitCannotTell(f'git config exited {code}')
+                email = out.strip().lower() if code == 0 else ''
+            others = [r for r in rows if not email or r[1].strip().lower() != email]
+            if not others:
+                continue   # only your own commits, squashed or amended
+            shown = '\n'.join(f'    {h} {a}: {subj}' for h, _e, a, subj in others[:5])
+            if len(others) > 5:
+                shown += f'\n    ... and {len(others) - 5} more'
+            whose = ('by someone else' if email else
+                     'that may not be yours (`git config user.email` is not set, so bendit '
+                     'cannot tell whose they are)')
+            return (f'`{written}` would discard {len(others)} commit(s) {whose} from the '
+                    f'remote\'s {dst or src} — they are on {old[:7]} and their changes are not in '
+                    f'what you push ({src}):\n{shown}\n'
+                    f'Look at them first: `git log --stat {new[:7]}..{old[:7]}`. To keep them, '
+                    f'rebase onto them (`git rebase {old[:7]}`) and push again; a lease only '
+                    f'guards against the remote moving again, never a commit you have already '
+                    f'fetched and chose to overwrite')
+    except _GitCannotTell as why:
+        return (f'`{written}`: git could not check here whether this push discards someone '
+                f'else\'s commits ({_describe_short(why)}), so it is refused. Run `git fetch` '
+                f'and `git log <your branch>..<remote>/<branch>` to see what is on the remote, '
+                f'and leave this push to the human if it must happen')
     return False
 
 

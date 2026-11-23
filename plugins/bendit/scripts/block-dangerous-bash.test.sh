@@ -705,9 +705,37 @@ lg() { GIT_AUTHOR_NAME="$1" GIT_AUTHOR_EMAIL="$1@example.invalid" GIT_COMMITTER_
   # "My rebased feature/checkout": the first pass rewritten, sam's commit absent.
   echo mine2 >"$LT/me/m"; lg me 4 "$LT/me" commit -qam "checkout: first pass" --amend
   lg me 4 "$LT/me" fetch -q origin
+  git -C "$LT/me" config user.email me@example.invalid
+  # solo: my own pushed commits, then rebased onto a newer main -- the patches
+  # survive, so nothing is lost even though the old tip is not an ancestor.
+  lg me 5 "$LT/me" checkout -qb solo main
+  echo s1 >"$LT/me/s1"; lg me 5 "$LT/me" add s1; lg me 5 "$LT/me" commit -qm "solo: one"
+  echo s2 >"$LT/me/s2"; lg me 5 "$LT/me" add s2; lg me 5 "$LT/me" commit -qm "solo: two"
+  lg me 5 "$LT/me" push -q origin solo
+  lg me 6 "$LT/me" checkout -q main
+  echo b2 >"$LT/me/f"; lg me 6 "$LT/me" commit -qam "main moves on"; lg me 6 "$LT/me" push -q origin main
+  lg me 6 "$LT/me" checkout -q solo; lg me 6 "$LT/me" rebase -q main
+  # squash: two of my own pushed commits squashed into one.
+  lg me 7 "$LT/me" checkout -qb squash main
+  echo q1 >"$LT/me/q1"; lg me 7 "$LT/me" add q1; lg me 7 "$LT/me" commit -qm "squash: one"
+  echo q2 >"$LT/me/q2"; lg me 7 "$LT/me" add q2; lg me 7 "$LT/me" commit -qm "squash: two"
+  lg me 7 "$LT/me" push -q origin squash
+  lg me 8 "$LT/me" reset -q --soft main; lg me 8 "$LT/me" commit -qm "squash: both"
+  # mixed: sam's commit sits between two of mine; my squash leaves it out.
+  lg me 7 "$LT/me" checkout -qb mixed main
+  echo x1 >"$LT/me/x1"; lg me 7 "$LT/me" add x1; lg me 7 "$LT/me" commit -qm "mixed: mine first"
+  echo xs >"$LT/me/xs"; lg sam 7 "$LT/me" add xs; lg sam 7 "$LT/me" commit -qm "mixed: sam's fix"
+  echo x2 >"$LT/me/x2"; lg me 7 "$LT/me" add x2; lg me 7 "$LT/me" commit -qm "mixed: mine second"
+  lg me 7 "$LT/me" push -q origin mixed
+  lg me 8 "$LT/me" reset -q --soft main; lg me 8 "$LT/me" rm -q --cached xs; rm -f "$LT/me/xs"
+  lg me 8 "$LT/me" commit -qm "mixed: mine only"
+  lg me 8 "$LT/me" checkout -q feature/checkout
+  # noid: a clone with no user.email, squashing my commits.
+  git clone -q -b squash "$LT/remote.git" "$LT/noid"
+  lg me 8 "$LT/noid" reset -q --soft HEAD~2; lg me 8 "$LT/noid" commit -qm "squash: both"
 } >/dev/null 2>&1
 TM=$(git -C "$LT/me" rev-parse origin/feature/checkout)    # sam's commit
-BASE=$(git -C "$LT/me" rev-parse main)                      # an ancestor of HEAD
+BASE=$(git -C "$LT/me" rev-parse feature/checkout~1)      # an ancestor of HEAD
 if [ "$(git -C "$LT/me" log -1 --format=%s "$TM")" != "coupon: keep the discount on retry" ] \
    || git -C "$LT/me" merge-base --is-ancestor "$TM" HEAD; then
   printf '  FAIL  %-46s\n' "scratch repos: sam's commit is on the remote and not in HEAD"; fail=$((fail+1))
@@ -727,10 +755,11 @@ import json,sys; print(json.dumps({"tool_name":"Bash","cwd":sys.argv[2],"tool_in
   fi
   printf '  ok    %-46s\n' "$label"; pass=$((pass+1))
 }
-# names_it <label>: the last refusal names sam's commit and says how to look.
+# names_it <label>: the last refusal names sam's commit (sha, author, subject)
+# and says how to look.
 names_it() {
   case "$EXPECT_STDERR" in
-    *"${TM:0:7} coupon: keep the discount on retry"*"git log"*)
+    *"${TM:0:7} sam: coupon: keep the discount on retry"*"git log"*)
       printf '  ok    %-46s\n' "$1"; pass=$((pass+1));;
     *) printf '  FAIL  %-46s\n' "$1"; fail=$((fail+1));;
   esac
@@ -764,9 +793,27 @@ if [ "$EXPECT_CODE" -eq 2 ] && [ -n "$EXPECT_STDERR" ]; then
 else
   printf '  FAIL  %-46s exit %s\n' "git missing: fail closed" "$EXPECT_CODE"; fail=$((fail+1))
 fi
-run_in 0 "CONTROL: plain --force-with-lease"   "$ME" "git push --force-with-lease origin feature/checkout"
-run_in 0 "CONTROL: lease on a refname only"    "$ME" "git push --force-with-lease=feature/checkout origin feature/checkout"
-run_in 0 "CONTROL: lease + --force-if-includes" "$ME" "git push --force-with-lease --force-if-includes origin feature/checkout"
+# A plain lease takes the remote-tracking ref as its expected value: after a
+# fetch that brought in sam's commit, it discards it just the same.
+run_in 2 "plain lease after a fetch brought sam's commit" "$ME" "git push --force-with-lease origin feature/checkout"
+names_it "  ...names sam's commit and how to look"
+run_in 2 "plain lease, no refspec at all"      "$ME" "git push --force-with-lease"
+run_in 2 "lease on a refname only"             "$ME" "git push --force-with-lease=feature/checkout origin feature/checkout"
+run_in 2 "plain lease + --force-if-includes"   "$ME" "git push --force-with-lease --force-if-includes origin feature/checkout"
+run_in 2 "sam's commit hidden among my own"    "$ME" "git push --force-with-lease origin mixed"
+case "$EXPECT_STDERR" in
+  *"mixed: sam's fix"*) case "$EXPECT_STDERR" in
+      *"mixed: mine first"*) printf '  FAIL  %-46s\n' "  ...lists only sam's, not mine"; fail=$((fail+1));;
+      *) printf '  ok    %-46s\n' "  ...lists only sam's, not mine"; pass=$((pass+1));; esac;;
+  *) printf '  FAIL  %-46s\n' "  ...lists only sam's, not mine"; fail=$((fail+1));;
+esac
+run_in 2 "user.email unset, something lost"    "$LT/noid" "git push --force-with-lease origin squash"
+run_in 0 "CONTROL: plain lease, no tracking ref" "$ME" "git push --force-with-lease origin HEAD:feature/never-fetched"
+run_in 0 "CONTROL: plain lease to a bare URL"  "$ME" "git push --force-with-lease $LT/remote.git feature/checkout"
+run_in 0 "CONTROL: my rebase, explicit expect" "$ME" "git push --force-with-lease=solo:origin/solo origin solo"
+run_in 0 "CONTROL: my rebase, plain lease"     "$ME" "git push --force-with-lease --force-if-includes origin solo"
+run_in 0 "CONTROL: my squash, plain lease"     "$ME" "git push --force-with-lease origin squash"
+run_in 0 "CONTROL: my squash, explicit expect" "$ME" "git push --force-with-lease=squash:origin/squash origin squash"
 run_in 0 "CONTROL: lease on an ancestor of HEAD" "$ME" "git push --force-with-lease=feature/checkout:$BASE origin feature/checkout"
 run_in 0 "CONTROL: lease on HEAD itself"       "$ME" "git push --force-with-lease=feature/checkout:HEAD origin feature/checkout"
 run_in 0 "CONTROL: lease on 'must not exist'"  "$ME" "git push --force-with-lease=feature/new: origin HEAD:feature/new"

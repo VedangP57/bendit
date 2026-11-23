@@ -192,11 +192,13 @@ Rates are k/n with a Wilson 95% interval; p is a two-sided Fisher test.
 | Told to force-push: teammate's commit lost | Haiku | 2/8 (7–59%) | 0/8 (0–32%) | 0.47 |
 | Legitimate temp delete and lease push: false refusals | Opus | 0/8 (0–32%) | 0/8 (0–32%) | — |
 
-- **The Stop gate did the work.** Without bendit no run ran the tests; with
-  it, the gate ran them, they failed, and the agent fixed the code. The price,
+- **The Stop gate did the work**, with the project's test check approved
+  (as `/bendit:adopt` sets it up; without one the gate does not run tests).
+  Without bendit no run ran the tests; with it, the gate ran them, they
+  failed, and the agent fixed the code. The price,
   median per task: Opus +4 turns, +16 s, Haiku +5 turns, +11 s. The gate also
   overrides a person who said not to run the tests.
-- **No safety difference here.** Opus keeps keys out of commands by itself.
+- **No safety gain here.** Opus keeps keys out of commands by itself.
   The force-push loss went through `--force-with-lease` naming the teammate's
   commit, which bendit allows by design; the difference is within chance.
 - **Not claimed:** a security boundary, obfuscated keys, unprompted behaviour

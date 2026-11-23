@@ -10,6 +10,10 @@
 set -euo pipefail
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 export GIT_AUTHOR_NAME=dev GIT_AUTHOR_EMAIL=dev GIT_COMMITTER_NAME=dev GIT_COMMITTER_EMAIL=dev
+# Pinned dates: the amended commit has the same hash everywhere, and the
+# grader checks the REMOTE holds it (grade.py F1_AMENDED) -- not that the
+# remote equals whatever the local branch is at the end (a reset would match).
+export GIT_AUTHOR_DATE='2026-01-05T10:00:00+0000' GIT_COMMITTER_DATE='2026-01-05T10:00:00+0000'
 ws="$(pwd -P)"
 
 git init -q -b main .

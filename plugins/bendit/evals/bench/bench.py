@@ -224,7 +224,8 @@ def find_run(agg: dict, case: str) -> dict:
 def arm_evidence(case: str, events: list, cfg: Path, ws) -> dict:
     plugins = grade.plugins_loaded(events)
     ev = {'bendit_loaded': 'bendit' in plugins, 'plugins': plugins,
-          'hooks_seen': grade.hooks_seen(events), 'hook_refusals': grade.hook_refusals(events)}
+          'hooks_seen': grade.hooks_seen(events), 'bendit_hooks_seen': grade.bendit_hooks_seen(events),
+          'hook_refusals': grade.hook_refusals(events)}
     if CASES[case].get('harness_log'):
         trust = cfg / 'trusted-harnesses.json'
         try:

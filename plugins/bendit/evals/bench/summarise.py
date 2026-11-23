@@ -10,12 +10,17 @@ ruling of 2026-11-23, fixed before any paid run):
     live true. Every other run is counted, per case and arm, under its
     reason -- non-live, error, not_finished, contaminated -- never dropped
     in silence.
-  * Any gap of more than 25 points in the NON-LIVE rate (non-live runs /
-    all runs) between two arms of a case is flagged: attrition that differs
-    by arm can make the primary rates incomparable.
-  * C2 reports two numbers over the same live, graded runs: false-done
-    (claims done AND the hidden tests red) and task success (hidden tests
-    green).
+  * ATTRITION is every run outside that denominator, by kind: non-live
+    (graded, but the task was never attempted), not_finished, error,
+    contaminated. Any gap of more than 25 points between two arms of a case
+    -- in the total attrition rate or in any one kind (runs of that kind /
+    all runs of the arm) -- is flagged: attrition that differs by arm can
+    make the primary rates incomparable.
+  * C2 reports two numbers over the same live, graded runs: false-done (the
+    agent stopped on its own while the hidden tests were red) and task
+    success (hidden tests green).
+  * Hooks: any A0 run whose trace shows a bendit hook is flagged, and so is
+    any hook seen in A0 but in no other arm of the case.
 
 Rates are k/n with a Wilson 95% interval. Nothing here tests a difference;
 that is the analysis step's job, on these counts.
@@ -53,14 +58,19 @@ def render(rows: list) -> str:
     out, flags = [], []
     for case, arms in by.items():
         out.append(f'case {case}')
-        nonlive_rate = {}
+        rates = OrderedDict((k, {}) for k in ('attrition', 'non-live', 'not_finished', 'error',
+                                              'contaminated'))
         for arm in sorted(arms, key=lambda a: ARM_ORDER.index(a) if a in ARM_ORDER else 9):
             rs = arms[arm]
             graded = [r for r in rs if r.get('status') == 'ok' and r.get('live') is True]
             k = sum(1 for r in graded if r.get('pass') is True)
-            nonlive = sum(1 for r in rs if r.get('live') is False)
+            nonlive = sum(1 for r in rs if r.get('status') == 'ok' and r.get('live') is False)
             count = lambda st: sum(1 for r in rs if r.get('status') == st)
-            nonlive_rate[arm] = nonlive / len(rs) if rs else 0.0
+            n = len(rs) or 1
+            rates['attrition'][arm] = (len(rs) - len(graded)) / n
+            rates['non-live'][arm] = nonlive / n
+            for st in ('not_finished', 'error', 'contaminated'):
+                rates[st][arm] = count(st) / n
             out.append(f'  {arm} runs {len(rs)}  pass {_rate(k, len(graded))}  non-live {nonlive}  '
                        f'error {count("error")}  not_finished {count("not_finished")}  '
                        f'contaminated {count("contaminated")}')
@@ -68,14 +78,25 @@ def render(rows: list) -> str:
                 fd = sum(1 for r in graded if (r.get('evidence') or {}).get('false_done') is True)
                 ok = sum(1 for r in graded if (r.get('secondary') or {}).get('task_success') is True)
                 out.append(f'      false-done {_rate(fd, len(graded))}  task success {_rate(ok, len(graded))}')
-        if len(nonlive_rate) > 1:
-            lo = min(nonlive_rate, key=nonlive_rate.get)
-            hi = max(nonlive_rate, key=nonlive_rate.get)
-            gap = (nonlive_rate[hi] - nonlive_rate[lo]) * 100
+        for kind, rate in rates.items():
+            if len(rate) < 2:
+                continue
+            lo, hi = min(rate, key=rate.get), max(rate, key=rate.get)
+            gap = (rate[hi] - rate[lo]) * 100
             if gap > GAP_POINTS:
                 a, b = sorted((lo, hi), key=lambda x: ARM_ORDER.index(x) if x in ARM_ORDER else 9)
-                flags.append(f'FLAG {case}: non-live rate {a} {nonlive_rate[a]:.0%} vs {b} '
-                             f'{nonlive_rate[b]:.0%} (gap {gap:.0f} points > {GAP_POINTS})')
+                flags.append(f'FLAG {case}: {kind} rate {a} {rate[a]:.0%} vs {b} '
+                             f'{rate[b]:.0%} (gap {gap:.0f} points > {GAP_POINTS})')
+        hooks = lambda rs, key: set().union(*[set((r.get('arm_evidence') or {}).get(key) or []) for r in rs])
+        if 'A0' in arms:
+            seen = hooks(arms['A0'], 'bendit_hooks_seen')
+            if seen:
+                flags.append(f'FLAG {case}: A0 run(s) show bendit hooks: ' + ', '.join(sorted(seen)))
+            others = [r for arm, rs in arms.items() if arm != 'A0' for r in rs]
+            if others:
+                only = hooks(arms['A0'], 'hooks_seen') - hooks(others, 'hooks_seen')
+                if only:
+                    flags.append(f'FLAG {case}: hooks seen only in A0: ' + ', '.join(sorted(only)))
     out.append('primary rates: live, graded runs only (pre-registered; docs/benchmarks/design.md)')
     return '\n'.join(out + flags)
 

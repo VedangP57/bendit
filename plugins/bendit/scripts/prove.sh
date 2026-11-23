@@ -47,7 +47,7 @@ trap 'exit 130' INT TERM
 export PYTHONDONTWRITEBYTECODE=1
 
 python3 - "$KIT" "$REPO" "$W" <<'PY'
-import json, os, shlex, signal, subprocess, sys, tempfile
+import json, os, shlex, shutil, signal, subprocess, sys, tempfile
 
 kit, repo, w = sys.argv[1:4]
 rows = []          # (check, state, rung, detail); state is PASS, FAIL or UNUSED
@@ -373,17 +373,25 @@ def _check_ux_design_laws(repo, kit):
 
 
 def _check_ls_guard(repo, kit):
-    """ON means block-ls-parsing.py refuses a parsed `ls` for THIS project: run
-    the hook as hooks.json does, with the refusal payload and this repo as the
-    project, and read exit 2 plus a message naming bendit."""
-    payload = json.dumps({'session_id': 'bendit-prove', 'cwd': repo, 'hook_event_name': 'PreToolUse',
+    """ON means block-ls-parsing.py refuses a parsed `ls` with THIS project's
+    settings: run the hook as hooks.json does, with the refusal payload, in a
+    scratch project holding a copy of this repo's .claude/bendit.json, and read
+    exit 2 plus a message naming bendit."""
+    # Run in a throwaway copy of the project's settings, never in the project:
+    # the refusal is prove's own test, and the guard logs every refusal to
+    # its project's fires.jsonl. The guard reads only .claude/bendit.json.
+    proj = os.path.join(w, 'ls-guard-project')
+    try:
+        os.makedirs(os.path.join(proj, '.claude'), exist_ok=True)
+        shutil.copyfile(F.path(repo), F.path(proj))
+    except OSError as e:
+        return False, f'could not copy .claude/bendit.json to a scratch project: {type(e).__name__}: {e}'
+    payload = json.dumps({'session_id': 'bendit-prove', 'cwd': proj, 'hook_event_name': 'PreToolUse',
                           'tool_name': 'Bash', 'tool_input': {'command': 'ls | wc -l'}})
-    # BENDIT_PROBE: this refusal is prove's own test, not one of the project's
-    # (fire_log.record skips it; the guard's decision never reads it).
-    env = dict(os.environ, CLAUDE_PROJECT_DIR=repo, PYTHONDONTWRITEBYTECODE='1', BENDIT_PROBE='1')
+    env = dict(ENV, CLAUDE_PROJECT_DIR=proj)
     try:
         p = subprocess.run(['python3', os.path.join(kit, 'scripts', 'block-ls-parsing.py')], input=payload,
-                           capture_output=True, text=True, timeout=10, env=env, cwd=repo)
+                           capture_output=True, text=True, timeout=10, env=env, cwd=proj)
     except (OSError, subprocess.TimeoutExpired) as e:
         return False, f'could not run the hook: {type(e).__name__}: {e}'
     if p.returncode == 2 and p.stderr.lstrip().startswith(P.PREFIXES):

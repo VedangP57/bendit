@@ -377,7 +377,8 @@ PROBE = 'bendit-probe'
 
 def live_test_line():
     """Is `git push --force bendit-probe HEAD` harmless HERE? Only while that
-    name reaches nothing: no git remote of that name, no file or folder."""
+    name reaches nothing: no git remote of that name, no file or folder, and
+    no git url rule (insteadOf, pushInsteadOf; local or global) rewriting it."""
     try:
         p = subprocess.run(['git', 'remote', 'get-url', PROBE], capture_output=True, text=True,
                            timeout=10, stdin=subprocess.DEVNULL)
@@ -391,6 +392,34 @@ def live_test_line():
     if os.path.lexists(PROBE):
         return (f'live test: skip -- there is a file or folder named {PROBE} in this folder, '
                 'so the test push could reach it')
+    # A url.<base>.insteadOf rule (this repo's config or the global one) can
+    # turn the name into a real address: git then pushes THERE. ls-remote
+    # --get-url applies those rules, so anything but the bare name means skip.
+    # It does not apply pushInsteadOf, which only pushes use: read those
+    # rules directly. Both match by prefix, so a rule for `bendit` counts.
+    try:
+        p = subprocess.run(['git', 'ls-remote', '--get-url', PROBE], capture_output=True, text=True,
+                           timeout=10, stdin=subprocess.DEVNULL)
+        if p.returncode != 0:
+            return (f'live test: skip -- git could not say where {PROBE} points '
+                    f'(exit {p.returncode}), so the test push might reach something')
+        if p.stdout.strip() != PROBE:
+            return (f'live test: skip -- a git url rule (insteadOf) turns {PROBE} into a real address, '
+                    'so the test push could reach it')
+        p = subprocess.run(['git', 'config', '--get-regexp', r'^url\..*\.pushinsteadof$'], capture_output=True,
+                           text=True, timeout=10, stdin=subprocess.DEVNULL)
+        if p.returncode not in (0, 1):
+            return (f'live test: skip -- could not read git\'s url rules (exit {p.returncode}), '
+                    'so the test push might reach something')
+        for line in p.stdout.splitlines():
+            value = line.split(' ', 1)[1] if ' ' in line else ''
+            if PROBE.startswith(value):
+                return (f'live test: skip -- a git url rule (pushInsteadOf) turns {PROBE} into a real '
+                        'address for pushes, so the test push could reach it')
+    except FileNotFoundError:
+        pass    # no git: the push cannot run either
+    except (OSError, subprocess.SubprocessError) as e:
+        return f'live test: skip -- could not check where {PROBE} points ({type(e).__name__})'
     return f'live test: run -- nothing here is named {PROBE}, so the test push cannot reach anything'
 
 

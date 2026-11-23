@@ -442,6 +442,19 @@ has "a folder named bendit-probe here: skipped" "live test: skip" "$(lt "$LF")"
 has "  ...saying why" "named bendit-probe in this folder" "$(lt "$LF")"
 LN="$T/lt-nogit"; mkdir -p "$LN"
 has "not a git repository: the push fails anyway, may run" "live test: run" "$(lt "$LN")"
+# A url rule can turn the bare name into a real repository: git would then
+# force-push THERE if bendit were not wired. Each is a skip, saying why.
+LI="$T/lt-insteadof"; mkdir -p "$LI"; git -C "$LI" init -q; git -C "$LI" config url."$T/real".insteadOf bendit-probe
+has "an insteadOf rule for bendit-probe: skipped" "live test: skip" "$(lt "$LI")"
+has "  ...saying why" "url rule (insteadOf)" "$(lt "$LI")"
+LU="$T/lt-pushinsteadof"; mkdir -p "$LU"; git -C "$LU" init -q; git -C "$LU" config url."$T/real".pushInsteadOf bendit
+has "a pushInsteadOf rule (prefix bendit): skipped" "live test: skip" "$(lt "$LU")"
+has "  ...saying why" "url rule (pushInsteadOf)" "$(lt "$LU")"
+printf '[url "%s/real"]\n\tinsteadOf = bendit-probe\n' "$T" >"$T/lt-global.cfg"
+has "a GLOBAL insteadOf rule: skipped" "live test: skip" "$(GIT_CONFIG_GLOBAL="$T/lt-global.cfg" lt "$LP")"
+printf '[url "%s/real"]\n\tpushInsteadOf = bendit-probe\n' "$T" >"$T/lt-globalp.cfg"
+has "a GLOBAL pushInsteadOf rule: skipped" "live test: skip" "$(GIT_CONFIG_GLOBAL="$T/lt-globalp.cfg" lt "$LP")"
+has "  ...and without them the plain repo may still run" "live test: run" "$(lt "$LP")"
 
 # The `copy:` line: is the bendit running here the one installed for this
 # project, or the installer's own copy (`claude --plugin-dir ~/.cache/bendit/v<v>/

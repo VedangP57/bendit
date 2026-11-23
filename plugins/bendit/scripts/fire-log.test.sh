@@ -430,11 +430,10 @@ broken_case ".gitignore is a symlink: still exit 2, same stderr" "$G4"
 chk "  nothing written through it" "$(cat "$T/gi-canary")" canary
 chk "  and no log either (a log git might not ignore is not written)" "$(lines "$G4/.claude/.bendit-state/fires.jsonl")" 0
 
-echo; echo "BENDIT'S OWN SELF-TESTS ARE NOT REFUSALS: THE DECISION STAYS, ONLY THE LOG IS SKIPPED"
-# prove.sh and selfcheck.py set BENDIT_PROBE=1 for every probe they fire, and
-# the live test (/bendit:doctor, /bendit:adopt) pushes to the reserved name
-# `bendit-probe`. Neither may change what a guard DECIDES or PRINTS: a payload
-# carrying either is refused exactly as before; only the log line is skipped.
+echo; echo "THE LIVE TEST IS NOT A REFUSAL; NO ENVIRONMENT VARIABLE SILENCES THE LOG"
+# The live test (/bendit:doctor, /bendit:adopt) pushes to the reserved name
+# `bendit-probe`. It is refused exactly as before; only its log line is
+# skipped, and only for that exact text.
 LIVE='git push --force bendit-probe HEAD'
 : >"$LOG"
 chk "the live test's push is refused"          "$(guard "$DB" "$(bash_payload "$LIVE" "$P")" "$T/lt")" 2
@@ -456,54 +455,26 @@ for c in 'git push --force origin bendit-probe' \
   chk "still logged: $c" "$code $(lines "$LOG")" "2 1"
 done
 
-# The same refusal with and without BENDIT_PROBE=1: same exit, same bytes.
-same_decision() {  # same_decision <label> <command>
+# No environment variable silences the log: an agent could set one through
+# settings, and a quiet log reads as "this rule never fires". prove.sh and
+# selfcheck keep their probes out of the project's log by running them in a
+# throwaway project instead (prove.test.sh, selfcheck.test.sh pin that).
+probe_env_logs() {  # probe_env_logs <label> <command>
   : >"$LOG"
   local a b
   a="$(guard "$DB" "$(bash_payload "$2" "$P")" "$T/np")"
-  chk "$1: refused and logged without BENDIT_PROBE" "$a $(lines "$LOG")" "2 1"
+  chk "$1: refused and logged" "$a $(lines "$LOG")" "2 1"
   : >"$LOG"
   b="$(GUARD_ENV="BENDIT_PROBE=1" guard "$DB" "$(bash_payload "$2" "$P")" "$T/wp")"
   chk "  with BENDIT_PROBE=1: still exit 2"     "$b" 2
   chk "  ...stderr byte for byte the same"      "$(cmp -s "$T/np.err" "$T/wp.err" && echo same || echo differs)" same
-  chk "  ...stdout byte for byte the same"      "$(cmp -s "$T/np.out" "$T/wp.out" && echo same || echo differs)" same
-  chk "  ...and not logged"                     "$(lines "$LOG")" 0
+  chk "  ...and STILL logged"                   "$(lines "$LOG") $(field "$LOG" preview)" "1 $2"
 }
-same_decision "a real force-push to origin main" 'git push --force origin main'
-same_decision "rm -rf ./build" "$RM"
+probe_env_logs "a real force-push to origin main" 'git push --force origin main'
+probe_env_logs "rm -rf ./build" "$RM"
 : >"$LOG"
-chk "a real rm -rf ./build after a probe run is still logged" \
-    "$(guard "$DB" "$(bash_payload "$RM" "$P")" "$T/real") $(lines "$LOG") $(field "$LOG" rule)" "2 1 rm-recursive"
-
-# Every guard's own refusal probe (probes.py, the table prove.sh and selfcheck
-# fire): BENDIT_PROBE=1 changes neither the exit code nor a byte of output.
-chk "every refusing probe decides the same with BENDIT_PROBE=1" "$(cd "$SD" && python3 - "$SD/.." "$T/pd" <<'PY'
-import os, subprocess, sys
-kit, top = sys.argv[1], sys.argv[2]
-sys.path.insert(0, os.path.join(kit, 'scripts'))
-import probes as P
-diffs, n = [], 0
-for (script, args), table in sorted(P.PROBES.items()):
-    for i, pr in enumerate(table):
-        if pr.expect != 'refuses':
-            continue
-        runs = []
-        for flag in ('unset', '1'):
-            w = os.path.join(top, '%s-%d-%s' % (script, i, flag))
-            d, base = P.prepare(w)
-            env = P.env_for(pr, base, d)
-            env.pop('BENDIT_PROBE', None)
-            if flag == '1':
-                env['BENDIT_PROBE'] = '1'
-            p = subprocess.run(['python3', os.path.join(kit, 'scripts', script), *args], input=pr.build(d),
-                               capture_output=True, text=True, env=env, cwd=d, timeout=30)
-            runs.append((p.returncode, p.stdout.replace(w, '<w>'), p.stderr.replace(w, '<w>')))
-        n += 1
-        if runs[0] != runs[1] or runs[0][0] != 2:
-            diffs.append('%s %s: %r vs %r' % (script, pr.label, runs[0], runs[1]))
-print('ok' if n >= 5 and not diffs else '%d probes; differ: %s' % (n, '; '.join(diffs)))
-PY
-)" ok
+chk "the live test with BENDIT_PROBE=1 set: refused, and still not logged (by its exact text only)" \
+    "$(GUARD_ENV="BENDIT_PROBE=1" guard "$DB" "$(bash_payload "$LIVE" "$P")" "$T/lt4") $(lines "$LOG")" "2 0"
 
 echo; echo "fire-log.test.sh: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

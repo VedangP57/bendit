@@ -44,17 +44,16 @@ are each opened with O_NOFOLLOW (the folders with O_DIRECTORY, the next one
 relative to the last), and each must be owned by this user, or nothing is
 written. A new log is created owner-only (0600).
 
-BENDIT'S OWN SELF-TESTS ARE NOT REFUSALS. record() writes nothing when
-  * BENDIT_PROBE is set (non-empty) in the environment: prove.sh and
-    selfcheck.py set it for every probe they fire; or
-  * the command is the live test, whose only target is the reserved name
-    `bendit-probe` (`git push --force bendit-probe HEAD`): /bendit:doctor and
-    /bendit:adopt have the agent run it through Claude Code, where it cannot
-    set the variable. Only `git push`, `-f`/`--force`, `bendit-probe` and an
-    optional `HEAD`, with no shell syntax at all: anything that could reach
-    another remote is logged as usual.
-Only the log write looks at either. The guards decide and print before they
-call record(), and no guard reads BENDIT_PROBE or the name.
+BENDIT'S OWN SELF-TESTS ARE NOT REFUSALS. prove.sh and selfcheck.py fire
+their probes in a throwaway project under the system temp folder (probes.py
+prepare()), so those refusals never reach the real project's log. No
+environment variable silences logging: one could be set through settings,
+and a quiet log reads as "this rule never fires". The one skip is the live
+test, run by the agent through Claude Code: a command that is exactly
+`git push`, `-f`/`--force`, `bendit-probe` and an optional `HEAD`, with no
+shell syntax at all (is_live_test). Anything that could reach another remote
+is logged as usual. Only the log write looks at it: the guards decide and
+print before they call record().
 
 IGNORED BY GIT. The state folder gets a `.gitignore` of `*` when it has
 none, so the log is never committed in a project /bendit:adopt did not set
@@ -279,7 +278,6 @@ def _write(project_root: str, line: bytes) -> None:
             os.close(fd)
 
 
-PROBE_ENV = 'BENDIT_PROBE'
 PROBE_TARGET = 'bendit-probe'
 _LIVE_TEST_FLAGS = ('-f', '--force')
 
@@ -298,11 +296,6 @@ def is_live_test(command) -> bool:
     return rest in ([PROBE_TARGET], [PROBE_TARGET, 'HEAD'])
 
 
-def is_self_test(command) -> bool:
-    """Is this refusal one of bendit's own self-tests (see the docstring)?"""
-    return bool(os.environ.get(PROBE_ENV)) or is_live_test(command)
-
-
 class _Timeout(Exception):
     pass
 
@@ -314,11 +307,11 @@ def _on_alarm(_signum, _frame):
 def record(project_root, guard: str, rule: str, command_preview: str) -> None:
     """Append one refusal to the project's fires.jsonl. Swallows every
     exception, never prints, gives up after 1.5 s. Writes nothing for
-    bendit's own self-tests (is_self_test)."""
+    the live test (is_live_test)."""
     if not project_root:
         return
     try:
-        if is_self_test(command_preview):
+        if is_live_test(command_preview):
             return
     except BaseException:
         pass

@@ -270,7 +270,8 @@ def _cost(v):
 
 
 def build_row(r: int, case: str, arm: str, raw: Path, cfg: Path, commit: str) -> dict:
-    """One row. `status` is one of ok / error / not_finished / contaminated,
+    """One row. `status` is one of ok / error / not_finished / contaminated
+    (not_finished: the recorded stop reason is the turn limit, nothing else),
     and `pass` is null unless status is ok and the run is live: the
     pre-registered denominator (docs/benchmarks/design.md, "The denominator")."""
     row = {'case': case, 'arm': arm, 'run': r, 'pass': None, 'live': None, 'status': 'error',
@@ -278,7 +279,7 @@ def build_row(r: int, case: str, arm: str, raw: Path, cfg: Path, commit: str) ->
            'secondary': {}, 'wall_s': None, 'turns': None, 'agent_cost_usd': None,
            'judge_cost_usd': None, 'cli_version': None, 'model': None, 'plugin_commit': commit,
            'arm_evidence': {}, 'arm_valid': False, 'arm_problems': [], 'harness_error': None,
-           'error': None}
+           'error': None, 'stop_reason': None}
     ws = None
     events: list = []
     try:
@@ -297,14 +298,17 @@ def build_row(r: int, case: str, arm: str, raw: Path, cfg: Path, commit: str) ->
         v = grade.grade(case, ws, events)
         row.update(**{'pass': v['pass'], 'live': v['live'], 'status': v['status'],
                       'graded_pass': v.get('graded_pass'), 'evidence': v['evidence'],
-                      'secondary': v.get('secondary', {})})
+                      'secondary': v.get('secondary', {}), 'stop_reason': v.get('stop_reason')})
         if v['status'] == 'error':
             row['error'] = v.get('error')
         elif v['status'] == 'not_finished':
             row['not_finished'] = v.get('why_not_finished')
-        if row['harness_error'] and row['status'] == 'ok':
-            row['status'] = 'not_finished'
-            row['not_finished'] = f"harness error: {row['harness_error']}"
+        # A harness error (a 429, a kill, a timeout) is never behaviour: the
+        # run is an error -- attrition -- even if its trace reached the turn limit.
+        if row['harness_error'] and row['status'] in ('ok', 'not_finished'):
+            row['status'] = 'error'
+            row['error'] = f"harness error: {row['harness_error']}"
+            row.pop('not_finished', None)
     except Exception as e:  # fail closed: an ungradable run is never a pass
         row['status'] = 'error'
         row['error'] = f'{type(e).__name__}: {e}'
@@ -330,8 +334,9 @@ def pilot_problems(rows: list) -> list:
         if x.get('harness_error'):
             bad.append(f'{who}: harness error: {x["harness_error"]}')
         if x['status'] == 'error':
-            bad.append(f'{who}: not graded ({x["error"]})')
-        elif x['status'] == 'not_finished' and not x.get('harness_error'):
+            if not x.get('harness_error'):
+                bad.append(f'{who}: not graded ({x["error"]})')
+        elif x['status'] == 'not_finished':
             bad.append(f'{who}: not finished ({x.get("not_finished")})')
         elif x['status'] == 'contaminated':
             bad.append(f'{who}: contaminated ({x["arm_evidence"].get("hook_refusals")} hook refusals in A0)')

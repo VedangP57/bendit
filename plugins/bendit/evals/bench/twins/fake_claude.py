@@ -109,7 +109,8 @@ def main(argv: list) -> int:
         error = f'scaffold failed (exit {e.returncode})'
     sub = os.environ.get('FAKE_RESULT_SUBTYPE')
     if sub and trace.events and trace.events[-1].get('type') == 'result':
-        trace.events[-1].update(subtype=sub, is_error=sub != 'success')
+        trace.events[-1].update(subtype=sub, is_error=sub != 'success',
+                                terminal_reason={'error_max_turns': 'max_turns'}.get(sub, 'completed'))
     error = error or os.environ.get('FAKE_HARNESS_ERROR') or None
     trace.write(sandbox / 'out' / 'trace.jsonl')
 

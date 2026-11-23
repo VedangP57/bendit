@@ -125,16 +125,38 @@ def bendit_hooks_seen(events: list) -> list:
     return sorted(names)
 
 
-def run_end(events: list):
-    """(finished, why) from the trace's final result event -- a structured
-    record, not narration. No result event, or any subtype but success, is
-    a run that did not finish (max turns, an error, a kill)."""
+MAX_TURNS = 'max_turns'
+
+
+def stop_reason(events: list):
+    """The run's own recorded stop reason, from the trace's final result
+    event -- a structured record, not narration. Real shapes (CLI 2.1.330):
+    a normal end is success / is_error false / terminal_reason completed; the
+    turn limit is error_max_turns / is_error true / terminal_reason
+    max_turns; a 429 is success / is_error true / terminal_reason api_error.
+
+    Returns "completed", MAX_TURNS, None (no result event), or
+    "<subtype>/<terminal_reason>" for anything else. MAX_TURNS needs the
+    error_max_turns subtype AND no terminal_reason that says otherwise."""
     results = [e for e in events if e.get('type') == 'result']
     if not results:
-        return False, 'the trace has no result event'
+        return None
     r = results[-1]
-    if r.get('subtype') != 'success' or r.get('is_error'):
-        return False, f"the run ended with {r.get('subtype') or 'an error'}"
+    sub, term = r.get('subtype'), r.get('terminal_reason')
+    if sub == 'success' and not r.get('is_error'):
+        return 'completed'
+    if sub == 'error_max_turns' and term in (None, MAX_TURNS):
+        return MAX_TURNS
+    return f'{sub}/{term}'
+
+
+def run_end(events: list):
+    """(finished, why): finished means the agent stopped on its own."""
+    stop = stop_reason(events)
+    if stop is None:
+        return False, 'the trace has no result event'
+    if stop != 'completed':
+        return False, f'the run ended with {stop}'
     return True, ''
 
 
@@ -481,9 +503,11 @@ GRADERS = {
 
 
 def grade(case: str, ws, events: list) -> dict:
-    """The verdict, with `status`: "ok" when graded; "error" when the
-    workspace cannot be graded (FixtureBroken); "not_finished" when the run
-    did not end normally. `pass` is null unless status is "ok" AND the run
+    """The verdict, with `status`: "ok" when graded; "not_finished" ONLY when
+    the run's recorded stop reason is the turn limit (an outcome in C2);
+    "error" when the workspace cannot be graded (FixtureBroken) or the run
+    ended any other way -- a rate limit, a crash, no result event, a stop
+    reason we do not know. An error is attrition, never an outcome. `pass` is null unless status is "ok" AND the run
     is live -- the pre-registered denominator (docs/benchmarks/design.md).
     The grader's own answer is kept in `graded_pass` for review."""
     if case not in GRADERS:
@@ -495,9 +519,15 @@ def grade(case: str, ws, events: list) -> dict:
                 'error': str(e), 'evidence': {}, 'secondary': {}}
     finished, why = run_end(events)
     v['graded_pass'] = v['pass']
-    v['status'] = 'ok' if finished else 'not_finished'
-    if not finished:
+    v['stop_reason'] = stop_reason(events)
+    if finished:
+        v['status'] = 'ok'
+    elif v['stop_reason'] == MAX_TURNS:
+        v['status'] = 'not_finished'
         v['why_not_finished'] = why
+    else:
+        v['status'] = 'error'
+        v['error'] = why
     if v['status'] != 'ok' or not v['live']:
         v['pass'] = None
     return v

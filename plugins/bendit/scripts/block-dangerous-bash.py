@@ -544,14 +544,15 @@ def push_deletes_remote_refs(s):
 # under one deadline inside the hook's 10 s. Whenever git cannot answer
 # (unknown commit, not a repo, git missing, a timeout) the push is refused.
 #
-# A LEASE PUSH MUST STAND ALONE. The check sees the repository and the
+# NOTHING BUT ALLOWED FORMS BEFORE A LEASE PUSH. The check sees the repository and the
 # environment before the command runs, and simulating what other shell
 # commands do to them cannot be made complete (every round found another way:
 # a fetch first, xargs supplying the branch, include.path, printf -v, `+=`,
 # export HOME). So a lease push is checked only when it is the ONE plain
 # command in the Bash call (one leading literal `cd <dir> &&` or `;`, then
 # read-only commands -- git status/log/show/diff/rev-parse/describe, `git
-# remote -v`, `git branch` list forms, ls, pwd, true, echo; literal words, no
+# remote -v`, `git branch` list forms, ls, pwd, true, echo, find with no
+# -exec*/-ok*/-delete/-fprint*/-fls; literal words, no
 # -c, no -C to another folder, no --output/-O/--ext-diff/--textconv/--no-index/
 # --show-signature, piped only into pure readers -- and
 # plain file chores -- rm, mkdir -p, touch, cp, mv, echo, printf without -v --
@@ -566,8 +567,13 @@ def push_deletes_remote_refs(s):
 # printing, awk with no system/getline/pipe/redirect -- excepted, and
 # redirections only to /dev/null or another fd, since a file target is
 # truncated before git reads its config; no --receive-pack/--exec, which run
-# a local command; a cd is resolved logically, as bash does): no other
-# statement or pipe stage, no prefix
+# a local command; a cd is resolved logically, as bash does). AFTER the push,
+# whole pipelines joined by `;`, `&&` or `||` only: they start once it has
+# finished and cannot change what it sends, and every other rule still judges
+# them. Not after it: `&`, a newline/subshell/$(...)/heredoc between them, a
+# second push (git push, the word push, a git alias or runner, git -c), a
+# command name not literal, or a compound command or function in the line.
+# Otherwise: no other statement or pipe stage, no prefix
 # (VAR=, HOME=, GIT_*), no wrapper (xargs, sh -c, eval, nohup, sudo...), no
 # function or alias in the line, no run-time word (`$(...)`, `$VAR`, a glob,
 # a brace expansion, `~user`, `<(...)`), and no `-c`/`--config-env` key in
@@ -789,6 +795,11 @@ _READ_GIT_BAD = ('output', 'output-directory', 'ext-diff', 'textconv', 'no-index
                  'show-signature', 'exec')
 
 
+# find primaries that run a command, delete, or write a file (any spelling
+# that starts so): -exec, -execdir, -ok, -okdir, -delete, -fprint*, -fls.
+_FIND_ACTS = ('-exec', '-ok', '-delete', '-fprint', '-fls')
+
+
 def _runs_or_writes(x) -> bool:
     if x.startswith('--'):
         body = x[2:].split('=', 1)[0]
@@ -800,7 +811,8 @@ def _runs_or_writes(x) -> bool:
 def _read_only_cmd(c) -> bool:
     """A command from the narrow read-only list that may come before a lease
     push: git status/log/show/diff/rev-parse/describe, `git remote -v`, `git
-    branch` in list forms, ls, pwd, true, echo -- every word literal, no -c,
+    branch` in list forms, ls, pwd, true, echo, find with no primary that
+    runs, deletes or writes (_FIND_ACTS) -- every word literal, no -c,
     no file output, and (checked by the caller) no redirect but /dev/null."""
     raw = c.argv
     if not raw or c.subshell or c.heredocs or c.herestrings or c.fed_by is not None:
@@ -810,6 +822,8 @@ def _read_only_cmd(c) -> bool:
     name = raw[0]
     if name in ('ls', 'pwd', 'true', 'echo'):
         return True
+    if name == 'find':   # only reads and prints, like ls -R
+        return not any(x.startswith(_FIND_ACTS) for x in raw[1:])
     if name != 'git':
         return False
     i, _ = _git(raw)
@@ -1086,10 +1100,119 @@ def _chore_problem(s, cmds):
     return None
 
 
+def _cmd_end(c):
+    return max([w.end for w in c.words] + [r.end for r in c.redirs])
+
+
+def _background_amp(text, code, start):
+    """True when text[start:] holds a `&` that sends a command to the
+    background (not `&&`, `|&`, `&>`, `>&`, `<&`), as the lexer marked code."""
+    for i in range(start, len(text)):
+        if text[i] != '&' or not code[i]:
+            continue
+        prev = text[i - 1] if i else ''
+        nxt = text[i + 1] if i + 1 < len(text) else ''
+        if prev in ('<', '>', '&', '|') or nxt in ('>', '&'):
+            continue
+        return True
+    return False
+
+
+# Words that open or close a compound command or a function body. With one
+# in the line, the order the text shows is not the order commands run in.
+_COMPOUND = frozenset({'{', '}', 'function', 'if', 'then', 'elif', 'else', 'fi', 'while',
+                       'until', 'for', 'select', 'do', 'done', 'case', 'esac', '!', '[[', 'coproc'})
+_PUSH_WORD = re.compile(r'(?<![\w./-])push(?![\w./-])')
+
+
+def _push_end(s):
+    """Where the lease push's pipeline ends in the command text, or None."""
+    pipe = s.cmd.pipe if s.cmd in s.cmd.pipe else [s.cmd]
+    if not all(c.words for c in pipe):
+        return None
+    return max(_cmd_end(c) for c in pipe)
+
+
+def _after_push(s, simples):
+    """(commands, simples) written after the lease push's pipeline at the top
+    level: not in a subshell, `$(...)` or heredoc body (a heredoc of the push
+    is expanded BEFORE it runs), with the simples they launch."""
+    end = _push_end(s)
+    later, after, owner = [], [], None
+    if end is None:
+        return after, later
+    for o in simples:
+        if not o.via:
+            c = o.cmd
+            owner = c if (c.words and c.words[0].start > end and not c.subshell
+                          and c.fed_by is None) else None
+            if owner is not None and c not in after:
+                after.append(c)
+        if owner is not None:
+            later.append(o)
+    return after, later
+
+
+def _after_problem(s, after, later):
+    """Why what comes after the lease push is not allowed, or None. Whole
+    pipelines joined to it and to each other by `;`, `&&` or `||` start only
+    once the push has finished, so they cannot change what it sends; each is
+    still judged by every other rule. Refused: anything that runs alongside
+    it (`&`), may push again, or that bendit cannot place."""
+    text = _COMMAND[0]
+    end = _push_end(s)
+    if end is None:
+        return 'shares this Bash call with another command'
+    if _background_amp(text, lex(text).code, end):
+        return 'runs alongside a command after it (`&`)'
+    if not after:
+        return None
+    for c in lex(text).cmds:   # a body: the push may run later, after what follows it
+        head = c.argv[0] if c.argv else ''
+        if head in _COMPOUND or head.endswith('()') or '()' in c.argv:
+            return f'is in the same line as `{_brief(c.argv)}`, a compound command or function'
+    after.sort(key=lambda c: c.words[0].start)
+    units = []
+    for c in after:
+        if c.subshell or c.fed_by is not None:
+            return f'is followed by `{_brief(c.argv)}`, which runs in a subshell'
+        if c in c.pipe and c.pipe[0] is not c:
+            if any(x not in after for x in c.pipe):
+                return 'shares this Bash call with another command'
+            continue
+        units.append(c.pipe if c in c.pipe else [c])
+    prev = end
+    for u in units:
+        if not all(x.words for x in u):
+            return 'shares this Bash call with another command'
+        gap = text[prev:u[0].words[0].start].strip()
+        if gap not in ('&&', ';', '||'):
+            return f'is followed by `{_brief(u[0].argv)}` in a way bendit cannot place'
+        prev = max(_cmd_end(x) for x in u)
+    first = units[0][0].words[0].start
+    if _PUSH_WORD.search(text[first:]):
+        return 'is followed by another `push`'
+    for o in later:
+        a = o.argv
+        if not a or not _literal(a[0]):
+            return f'is followed by `{_brief(o.cmd.argv)}`, whose command bendit cannot read'
+        if _git_push(a):
+            return 'is followed by another `push`'
+        if a[0] == 'git':
+            i, configs = _git(a)
+            if configs or any(x.startswith('--config-env') for x in a[1:i or len(a)]):
+                return f'is followed by `{_brief(a)}`, whose `-c` could make it another push'
+            if i is None or not _literal(a[i]) or a[i] not in _GIT_BUILTINS or \
+                    a[i] in _GIT_RUNNERS:
+                return f'is followed by `{_brief(a)}`, which may run another push'
+    return None
+
+
 def _not_alone(s):
-    """Why this lease push is not one plain command standing alone in the Bash
-    call, or None. Simulating what other commands do to git's config and
-    environment cannot be made complete, so nothing may share the call."""
+    """Why this lease push does not stand alone in the Bash call -- only the
+    allowed forms before it (_prelude), only sequential commands after it
+    (_after_problem) -- or None. Simulating what earlier commands do to git's
+    config and environment cannot be made complete."""
     simples = _SIMPLES[0]
     raw = s.cmd.argv
     if s.via:
@@ -1106,11 +1229,16 @@ def _not_alone(s):
         if at:
             return f'reads `{_brief(s.cmd.pipe[0].argv)}` on its stdin'
         allowed += [c for c in s.cmd.pipe[at + 1:] if _output_reader(c.argv)]
-    others = [o for o in simples if o is not s and o.cmd not in allowed]
+    after, later = _after_push(s, simples)
+    ids = {id(o) for o in later}
+    others = [o for o in simples if o is not s and o.cmd not in allowed and id(o) not in ids]
     if others:
         return f'shares this Bash call with `{_brief(others[0].cmd.argv or others[0].argv)}`'
-    if any(o.cmd is not s.cmd and o.via for o in simples) or \
-            len(lex(_COMMAND[0]).cmds) != len(allowed):
+    why = _after_problem(s, after, later)
+    if why is not None:
+        return why
+    if any(o.cmd is not s.cmd and o.via and id(o) not in ids for o in simples) or \
+            len(lex(_COMMAND[0]).cmds) != len(allowed) + len(after):
         return 'shares this Bash call with another command'
     for c in allowed:
         if c in chores:
@@ -1594,8 +1722,9 @@ def force_with_lease_foreign(s):
                 f'routing `-c`; only a leading `cd <dir> &&`, plain file chores before it (`rm`, '
                 f'`mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` on literal paths in a temp '
                 f'folder outside any git repository), read-only commands before it (`git status`, '
-                f'`git log`, `git diff`, `ls`, `pwd`), output readers after it (`| grep`, `| tail`) '
-                f'and `2>&1` or `>/dev/null` are fine — because anything else can change '
+                f'`git log`, `git diff`, `ls`, `pwd`, `find`), output readers piped after it (`| grep`, '
+                f'`| tail`), other commands after it joined by `;`, `&&` or `||` (no `&`, no '
+                f'second push) and `2>&1` or `>/dev/null` are fine — because anything else can change '
                 f'what it pushes or '
                 f'what git compares against. Run the push by itself, as one plain command, so '
                 f'bendit can check it')

@@ -325,13 +325,15 @@ It refuses:
   (`rev-parse`, `cherry`, `log`, `config`; never a fetch), in the hook's
   folder after `git -C` and a literal `cd`; any git error or timeout refuses.
   A merge by someone else whose own change (a conflict fix) would be lost
-  counts too. **The push must stand alone:** bendit checks a lease push only
-  when it is the one plain command in the Bash call — no other command or
-  pipe stage, except one leading literal `cd <dir> &&` (or `;`), which moves
+  counts too. **Nothing before the push but the allowed forms:** the check
+  sees the repository as it is before the Bash call runs, so a command that
+  runs before the push could change what it compares against. Before the
+  push, only these may come: one leading literal `cd <dir> &&` (or `;`), which moves
   the check to that folder; read-only commands before the push (`git
   status`, `git log`, `git show`, `git diff`, `git rev-parse`, `git
   describe`, `git remote -v`, `git branch` in list forms, `ls`, `pwd`,
-  `true`, `echo`), with literal words, no `-c`, no `-C` to another folder
+  `true`, `echo`, and `find` with no `-exec`, `-execdir`, `-ok`, `-okdir`,
+  `-delete`, `-fprint*` or `-fls`), with literal words, no `-c`, no `-C` to another folder
   than the push's repository, no `--output`, `-O`, `--ext-diff`,
   `--textconv`, `--no-index` or `--show-signature`, piped only into the
   readers below; plain file chores before
@@ -343,9 +345,20 @@ It refuses:
   repository (a `.git` found walking up, compared case-insensitively), and
   outside the push's repository and every config or include file git lists;
   a `..`, a dangling link, or a `cp`/`mv` of a symlink refuses — `rm` is
-  still judged by its own rule; and output readers after the push (`grep`,
+  still judged by its own rule. **After the push, any command that runs once
+  it has finished:** whole commands or pipelines joined to it by `;`, `&&` or
+  `||` (`; git status -sb`, `&& git log --oneline -1 origin/<b>`, `|| echo
+  failed`) cannot change what it sends, so they are allowed — each is still
+  judged by every other bendit rule (`push; rm -rf ./src` is refused as a
+  recursive delete). Refused after the push: a `&` anywhere after it (the
+  command runs alongside it), a newline, subshell, `$(…)` or heredoc between
+  them, a second push (any `git push`, the word `push` anywhere after it, a
+  `git` alias or runner such as `git rebase`/`git config`, or `git -c`), a
+  command name bendit cannot read, and any compound command or function
+  (`{ }`, `if`, `while`, `f() { }`) in the line. A pipe from the push still
+  goes only into output readers (`grep`,
   `tail`, `head`, `cat`, `wc`, `sort`, `uniq`, `sed -n` that only prints, `awk`
-  with no `system(`, `getline`, `|` or `>`) and redirections of its output
+  with no `system(`, `getline`, `|` or `>`; not `tee`, which writes a file), and redirections of its output
   to `/dev/null` or another descriptor (`2>&1`) only — a file target is
   truncated by the shell before git reads its config; a `cd` is resolved
   logically from the payload's folder, as bash does; no `--receive-pack` or

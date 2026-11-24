@@ -1181,7 +1181,7 @@ run_in 2 "touch -r (takes a file)"                 "$ME" 'touch -r .git/config /
 run_in 2 "rm || push"                              "$ME" 'rm -f /tmp/bendit-x || git push --force-with-lease origin solo'
 run_in 2 "rm & push"                               "$ME" 'rm -f /tmp/bendit-x & git push --force-with-lease origin solo'
 run_in 0 "CONTROL: ls && push (read-only)"         "$ME" 'ls && git push --force-with-lease origin solo'
-run_in 2 "a chore AFTER the push"                  "$ME" 'git push --force-with-lease origin solo && rm -f /tmp/bendit-x'
+run_in 0 "a chore AFTER the push: runs after it, allowed" "$ME" 'git push --force-with-lease origin solo && rm -f /tmp/bendit-x'
 run_in 2 "echo | tee (a pipe)"                     "$ME" 'echo x | tee /tmp/bendit-x && git push --force-with-lease origin solo'
 run_in 2 "cd after a chore"                        "$LT" 'rm -f /tmp/bendit-x && cd me && git push --force-with-lease origin solo'
 
@@ -1256,6 +1256,71 @@ run_in 2 "git log --textconv"                    "$ME" "git log -p --textconv -1
 run_in 2 "git log -O<file>"                      "$ME" "git log -O/tmp/bendit-order && $P_OWN"
 run_in 2 "git log --show-signature"              "$ME" "git log --show-signature -1 && $P_OWN"
 run_in 2 "git diff --ou=<file> (abbreviated)"    "$ME" "git diff --ou=/tmp/bendit-x && $P_OWN"
+
+echo
+echo "COMMANDS THAT RUN AFTER A LEASE PUSH"
+# The v0.5.3 release check: agents follow their own lease push with
+# `; git status -sb`, `&& git log -1 origin/<b>`, `|| echo failed`. A command
+# that runs strictly AFTER the push has finished cannot change what it sends
+# or discards, so `;`, `&&` and `||` after it are fine -- each later command
+# still goes through every other rule. Running at the same time (`&`, a pipe
+# into anything but a reader), a second push, or a later `git -c` refuses.
+A_OWN="git push --force-with-lease origin solo"
+A_SAM="git push --force-with-lease origin feature/checkout"
+GV='2>&1 | grep -v -e xcrun_db -e DVTFilePath'
+run_in 0 "push; git status -sb"                   "$ME" "$A_OWN; git status -sb"
+run_in 0 "push; git status -sb 2>/dev/null | head -1" "$ME" "$A_OWN; git status -sb 2>/dev/null | head -1"
+run_in 0 "push && git log --oneline -1 origin/solo" "$ME" "$A_OWN && git log --oneline -1 origin/solo"
+run_in 0 "push || echo failed"                    "$ME" "$A_OWN || echo failed"
+run_in 0 "push; echo done"                        "$ME" "$A_OWN; echo done"
+run_in 0 "release check: rm, ls, push | grep, status, log" "$ME" "rm -rf /tmp/bendit-t8-reports && ls /tmp/bendit-t8-reports 2>&1; $A_OWN $GV; git status -sb 2>/dev/null | head -1; git log --oneline -1 origin/solo 2>/dev/null"
+run_in 0 "release check: find | head, rm, push | grep" "$ME" "find /tmp/bendit-t8-cache | head -20; rm -rf /tmp/bendit-t8-cache && echo deleted; $A_OWN $GV"
+run_in 2 "sam's commit; git status -sb"           "$ME" "$A_SAM; git status -sb"
+names_it "  ...names sam's commit"
+run_in 2 "sam's commit && git log -1"             "$ME" "$A_SAM && git log --oneline -1 origin/feature/checkout"
+names_it "  ...names sam's commit"
+run_in 2 "sam's commit || echo failed"            "$ME" "$A_SAM || echo failed"
+names_it "  ...names sam's commit"
+run_in 2 "sam's commit | grep; status | head; log" "$ME" "$A_SAM $GV; git status -sb 2>/dev/null | head -1; git log --oneline -1 origin/feature/checkout 2>/dev/null"
+names_it "  ...names sam's commit"
+run_in 2 "push & git status (runs alongside)"     "$ME" "$A_OWN & git status"
+run_in 2 "push; git status & (a later &)"         "$ME" "$A_OWN; git status &"
+run_in 2 "push & (backgrounded alone)"            "$ME" "$A_OWN &"
+run_in 2 "push; a second lease push"              "$ME" "$A_OWN; git push --force-with-lease origin other"
+run_in 2 "push && a plain second push"            "$ME" "$A_OWN && git push origin solo"
+run_in 2 "push; sh -c 'git push ...'"             "$ME" "$A_OWN; sh -c 'git push origin solo'"
+run_in 2 "push | tee log.txt (tee writes a file)" "$ME" "$A_OWN | tee log.txt"
+run_in 2 "push; git -c core.hooksPath=x status"   "$ME" "$A_OWN; git -c core.hooksPath=x status"
+run_in 2 "push, newline, git status"              "$ME" "$A_OWN"$'\ngit status'
+run_in 2 "push; (git status) in a subshell"       "$ME" "$A_OWN; (git status)"
+run_in 2 "push; echo \$(git fetch -q origin)"     "$ME" "$A_OWN; echo \$(git fetch -q origin)"
+run_in 2 "push in a function body, fetch, then p" "$ME" $'function p {\n'"$A_OWN; }; git fetch -q origin; p"
+run_in 2 "push in a { } group, then fetch"        "$ME" $'{\n'"$A_OWN; }; git fetch -q origin"
+run_in 2 "push in a subshell, then fetch"         "$ME" $'(\n'"$A_OWN; ); git fetch -q origin"
+run_in 0 "push; git fetch (runs after it)"        "$ME" "$A_OWN; git fetch -q origin"
+run_in 2 "push; rm -rf ./src (recursive delete)"  "$ME" "$A_OWN; rm -rf ./src"
+case "$EXPECT_STDERR" in
+  *"recursive delete"*) case "$EXPECT_STDERR" in
+      *force-with-lease*) printf '  FAIL  %-46s\n' "  ...refused by the lease rule"; fail=$((fail+1));;
+      *) printf '  ok    %-46s\n' "  ...by the recursive-delete rule"; pass=$((pass+1));; esac;;
+  *) printf '  FAIL  %-46s\n' "  ...by the recursive-delete rule"; fail=$((fail+1));;
+esac
+run_in 2 "push && rm -rf ./src (recursive delete)" "$ME" "$A_OWN && rm -rf ./src"
+case "$EXPECT_STDERR" in
+  *"recursive delete"*) case "$EXPECT_STDERR" in
+      *force-with-lease*) printf '  FAIL  %-46s\n' "  ...refused by the lease rule"; fail=$((fail+1));;
+      *) printf '  ok    %-46s\n' "  ...by the recursive-delete rule"; pass=$((pass+1));; esac;;
+  *) printf '  FAIL  %-46s\n' "  ...by the recursive-delete rule"; fail=$((fail+1));;
+esac
+# A read-only find may come BEFORE the push, like ls: literal words, no
+# primary that runs a command, deletes or writes a file.
+run_in 0 "find <temp> | head -20; own push"        "$ME" "find /tmp/bendit-t8-cache | head -20; $A_OWN"
+run_in 2 "find . -delete; push"                   "$ME" "find . -delete; $A_OWN"
+run_in 2 "find . -exec true \; ; push"           "$ME" "find . -exec true \; ; $A_OWN"
+run_in 2 "find . -fprint /tmp/y; push"            "$ME" "find . -fprint /tmp/bendit-t8-y; $A_OWN"
+run_in 2 "find . -okdir true \; ; push"          "$ME" "find . -okdir true \; ; $A_OWN"
+run_in 2 "find . -fls /tmp/y; push"               "$ME" "find . -fls /tmp/bendit-t8-y; $A_OWN"
+run_in 2 "find \"\$D\"; push (run-time word)"     "$ME" "find \"\$D\"; $A_OWN"
 
 echo
 echo "A MERGE SOMEONE ELSE MADE, with a change of its own"

@@ -26,13 +26,18 @@ add guards, and a clearer install.
 - **INSTALL.md** is pinned to the release tag. The trust command uses the
   installed copy and works from a subfolder or a worktree. `/reload-plugins`
   replaces the restart before `/bendit:adopt`.
-- **A lease push must stand alone.** A lease push chained with commands outside
-  bendit's allowed lists is now refused even when it is safe, for example
-  `git add -A && git commit -m x && git push --force-with-lease` (v0.5.2 allowed
-  it). bendit cannot see what the earlier commands change before the push runs.
-  Run the push as its own command. The allowed forms are one leading
-  `cd <dir> &&`, read-only commands such as `git status` or `git log`, and plain
-  file chores on temp folders; see [docs/reference.md](docs/reference.md).
+- **Only allowed forms may come before a lease push.** A lease push that comes
+  after commands outside bendit's allowed lists is now refused even when it is
+  safe, for example `git add -A && git commit -m x && git push
+  --force-with-lease` (v0.5.2 allowed it). bendit cannot see what the earlier
+  commands change before the push runs. Run those first, as their own command.
+  The allowed forms before the push are one leading `cd <dir> &&`, read-only
+  commands such as `git status`, `git log`, `ls` or a `find` that runs and
+  writes nothing, and plain file chores on temp folders. After the push, any
+  command joined by `;`, `&&` or `||` is allowed (`; git status -sb`), because
+  it runs only once the push has finished; each is still checked by every other
+  bendit rule. Still refused after it: `&`, a second push, `git -c`, and a pipe
+  into anything but an output reader. See [docs/reference.md](docs/reference.md).
 - **README:** plain words first, npx first, and a prompt that has Claude
   install bendit.
 

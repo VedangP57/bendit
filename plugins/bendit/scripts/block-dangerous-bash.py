@@ -551,9 +551,11 @@ def push_deletes_remote_refs(s):
 # export HOME). So a lease push is checked only when it is the ONE plain
 # command in the Bash call (one leading literal `cd <dir> &&` or `;`, then
 # plain file chores -- rm, mkdir -p, touch, cp, mv, echo, printf without -v --
-# on literal paths that are not in the git dir, not a git config file (as
-# `git config --list --show-origin` lists them, ~/.gitconfig, the XDG git
-# folder, .gitmodules) and not $HOME or /, and
+# only on literal paths that, every symlink resolved, lie under a system temp
+# root (/tmp, /var/folders, DARWIN_USER_TEMP_DIR; never $TMPDIR), in no git
+# repository (a `.git` found walking up, case-insensitively), outside the
+# push repo and every config or include file git lists, with no `..`, no
+# dangling link and no cp/mv of a symlink, and
 # output readers after it -- grep, tail, head, cat, wc, sort, uniq, `sed -n`
 # printing, awk with no system/getline/pipe/redirect -- excepted, and
 # redirections only to /dev/null or another fd, since a file target is
@@ -630,7 +632,10 @@ _LEASE_TEXT = re.compile(r'--force-w')   # any spelling git accepts of --force-w
 def _short_path(w):
     """A long absolute path shown by its last part: `…/.gitconfig`."""
     parts = w.rstrip('/').split('/')
-    return '…/' + parts[-1] if w.startswith('/') and len(parts) > 3 else w
+    if w.startswith('/') and len(parts) > 3:
+        return '…/' + parts[-1]
+    # an absolute path inside a word (`gitdir: /a/b/c`): keep its last part
+    return re.sub(r'(?<![\w.~-])/(?:[^/\s]+/){2,}([^/\s]*)', r'…/\1', w)
 
 
 def _brief(words, width=50):
@@ -795,68 +800,142 @@ def _prelude(s, simples):
     return cmds, None
 
 
-def _guarded_paths(s, shell_cwd):
-    """Real paths a chore may not name or contain: the git dirs and every
-    git config file of the shell's repo and the push's repo, ~/.gitconfig and
-    the XDG git config folder. Raises _GitCannotTell when git fails."""
+def _fold(path):
+    """A path compared the way a case-insensitive volume compares it."""
+    import unicodedata
+    return unicodedata.normalize('NFKC', path).casefold()
+
+
+def _temp_roots():
+    """System temp roots, resolved: /tmp, /private/tmp, /var/folders and
+    getconf DARWIN_USER_TEMP_DIR. Never $TMPDIR: the shell that runs the
+    command need not share the hook's environment."""
+    roots = ['/tmp', '/private/tmp', '/var/folders', '/private/var/folders']
+    try:
+        import subprocess
+        r = subprocess.run(['getconf', 'DARWIN_USER_TEMP_DIR'], stdout=subprocess.PIPE,
+                           stderr=subprocess.DEVNULL, timeout=2)
+        if r.returncode == 0 and r.stdout.strip():
+            roots.append(r.stdout.decode('utf-8', 'replace').strip())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return {_fold(os.path.realpath(x)).rstrip('/') for x in roots}
+
+
+def _under(path, root):
+    return path.startswith(root.rstrip('/') + '/')
+
+
+def _holds_link(path, limit=2000):
+    """`path` is a symlink, or a folder holding one (or too big to look)."""
+    if os.path.islink(path):
+        return True
+    if not os.path.isdir(path):
+        return False
+    seen = 0
+    for top, dirs, files in os.walk(path):
+        for name in dirs + files:
+            seen += 1
+            if seen > limit or os.path.islink(os.path.join(top, name)):
+                return True
+    return False
+
+
+def _temp_path_problem(full, roots):
+    """Why the chore path `full` (absolute, as written) is not a plain path in
+    a system temp folder outside every git repository, or None."""
+    parts = full.split('/')
+    if '..' in parts:
+        return 'has `..` in it'
+    if any(_fold(x) in ('.git', '.gitmodules', '.gitconfig') for x in parts):
+        return 'names a git file'
+    # Deepest existing ancestor; what does not exist yet must not be a link.
+    anc = full
+    while not os.path.exists(anc):
+        if os.path.lexists(anc):
+            return 'is a dangling symlink'
+        parent = os.path.dirname(anc)
+        if parent == anc:
+            break
+        anc = parent
+    real = os.path.realpath(full)
+    folded = _fold(real)
+    if not any(_under(folded, r) for r in roots):
+        return 'is not inside a system temp folder'
+    probe = real
+    while True:
+        if os.path.lexists(os.path.join(probe, '.git')):   # case-insensitive volumes match .GIT
+            return 'is inside a git repository'
+        parent = os.path.dirname(probe)
+        if parent == probe:
+            break
+        probe = parent
+    return None
+
+
+def _push_repo_paths(s):
+    """Folded real paths of the push repo's top level, git dir and common dir,
+    and of every config file and include target git lists for it. Raises
+    _GitCannotTell when git fails."""
+    cwd, opts = _push_dir(s)
+    g = _Git(cwd, opts)
     home = os.environ.get('HOME') or os.path.expanduser('~')
     xdg = os.environ.get('XDG_CONFIG_HOME') or os.path.join(home, '.config')
-    out = {os.path.join(home, '.gitconfig'), os.path.join(xdg, 'git'), '/etc/gitconfig'}
-    push_cwd, opts = _push_dir(s)
-    first = None
-    for cwd, o in ((shell_cwd, []), (push_cwd, opts)):
-        g = _Git(cwd, o)
-        if first is None:
-            first = g
-        else:
-            g.deadline = first.deadline
-        code, gd = g.run(['rev-parse', '--absolute-git-dir'])
-        if code != 0:
-            continue   # not a repository: nothing of git's to protect here
-        out.add(gd.strip())
-        code, common = g.run(['rev-parse', '--git-common-dir'])
-        if code == 0 and common.strip():
-            out.add(os.path.join(cwd, common.strip()))
-        code, top = g.run(['rev-parse', '--show-toplevel'])
-        top = top.strip() if code == 0 else cwd
-        code, listed = g.run(['config', '--list', '--show-origin'])
-        if code != 0:
-            raise _GitCannotTell(f'git config --list --show-origin exited {code}')
-        for line in listed.splitlines():
-            origin = line.split('\t', 1)[0]
-            if not origin.startswith('file:'):
-                continue
-            path = origin[5:]
-            if path.startswith('"') and path.endswith('"'):
-                path = path[1:-1]
-            for base in (cwd, top):
-                out.add(os.path.join(base, path))
-    return {os.path.realpath(p) for p in out if p}
+    out = {os.path.join(home, '.gitconfig'), os.path.join(xdg, 'git')}
+    for args in (['--show-toplevel'], ['--absolute-git-dir'], ['--git-common-dir']):
+        code, val = g.run(['rev-parse'] + args)
+        if code == 0 and val.strip():
+            out.add(os.path.join(cwd, val.strip()))
+    code, listed = g.run(['config', '--list', '--show-origin'])
+    if code != 0:
+        raise _GitCannotTell(f'git config --list --show-origin exited {code}')
+    code, inc = g.run(['config', '--show-origin', '--get-regexp', r'^include(if\..*)?\.path$'])
+    if code not in (0, 1):
+        raise _GitCannotTell(f'git config --get-regexp include exited {code}')
+    for line in listed.splitlines() + inc.splitlines():
+        origin, _, rest = line.partition('\t')
+        if origin.startswith('file:'):
+            path = origin[5:].strip('"')
+            out.add(os.path.join(cwd, path))
+            if rest.lower().startswith('include'):
+                target = rest.split(' ', 1)[1] if ' ' in rest else ''
+                target = os.path.expanduser(target)
+                out.add(os.path.join(os.path.dirname(os.path.join(cwd, path)), target))
+    return {_fold(os.path.realpath(p)).rstrip('/') for p in out if p}
 
 
 def _chore_problem(s, cmds):
-    """Why a chore before the push names a path git reads, or None."""
+    """Why a chore before the push may change what git reads, or None. A chore
+    is allowed only on plain paths in a system temp folder, outside every git
+    repository and outside the push repo, and never copies or moves a link."""
     chores = [c for c in cmds if c.argv[:1] != ['cd']]
     if not chores:
         return None
     shell_cwd = _CWD[0] or os.getcwd()
     if cmds[0].argv[:1] == ['cd']:
-        shell_cwd = os.path.normpath(os.path.join(shell_cwd, cmds[0].argv[1]))
+        shell_cwd = os.path.join(shell_cwd, cmds[0].argv[1])
+    roots = _temp_roots()
     try:
-        guarded = _guarded_paths(s, shell_cwd)
+        repo = _push_repo_paths(s)
     except _GitCannotTell as why:
         return f'comes after file chores bendit could not check ({_describe_short(why)})'
-    home = os.path.realpath(os.environ.get('HOME') or os.path.expanduser('~'))
     for c in chores:
-        for p in _chore_paths(c):
-            logical = os.path.normpath(os.path.join(shell_cwd, p))
-            for q in {logical, os.path.realpath(logical)}:
-                if q in ('/', home) or os.path.basename(q) == '.gitmodules':
-                    return f'comes after `{_brief(c.argv)}`, which names `{_short_path(p)}`'
-                for g in guarded:
-                    if q == g or q.startswith(g.rstrip('/') + '/') or g.startswith(q.rstrip('/') + '/'):
-                        return (f'comes after `{_brief(c.argv)}`, which names `{_short_path(p)}`, a path git '
-                                f'reads (its folder, or a config file)')
+        paths = _chore_paths(c)
+        sources = []
+        if c.argv[0] in ('cp', 'mv'):
+            plain = [x for x in c.argv[1:] if not x.startswith('-')]
+            sources = plain[:-1]
+        for p in paths:
+            full = os.path.join(shell_cwd, p)
+            why = _temp_path_problem(full, roots)
+            if why is None:
+                folded = _fold(os.path.realpath(full)).rstrip('/')
+                if any(folded == r or _under(folded, r) or _under(r, folded) for r in repo):
+                    why = 'is, holds or lies in a file or folder git reads for this push'
+                elif p in sources and _holds_link(full):
+                    why = 'is or holds a symlink'
+            if why is not None:
+                return f'comes after `{_brief(c.argv)}`, whose path `{_short_path(p)}` {why}'
     return None
 
 
@@ -1365,8 +1444,8 @@ def force_with_lease_foreign(s):
         return (f'`{written}` {alone}. bendit checks a lease push only when it is the one plain '
                 f'command in the Bash call — no other command, prefix, wrapper, variable or '
                 f'routing `-c`; only a leading `cd <dir> &&`, plain file chores before it (`rm`, '
-                f'`mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` on literal paths outside '
-                f'git\'s folder and config files), output readers after it (`| grep`, `| tail`) '
+                f'`mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` on literal paths in a temp '
+                f'folder outside any git repository), output readers after it (`| grep`, `| tail`) '
                 f'and `2>&1` or `>/dev/null` are fine — because anything else can change '
                 f'what it pushes or '
                 f'what git compares against. Run the push by itself, as one plain command, so '

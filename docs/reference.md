@@ -330,10 +330,13 @@ It refuses:
   pipe stage, except one leading literal `cd <dir> &&` (or `;`), which moves
   the check to that folder; plain file chores before the push, joined by `&&`
   or `;` (`rm`, `mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` without
-  `-v`), whose literal paths are not in the git dir, not a git config file
-  (as `git config --list --show-origin` lists them, `~/.gitconfig`, the XDG
-  git folder, `.gitmodules`) and not `$HOME` or `/` — `rm` is still judged
-  by its own rule; and output readers after the push (`grep`,
+  `-v`), only on literal paths that, with every symlink resolved, lie under a
+  system temp folder (`/tmp`, `/var/folders`, the user temp dir — never
+  `$TMPDIR`, which the shell may not share with the hook), in no git
+  repository (a `.git` found walking up, compared case-insensitively), and
+  outside the push's repository and every config or include file git lists;
+  a `..`, a dangling link, or a `cp`/`mv` of a symlink refuses — `rm` is
+  still judged by its own rule; and output readers after the push (`grep`,
   `tail`, `head`, `cat`, `wc`, `sort`, `uniq`, `sed -n` that only prints, `awk`
   with no `system(`, `getline`, `|` or `>`) and redirections of its output
   to `/dev/null` or another descriptor (`2>&1`) only — a file target is

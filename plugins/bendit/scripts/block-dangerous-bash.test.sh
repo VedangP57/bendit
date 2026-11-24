@@ -788,6 +788,16 @@ lg() { GIT_AUTHOR_NAME="$1" GIT_AUTHOR_EMAIL="$1@example.invalid" GIT_COMMITTER_
   # a logical `cd ..` from me/link is me, but a physical one is safe.
   git init -q "$LT/safe"; git -C "$LT/safe" remote add origin "$LT/remote.git"
   mkdir -p "$LT/safe/inner"; ln -s "$LT/safe/inner" "$LT/me/link"
+  # chores review: hk -> .git/hooks inside me; a nested linked worktree whose
+  # .git is a file; a staged dangling link and an absolute link to me/.git;
+  # inc3 includes a config file that does not exist yet.
+  ln -s .git/hooks "$LT/me/hk"
+  git -C "$LT/other" commit -q --allow-empty -m o
+  git -C "$LT/other" worktree add -q "$LT/me/wt"
+  mkdir -p "$LT/stage" "$LT/stage2" "$LT/me/docs/api"
+  ln -s .git "$LT/stage/gl"; ln -s "$LT/me/.git" "$LT/stage/abs"
+  git clone -q -b solo "$LT/remote.git" "$LT/inc3"; git -C "$LT/inc3" config user.email me@example.invalid
+  git -C "$LT/inc3" config include.path "$LT/missing.cfg"
   # evil.cfg: a push mapping that sends co over feature/checkout (cur's upstream).
   printf '[remote "origin"]\n\tpush = refs/heads/co:refs/heads/feature/checkout\n' >"$LT/evil.cfg"
   mkdir -p "$LT/h" "$LT/x/git"; cp "$LT/evil.cfg" "$LT/h/.gitconfig"; cp "$LT/evil.cfg" "$LT/x/git/config"
@@ -1151,6 +1161,28 @@ run_in 2 "ls && push (not a chore)"                "$ME" 'ls && git push --force
 run_in 2 "a chore AFTER the push"                  "$ME" 'git push --force-with-lease origin solo && rm -f /tmp/bendit-x'
 run_in 2 "echo | tee (a pipe)"                     "$ME" 'echo x | tee /tmp/bendit-x && git push --force-with-lease origin solo'
 run_in 2 "cd after a chore"                        "$LT" 'rm -f /tmp/bendit-x && cd me && git push --force-with-lease origin solo'
+
+echo
+echo "ONLY TEMP-FOLDER CHORES: the chores review"
+# A chore path must resolve (every symlink followed) under a system temp root,
+# lie in no git repository (case-insensitively), and stay out of the push's
+# repo. A cp/mv source that is or holds a symlink refuses.
+run_in 2 "C1: cp evil .GIT/config (case)"        "$ME" "cp $LT/evil.cfg .GIT/config && git push --force-with-lease origin solo"
+run_in 2 "C1: touch .GITMODULES"                 "$ME" 'touch .GITMODULES && git push --force-with-lease origin solo'
+run_in 2 "C2a: rm -f .git in a nested worktree"  "$ME/wt" 'rm -f .git && git push --force-with-lease origin feature/checkout'
+run_in 2 "C2b: echo gitdir: > ../.git"          "$ME/docs/api" "echo 'gitdir: $LT/me/.git' > ../.git && git push --force-with-lease origin feature/checkout"
+run_in 2 "I1: cp evil hk/../config (symlink + ..)" "$ME" "cp $LT/evil.cfg hk/../config && git push --force-with-lease origin solo"
+run_in 2 "I2: mv a dangling link in, write through" "$ME" "mv $LT/stage/gl gl && cp $LT/evil.cfg gl/config && git push --force-with-lease origin solo"
+run_in 2 "I2: mv a link within temp, write through" "$ME" "mv $LT/stage/abs $LT/stage2/abs && cp $LT/evil.cfg $LT/stage2/abs/config && git push --force-with-lease origin solo"
+run_in 2 "I2: cp -a a folder holding a link"      "$ME" "cp -a $LT/stage $LT/stage3 && git push --force-with-lease origin solo"
+run_in 2 "I3: an include target not yet there"    "$LT/inc3" "cp $LT/evil.cfg $LT/missing.cfg && git push --force-with-lease origin solo"
+run_in 2 "(b) a temp path inside another repo"    "$ME" "touch $LT/other/x && git push --force-with-lease origin solo"
+run_in 2 "(c) a temp path inside the push repo"   "$ME" "touch $LT/me/notes.txt && git push --force-with-lease origin solo"
+run_in 2 "a path outside the temp roots"          "$ME" 'touch notes.txt && git push --force-with-lease origin solo'
+run_in 2 "a temp root itself"                     "$ME" 'rm -f /tmp && git push --force-with-lease origin solo'
+run_in 2 "a .. in a temp path"                    "$ME" 'touch /tmp/a/../b && git push --force-with-lease origin solo'
+run_in 0 "CONTROL: the pilot: rm -rf /tmp/<dir> && own push" "$ME" 'rm -rf /tmp/bendit-old-reports && git push --force-with-lease origin solo'
+run_in 0 "CONTROL: a plain temp file, then own push" "$ME" "touch $LT/stage2/plain.txt && git push --force-with-lease origin solo"
 
 echo
 echo "A MERGE SOMEONE ELSE MADE, with a change of its own"

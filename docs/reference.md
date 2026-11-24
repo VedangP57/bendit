@@ -325,36 +325,32 @@ It refuses:
   (`rev-parse`, `cherry`, `log`, `config`; never a fetch), in the hook's
   folder after `git -C` and a literal `cd`; any git error or timeout refuses.
   A merge by someone else whose own change (a conflict fix) would be lost
-  counts too. The check sees the repository before the command runs, so a
-  lease push after any command not known to be read-only (a `git fetch &&`,
-  pull, rebase or reset first, through `;`, `&&`, `||`, newlines, `sh -c` or a
-  subshell) is refused: run the push as its own command. So is one with
-  `GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR`, `GIT_NAMESPACE` or
-  `GIT_CONFIG`/`GIT_CONFIG_GLOBAL`/`GIT_CONFIG_SYSTEM` set in the command. Where the push goes follows git: `@` is
+  counts too. **The push must stand alone:** bendit checks a lease push only
+  when it is the one plain command in the Bash call — no other command or
+  pipe stage (not even `2>&1 | grep`), no prefix (`VAR=`, `HOME=`, `GIT_*=`),
+  no wrapper (`xargs`, `sh -c`, `eval`, `nohup`, `timeout`, `sudo`…), no
+  function or alias in the line, no run-time word (`$(…)`, backticks,
+  `$VAR`, `${…}`, a glob, a brace expansion, `~user`, `<(…)`), and no
+  `-c`/`--config-env` key in `push.*`, `remote.*`, `branch.*`, `alias.*`,
+  `include.*`, `includeIf.*` or `url.*`. Anything else is refused with "run
+  the push by itself, as one plain command, so bendit can check it".
+  **git resolves the config:** every setting is read with `git config` in the
+  push's folder, so `include.path`, `includeIf`, `GIT_CONFIG_*` and `HOME`
+  apply as git applies them (the 40 harmless `GIT_CONFIG_KEY_*` entries a
+  sandbox sets change nothing). Where the push goes follows git: `@` is
   HEAD; with no refspec, `push.default`, `branch.<b>.merge`,
-  `branch.<b>.pushRemote` and `remote.pushDefault` decide, and a
-  `remote.<r>.push` mapping refuses. A lease push bendit cannot read ahead
-  of time is refused too: one with a run-time word in it (`$(…)`, backticks,
-  `$VAR`, `${…}`, `$((…))`, a glob, a brace expansion, `~user`, `<(…)` or
-  `>(…)`, in an argument, prefix, redirection or unquoted heredoc), or with
-  routing config on the command line (`git -c push.default=…`,
-  `remote.<r>.push`, `branch.<b>.merge`, `--config-env`) or in
-  `GIT_CONFIG_PARAMETERS`/`GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n` when a key
-  there is `push.*`, `remote.*.push`/`mirror`/`pushurl`,
-  `branch.*.merge`/`pushRemote`/`remote` or `alias.*`, or the list cannot be
-  read (harmless keys such as `core.*` or `safe.directory` are ignored). Write the branch and commit
-  out literally. So is a lease push launched by something that runs it or
-  adds to its words: `xargs`, `find -exec`, `parallel`, `eval`, `source`/`.`,
-  `sh -c` or a shell fed by a pipe, here-string or heredoc, `env -S`,
-  `watch`, `script`, `su`, `sudo -s`/`-i`, a `trap`, a function or alias
-  defined in the same command, `git rebase --exec`/`-x`, `git submodule
-  foreach`, or a git alias (`git -c alias.…`, `git config alias.…` earlier
-  in the line, or an unknown git command given a lease flag). A `git -c
-  alias.…` that is then called and expands to a push or a `!` shell command
-  refuses even without a lease flag. `nohup`,
-  `timeout`, `nice`, `stdbuf`, `time` and plain `sudo` with literal words
-  are read through. Write the push out as its own command. Rule id
-  `force-with-lease-foreign`.
+  `branch.<b>.pushRemote` and `remote.pushDefault` decide. `remote.<r>.mirror`,
+  a `+` refspec in `remote.<r>.push`, `remote.<r>.pushurl`, a
+  `url.*.pushInsteadOf` that rewrites the remote, a `remote.<r>.push` mapping
+  the push relies on, and any git error refuse. A `git <alias>` that git
+  resolves to a push or a `!` shell command refuses, as do `git rebase
+  --exec`/`-x` and `git submodule foreach` running a lease push, and a lease
+  push run by `watch`, `parallel`, `script`, `su`, `source` or an alias
+  defined in the line. Rule id `force-with-lease-foreign`.
+  Known limit: state changed by an earlier, separate Bash call that git's own
+  config resolution does not reflect — such as a shell variable exported
+  earlier in the agent's session — is not seen by the guard, which runs with
+  its own environment.
   Known limit: authorship is the commit's author email, which anyone can set;
 - `git reset --hard`, `git checkout .`, `git restore .`, `git clean -f`;
 - deleting the folder the shell is in, or a parent of it;

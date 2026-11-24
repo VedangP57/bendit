@@ -88,7 +88,7 @@ if __name__ == '__main__':
     sys.excepthook = _refuse_uncaught
 try:
     from shell_text import SHELLS, SQL_CLIENTS, _match_close, lex, shell_c_string, simple_commands, unwrap  # noqa: E402
-    from shell_text import _ASSIGN, _FUNC_HEADER, _RESERVED, _WRAPPERS, _command_name  # noqa: E402
+    from shell_text import _ASSIGN as _SH_ASSIGN, _command_name  # noqa: E402
 except SystemExit as _exc:   # a helper that exits on import never reaches excepthook
     raise ImportError(f'shell_text.py raised SystemExit on import (exit {_exc.code})') from None
 
@@ -544,94 +544,52 @@ def push_deletes_remote_refs(s):
 # under one deadline inside the hook's 10 s. Whenever git cannot answer
 # (unknown commit, not a repo, git missing, a timeout) the push is refused.
 #
-# THE CHECK SEES THE REPOSITORY BEFORE THE COMMAND RUNS. So a lease push that
-# comes after any command not known to be read-only (`git fetch && git push
-# --force-with-lease ...`, a pull, rebase or reset first -- through `;`, `&&`,
-# `||`, newlines, `sh -c` or a subshell) is refused: run it as its own
-# command. A GIT_DIR / GIT_WORK_TREE / GIT_COMMON_DIR / GIT_NAMESPACE /
-# GIT_CONFIG / GIT_CONFIG_GLOBAL... assignment anywhere in the command is
-# refused the same way (GIT_CONFIG_COUNT/KEY_n/VALUE_n/PARAMETERS are read).
-# Where the push goes follows git: `@` is HEAD; with no refspec, push.default,
-# branch.<b>.merge, branch.<b>.pushRemote and remote.pushDefault decide it,
-# and a remote.<r>.push mapping, which is not followed, refuses. A merge by
-# someone else whose OWN change (a conflict fix) would be lost counts as lost.
-# A push bendit cannot read ahead of time is refused: any run-time word in it
-# (`$(...)`, backticks, `$VAR`, `${...}`, `$((...))`, a glob, a brace
-# expansion, `~user`, `<(...)`/`>(...)`, in an argument, a prefix, a
-# redirection, a here-string or an unquoted heredoc), and any routing config
-# given on the command line (`git -c push.default=...`, `remote.<r>.push`,
-# `branch.<b>.merge`..., `--config-env`) or as GIT_CONFIG_PARAMETERS /
-# GIT_CONFIG_COUNT / GIT_CONFIG_KEY_* / GIT_CONFIG_VALUE_* -- in the hook's
-# environment or set in the line -- when a key there is push.*, remote.*.push/
-# mirror/pushurl, branch.*.merge/pushRemote/remote or alias.*, or the list
-# cannot be read. Harmless keys (core.*, safe.directory) are ignored.
+# A LEASE PUSH MUST STAND ALONE. The check sees the repository and the
+# environment before the command runs, and simulating what other shell
+# commands do to them cannot be made complete (every round found another way:
+# a fetch first, xargs supplying the branch, include.path, printf -v, `+=`,
+# export HOME). So a lease push is checked only when it is the ONE plain
+# command in the Bash call: no other statement or pipe stage, no prefix
+# (VAR=, HOME=, GIT_*), no wrapper (xargs, sh -c, eval, nohup, sudo...), no
+# function or alias in the line, no run-time word (`$(...)`, `$VAR`, a glob,
+# a brace expansion, `~user`, `<(...)`), and no `-c`/`--config-env` key in
+# push.*, remote.*, branch.*, alias.*, include.*, includeIf.* or url.*.
+# Anything else refuses: "run the push by itself, as one plain command".
 #
-# A lease push launched by something that runs a command or appends to it is
-# refused outright: xargs (it supplies words at run time -- `xargs -I{} git
-# push --force-with-lease origin {}` lost sam's commit for real), find -exec,
-# parallel, eval, source/., `sh -c` and a shell fed by a pipe, here-string or
-# heredoc, env -S, watch, script, su, sudo -s/-i, a trap, a function or alias
-# defined in the line, `git rebase --exec`, `git submodule foreach`, and a git
-# alias (`git -c alias.*`, `git config alias.*` earlier in the line, or an
-# unknown git subcommand given a lease flag). nohup,
-# timeout, nice, stdbuf, time, command, exec, env and plain sudo with literal
-# words are read through, as before.
+# GIT RESOLVES THE CONFIG. Every setting is read by asking git (`git config
+# --get/--get-all/--get-regexp` in the push's folder, with the hook's own
+# environment), so include.path, includeIf, GIT_CONFIG_* and HOME apply as
+# git applies them. Where the push goes follows git: `@` is HEAD; with no
+# refspec, push.default, branch.<b>.merge, branch.<b>.pushRemote and
+# remote.pushDefault decide it. remote.<r>.mirror, a `+` remote.<r>.push
+# refspec, remote.<r>.pushurl, a url.*.pushInsteadOf that rewrites the remote,
+# and a remote.<r>.push mapping the push relies on all refuse; so does any git
+# error. A merge by someone else whose OWN change (a conflict fix) would be
+# lost counts as lost. A `git <alias>` that git resolves to a push or a `!`
+# shell command refuses, as do `git rebase --exec` and `git submodule foreach`
+# running a lease push, and a lease push run by watch, parallel, script, su,
+# source or an alias defined in the line.
 #
 # KNOWN LIMITS: authorship is the author email, which anyone can set. The
 # tracking ref is assumed to be refs/remotes/<remote>/<branch> (the default
-# fetch refspec). A cd inside `( )` before the push is read as if it moved the
-# push's shell. An alias in git's config on disk is not followed, and nor is a
-# lease flag that only a file or another command supplies (`xargs -a args`).
-# A plain force push from config (remote.<r>.mirror, a `+` remote.<r>.push
-# refspec, an alias to `push --force`) is not caught by any rule.
+# fetch refspec). State changed by an EARLIER, separate Bash call that git's
+# own config resolution does not reflect -- a shell variable exported earlier
+# in the session -- is not seen: the hook runs with its own environment. A
+# lease flag only a file or another program supplies is not seen. A plain
+# force push from config (remote.<r>.mirror, a `+` remote.<r>.push refspec,
+# an alias to `push --force`) is not caught by any rule.
 _LEASE_DEADLINE_S = 6.0   # every git call for one command; the hook's timeout is 10 s
 _HEXISH = re.compile(r'^[0-9a-fA-F]{7,40}$')
-# Variables that make git use another repository, worktree or config than the
-# folder the check runs in. Seen anywhere in a command with a lease push: refuse.
-# The GIT_CONFIG_COUNT/KEY_n/VALUE_n/PARAMETERS list is not here: it is read,
-# and only a push-affecting key in it refuses (`_env_config`).
-_GIT_ENV = re.compile(r'(?<![\w$])(GIT_DIR|GIT_WORK_TREE|GIT_COMMON_DIR|GIT_NAMESPACE|'
-                      r'GIT_CONFIG(?!_COUNT=|_KEY_\d+=|_VALUE_\d+=|_PARAMETERS=)\w*)=')
 # A word the shell changes when the command runs: a substitution, a variable,
 # arithmetic, a glob, a brace expansion, process substitution. Read as written
 # it names nothing real, and a substitution may itself fetch first.
 _RUNTIME = re.compile(r'[$`*?\[]|^[<>]\(|\{[^}]*(?:,|\.\.)[^}]*\}')
-# Config that decides where a push goes, which remote, and what it tracks.
-_ROUTING_KEY = re.compile(r'(?i)^(?:push\.default|remote\.pushdefault|'
-                          r'remote\..+\.(?:push|pushurl|url|fetch)|'
-                          r'branch\..+\.(?:merge|pushremote|remote))$')
-# Keys that change where or how a push goes, in a GIT_CONFIG_* environment list.
-_PUSH_KEY = re.compile(r'(?i)^(?:push\..+|remote\..+\.(?:push|mirror|pushurl)|'
-                       r'branch\..+\.(?:merge|pushremote|remote)|alias\..+)$')
-_CONFIG_LIST = re.compile(r'^GIT_CONFIG_(?:COUNT|KEY_\d+|VALUE_\d+|PARAMETERS)$')
+# `git -c` / `--config-env` keys that route a push, change what it compares
+# against, or bring in more config. On the push's own command line: refuse.
+_CMDLINE_KEY = re.compile(r'(?i)^(?:push|remote|branch|alias|include|includeif|url)\.')
 _CWD = [None]       # the payload's cwd; set by inspect()
 _SIMPLES = [[]]     # every simple command of the command being judged; set by _verdict()
 _COMMAND = ['']     # the text of the command being judged; set by _verdict()
-_BRANCH_READ_OPTS = frozenset({'--list', '-l', '--show-current', '-a', '-r', '-v', '-vv',
-                               '--all', '--remotes', '--verbose', '--no-color'})
-
-
-def _read_only(c) -> bool:
-    """A command known to change nothing a lease check reads: no ref, no
-    branch, no config. Narrow on purpose."""
-    a = c.argv
-    if a[0] in ('cd', 'pushd', 'echo', 'printf', 'true', ':'):
-        return True   # a cd is followed by _push_dir
-    if a[0] == 'export' and all(_ASSIGN.match(x) or re.fullmatch(r'\w+', x) for x in a[1:]):
-        return True   # GIT_DIR and the like are refused by name; GIT_CONFIG_* lists are read
-    if a[0] == 'eval' or (a[0] in SHELLS and shell_c_string(a) is not None):
-        return True   # a container: what it runs is listed, and judged, on its own
-    i, _ = _git(a)
-    if i is None:
-        return False
-    sub, rest = a[i], a[i + 1:]
-    if sub in ('status', 'log', 'show', 'diff', 'rev-parse'):
-        return True
-    if sub == 'branch':
-        opts = {x for x in rest if x.startswith('-')}
-        named = any(not x.startswith('-') for x in rest)
-        return opts <= _BRANCH_READ_OPTS and (not named or bool(opts & {'--list', '-l'}))
-    return sub == 'remote' and all(x in ('-v', '--verbose') for x in rest)
 
 
 def _runtime_word(s):
@@ -652,76 +610,57 @@ def _runtime_word(s):
     return None
 
 
-# Wrappers whose words the guard reads through, as long as they are literal
-# (`_runtime_word` refuses any that are not) -- with the options that make them
-# run a shell or move to another folder refused.
-_READ_THROUGH = frozenset({'nohup', 'time', 'nice', 'ionice', 'timeout', 'gtimeout',
-                           'stdbuf', 'command', 'builtin', 'exec', 'noglob', 'nocorrect',
-                           'chronic', 'caffeinate', 'env', 'sudo', 'doas'})
 # Commands that run another command, from their words, a string, or stdin.
 _LAUNCHERS = frozenset({'xargs', 'parallel', 'sem', 'find', 'eval', 'source', '.', 'watch',
                         'script', 'su', 'runuser', 'alias', 'trap', 'env', 'sudo', 'doas',
                         'nohup', 'timeout', 'gtimeout', 'nice', 'stdbuf', 'time', 'exec',
                         'command', 'builtin'}) | SHELLS
 _LEASE_TEXT = re.compile(r'--force-w')   # any spelling git accepts of --force-with-lease
-_FUNC_DEF = re.compile(r'(?:^|[\s;&|({])function\s+[\w.:-]+|[\w.:-]\s*\(\s*\)\s*[{(]')
+def _brief(words, width=50):
+    """Words for a message: `NAME=value` shown as `NAME=…`, cut to `width`."""
+    out = ' '.join(re.sub(r'^([A-Za-z_]\w*\+?=).+', r'\1…', w, flags=re.S) for w in words)
+    return out if len(out) <= width else out[:width - 3] + '...'
 
 
-def _bad_option(name, x):
-    """An option that makes a read-through wrapper run a shell or change folder."""
-    if name in ('sudo', 'doas'):
-        if x.startswith('--'):
-            return x.split('=', 1)[0] in ('--shell', '--login', '--chdir')
-        return any(ch in 'siD' for ch in x[1:])
-    if name == 'env':
-        if x.startswith('--'):
-            return x.split('=', 1)[0] in ('--chdir', '--split-string')
-        return any(ch in 'CS' for ch in x[1:])
-    return False
+def _key_brief(key):
+    """A config key for a message, with a url.<base>. subsection left out."""
+    return re.sub(r'(?i)^url\..*\.(\w+)$', r'url.….\1', key)
 
 
-_IN_FUNCTION = 'is inside a function defined in this command, which runs only when it is called'
-
-
-def _launcher(s):
-    """How this lease push is launched when the guard cannot read the push
-    through it -- a wrapper, a string a shell runs, a heredoc fed to a shell, a
-    function -- or None when the push is written out as its own command."""
+def _not_alone(s):
+    """Why this lease push is not one plain command standing alone in the Bash
+    call, or None. Simulating what other commands do to git's config and
+    environment cannot be made complete, so nothing may share the call."""
+    simples = _SIMPLES[0]
+    raw = s.cmd.argv
     if s.via:
         return f'is run through `{s.via[-1]}`'
-    fed = s.cmd.fed_by
-    if fed is not None and fed.fed_to & _LAUNCHERS:
-        return f'is run through `{sorted(fed.fed_to & _LAUNCHERS)[0]} <<{fed.delim}`'
-    if _FUNC_DEF.search(_COMMAND[0]):
-        return _IN_FUNCTION
-    raw = s.cmd.argv
-    k = next((n for n, w in enumerate(raw)
-              if _command_name(w) == 'git' and unwrap(raw[n:]) == s.argv), None)
-    if k is None:   # env -S, a container runner: the push is not a suffix of the words
-        shown = ' '.join(raw[:2]) if raw else 'a wrapper'
-        return f'is run through `{shown if len(shown) <= 40 else shown[:37] + "..."}`'
-    p = 0
-    while p < k:
-        w = raw[p]
-        if w in _RESERVED or _ASSIGN.match(w):
-            p += 1
-            continue
-        if w == 'function' or _FUNC_HEADER.fullmatch(w):
-            return _IN_FUNCTION
-        name = _command_name(w)
-        if name not in _READ_THROUGH:
-            return f'is run through `{w}`'
-        with_arg, positional, _stop = _WRAPPERS[name]
-        p += 1
-        while p < k and raw[p].startswith('-') and raw[p] != '-':
-            x = raw[p]
-            if x == '--':
-                p += 1
-                break
-            if _bad_option(name, x):
-                return f'is run through `{w} {x}`'
-            p += 2 if x in with_arg else 1
-        p += positional
+    if not raw or _command_name(raw[0]) != 'git' or unwrap(raw) != s.argv:
+        return f'is run through `{_brief(raw[:1]) if raw else "a wrapper"}`'   # a prefix, wrapper or VAR=
+    others = [o for o in simples if o is not s]
+    if others:
+        return f'shares this Bash call with `{_brief(others[0].cmd.argv or others[0].argv)}`'
+    if len(lex(_COMMAND[0]).cmds) != 1:
+        return 'shares this Bash call with another command'
+    if s.cmd.subshell or s.cmd.fed_by is not None:
+        return 'runs in a subshell'
+    word = _runtime_word(s)
+    if word is not None:
+        shown = word if len(word) <= 50 else word[:47] + '...'
+        return f'contains `{shown}`, which the shell expands only when it runs'
+    a = s.argv
+    i, configs = _git(a)
+    keys = [c.split('=', 1)[0] for c in configs]
+    for k in range(1, i or 1):
+        if a[k].startswith('--config-env='):
+            keys.append(a[k].split('=', 1)[1].split('=', 1)[0])
+        elif a[k] == '--config-env' and k + 1 < len(a):
+            keys.append(a[k + 1].split('=', 1)[0])
+        elif a[k].startswith(('--namespace', '--exec-path')):
+            return f'sets `{a[k]}`'
+    for key in keys:
+        if _CMDLINE_KEY.match(key):
+            return f'sets `{_key_brief(key)}` on the command line'
     return None
 
 
@@ -809,6 +748,44 @@ def _git_runs_unseen(s):
             return ('alias', where + sub)   # a shell command or a push, unread
     if lease and (sub in _GIT_RUNNERS or sub not in _GIT_BUILTINS):
         return f'git {a[i]}'
+    if sub not in _GIT_BUILTINS:
+        return _alias_expands_to_push(s, a[i])
+    return None
+
+
+# Commands that can change git's config or environment for a later command in
+# the same Bash call.
+_ENV_CHANGERS = frozenset({'export', 'declare', 'typeset', 'local', 'readonly', 'read',
+                           'mapfile', 'readarray', 'unset', 'source', '.', 'eval', 'set',
+                           'cd', 'pushd', 'popd', 'env', 'alias'})
+
+
+def _alias_expands_to_push(s, sub):
+    """`git <alias>`: resolve the alias through git itself (includes and the
+    environment applied). ('alias', what) when it expands to a push or a `!`
+    shell command, or when it cannot be resolved -- git fails, or something
+    else in this Bash call may change git's config first -- else None."""
+    shown = f'git {sub}'
+    raw = s.cmd.argv
+    if not raw or _command_name(raw[0]) != 'git':
+        return ('alias', shown)   # a prefix (VAR=...) or wrapper may set the alias
+    for o in _SIMPLES[0]:
+        if o is s:
+            continue
+        name = o.argv[0]
+        if name in _ENV_CHANGERS or (name == 'printf' and '-v' in o.argv) or (
+                o.cmd.argv and _SH_ASSIGN.match(o.cmd.argv[0])):
+            return ('alias', shown)
+    try:
+        cwd, opts = _push_dir(s)
+        value = _Git(cwd, opts).config(f'alias.{sub}')
+    except _GitCannotTell:
+        return ('alias', shown)
+    if value is None:
+        return None   # not an alias: git will say it is no command
+    v = value.strip()
+    if v.startswith('!') or 'push' in v.split():
+        return ('alias', f'git {sub}')
     return None
 
 
@@ -833,71 +810,6 @@ def _lease_run_unseen(s):
         texts = c.argv + list(c.herestrings) + [h.body for h in c.heredocs]
         if any(_LEASE_TEXT.search(t) for t in texts):
             return hit[0] if a[0] not in _LAUNCHERS else a[0]
-    return None
-
-
-def _routing_config(s):
-    """A push-routing config key set on the command line (`git -c`,
-    `--config-env`), or a GIT_CONFIG_* list in the hook's environment."""
-    a = s.argv
-    i, configs = _git(a)
-    keys = [c.split('=', 1)[0] for c in configs]
-    for k in range(1, i or 1):
-        if a[k].startswith('--config-env='):
-            keys.append(a[k].split('=', 1)[1].split('=', 1)[0])
-        elif a[k] == '--config-env' and k + 1 < len(a):
-            keys.append(a[k + 1].split('=', 1)[0])
-    for key in keys:
-        if _ROUTING_KEY.match(key):
-            return f'git -c {key}'
-    return _env_config()
-
-
-def _env_config():
-    """The GIT_CONFIG_* list git would read -- the hook's environment, with
-    assignments and exports in this command line on top. Returns the first key
-    that changes where or how a push goes (or `<name> (unreadable)`), or None
-    when every key is harmless (the Claude Code sandbox sets about 40)."""
-    env = {k: v for k, v in os.environ.items() if _CONFIG_LIST.match(k)}
-    for o in _SIMPLES[0]:   # VAR=x prefixes, `export VAR=x`, `env VAR=x`, bare assignments
-        for w in o.cmd.argv:
-            name, eq, value = w.partition('=')
-            if eq and _CONFIG_LIST.match(name):
-                if re.search(r'[$`]', value):
-                    return f'{name} (unreadable)'
-                env[name] = value
-    if 'GIT_CONFIG_PARAMETERS' in env:
-        try:
-            items = shlex.split(env['GIT_CONFIG_PARAMETERS'])
-        except ValueError:
-            return 'GIT_CONFIG_PARAMETERS (unreadable)'
-        for item in items:
-            if _PUSH_KEY.match(item.split('=', 1)[0]) or _ROUTING_KEY.match(item.split('=', 1)[0]):
-                return f'GIT_CONFIG_PARAMETERS {item.split("=", 1)[0]}'
-    pairs = [k for k in env if k != 'GIT_CONFIG_PARAMETERS']
-    if not pairs:
-        return None
-    count = env.get('GIT_CONFIG_COUNT')
-    if count is None or not count.isdigit() or int(count) > 10000:
-        return 'GIT_CONFIG_COUNT (unreadable)'
-    for n in range(int(count)):
-        key, value = env.get(f'GIT_CONFIG_KEY_{n}'), env.get(f'GIT_CONFIG_VALUE_{n}')
-        if key is None or value is None:
-            return f'GIT_CONFIG_KEY_{n} (missing)'
-    for k in pairs:   # every key, counted or not
-        if k.startswith('GIT_CONFIG_KEY_') and (_PUSH_KEY.match(env[k]) or _ROUTING_KEY.match(env[k])):
-            return f'{k}={env[k]}'
-    return None
-
-
-def _runs_before(s):
-    """The first command that runs before `s` in this command line and may
-    change what a lease check reads, or None."""
-    simples = _SIMPLES[0]
-    at = next((n for n, x in enumerate(simples) if x is s), len(simples))
-    for c in simples[:at]:
-        if not c.deferred and not _read_only(c):
-            return c
     return None
 
 
@@ -1030,6 +942,20 @@ class _Git:
             raise _GitCannotTell(f'git config --get {key} exited {code}')
         return out.strip() if code == 0 and out.strip() else None
 
+    def config_all(self, key):
+        """Every value of a multi-valued key, includes and environment applied."""
+        code, out = self.run(['config', '--get-all', key])
+        if code not in (0, 1):
+            raise _GitCannotTell(f'git config --get-all {key} exited {code}')
+        return [x for x in out.splitlines() if x.strip()] if code == 0 else []
+
+    def config_regexp(self, pattern):
+        """[(key, value)] for every key matching `pattern`."""
+        code, out = self.run(['config', '--get-regexp', pattern])
+        if code not in (0, 1):
+            raise _GitCannotTell(f'git config --get-regexp {pattern} exited {code}')
+        return [tuple((line.split(' ', 1) + [''])[:2]) for line in out.splitlines()] if code == 0 else []
+
     def tracking(self, remote, branch, own_answer):
         """Every remote-tracking commit a plain lease on `branch` may expect:
         refs/remotes/<remote>/<branch>, and git's own @{push} when the command
@@ -1046,6 +972,29 @@ class _Git:
         return found
 
 
+def _forced_by_config(g, remote):
+    """Refuse (raise) when git's own config -- includes, includeIf and the
+    environment applied, as git resolves it -- makes this push mirror, force a
+    `+` refspec, or go somewhere other than the remote its tracking refs came
+    from (a pushurl or url.*.pushInsteadOf)."""
+    url = g.config(f'remote.{remote}.url')
+    if url is None:
+        return   # a URL or path, not a named remote: no tracking refs to trust
+    code, out = g.run(['config', '--type=bool', '--get', f'remote.{remote}.mirror'])
+    if code not in (0, 1) or out.strip() == 'true':
+        raise _GitCannotTell(f'remote.{remote}.mirror is set, so this push would overwrite every '
+                             'ref on the remote')
+    if any(v.lstrip().startswith('+') for v in g.config_all(f'remote.{remote}.push')):
+        raise _GitCannotTell(f'remote.{remote}.push has a `+` refspec, which forces whatever it maps')
+    if g.config_all(f'remote.{remote}.pushurl'):
+        raise _GitCannotTell(f'remote.{remote}.pushurl sends this push somewhere other than the '
+                             'remote its tracking refs were fetched from')
+    for key, value in g.config_regexp(r'^url\..*\.pushinsteadof$'):
+        if value and url.startswith(value):
+            raise _GitCannotTell(f'{_key_brief(key)} rewrites where this push goes, away from the remote its '
+                                 'tracking refs were fetched from')
+
+
 def _pushes(g, remote, refspecs, all_refs):
     """(remote, [(source, destination branch or None)]) this push writes, with
     the destination decided the way git decides it: push.default,
@@ -1055,6 +1004,7 @@ def _pushes(g, remote, refspecs, all_refs):
     if remote is None:
         remote = ((branch and g.config(f'branch.{branch}.pushRemote')) or g.config('remote.pushDefault')
                   or (branch and g.config(f'branch.{branch}.remote')) or 'origin')
+    _forced_by_config(g, remote)
     if (any(':' not in spec for spec in refspecs) or not refspecs) and \
             g.config(f'remote.{remote}.push') is not None:
         raise _GitCannotTell(f'remote.{remote}.push decides where this push goes, and bendit '
@@ -1147,37 +1097,13 @@ def force_with_lease_foreign(s):
     if not leases:
         return False
     written = leases[0][2]
-    launcher = _launcher(s)
-    if launcher is not None:
-        return (f'`{written}` {launcher}: the push\'s words, or when it runs, are decided '
-                f'only at run time, so bendit cannot tell what this push would discard — write '
-                f'the push out literally as its own command')
-    env = _GIT_ENV.search(_COMMAND[0]) or next(
-        (m for m in map(_GIT_ENV.match, s.cmd.argv) if m), None)
-    if env:
-        return (f'`{written}` runs with {env.group(1)} set in this command, so git would push '
-                f'from a different repository or config than the one bendit can check — run the '
-                f'push as its own command, without {env.group(1)}, from the repository itself')
-    config = _routing_config(s)
-    if config:
-        return (f'`{written}` runs with `{config}`, which can change where git pushes and what '
-                f'it compares against, while bendit reads the config on disk — run the push '
-                f'as its own command without it, or set it in the repository first')
-    word = _runtime_word(s)
-    if word is not None:
-        shown = word if len(word) <= 60 else word[:57] + '...'
-        return (f'`{written}` contains `{shown}`, which the shell expands only when the command '
-                f'runs, so bendit cannot tell what this push would discard — write the branch '
-                f'and commit out literally so bendit can check them')
-    before = _runs_before(s)
-    if before is not None:
-        shown = ' '.join(before.argv)
-        shown = shown if len(shown) <= 60 else shown[:57] + '...'
-        return (f'`{written}` comes after `{shown}` in the same command. bendit checks a lease '
-                f'against the repository as it is before the command runs, and that command may '
-                f'move the remote-tracking refs or your branch (a fetch, pull, rebase or reset '
-                f'does), so what this push would discard cannot be checked. Run the push as its '
-                f'own command, after the other one has run')
+    alone = _not_alone(s)
+    if alone is not None:
+        return (f'`{written}` {alone}. bendit checks a lease push only when it is the one plain '
+                f'command in the Bash call — no other command, pipe, prefix, wrapper, variable or '
+                f'routing `-c` — because anything else can change what it pushes or what git '
+                f'compares against. Run the push by itself, as one plain command, so bendit can '
+                f'check it')
     try:
         cwd, opts = _push_dir(s)
         g = _Git(cwd, opts)

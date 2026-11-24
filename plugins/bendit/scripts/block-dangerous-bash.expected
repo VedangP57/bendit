@@ -2023,6 +2023,12 @@ exit 0
 === the benchmark's exact command
 exit 2
 --- stderr
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` shares this Bash call with `grep -v hint`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== the benchmark's push, run by itself
+exit 2
+--- stderr
 BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
     c3673ae sam: coupon: keep the discount on retry
 Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
@@ -2077,9 +2083,7 @@ If this is genuinely required, ask the human to run it.
 === foreign lease after FOO=1
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
-    c3673ae sam: coupon: keep the discount on retry
-Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` is run through `FOO=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === foreign lease with --force-if-includes
@@ -2101,9 +2105,7 @@ If this is genuinely required, ask the human to run it.
 === cd <dir> && foreign lease
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
-    c3673ae sam: coupon: keep the discount on retry
-Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+BLOCKED by bendit safety hook: `--force-with-lease=feature/checkout:c3673ae` shares this Bash call with `cd me`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === two refspecs, one lease foreign
@@ -2216,31 +2218,31 @@ exit 0
 === fetch && plain lease (C1)
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` comes after `git fetch origin` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git fetch origin`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === fetch; explicit origin/<b> lease
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease=fc2:origin/fc2` comes after `git fetch origin` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+BLOCKED by bendit safety hook: `--force-with-lease=fc2:origin/fc2` shares this Bash call with `git fetch origin`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === pull; lease
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` comes after `git pull -q origin fc2` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git pull -q origin fc2`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === reset --keep && lease
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` comes after `git reset -q --keep HEAD~1` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git reset -q --keep HEAD~1`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === rebase && lease
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` comes after `git rebase -q main` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git rebase -q main`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === fetch && lease inside sh -c
@@ -2252,32 +2254,36 @@ If this is genuinely required, ask the human to run it.
 === fetch in a subshell; lease
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` comes after `git fetch origin` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git fetch origin`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === fetch || lease
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` comes after `git fetch origin` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git fetch origin`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === fetch, newline, lease
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` comes after `git fetch origin` in the same command. bendit checks a lease against the repository as it is before the command runs, and that command may move the remote-tracking refs or your branch (a fetch, pull, rebase or reset does), so what this push would discard cannot be checked. Run the push as its own command, after the other one has run.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git fetch origin`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === CONTROL: fc2 lease on its own (state as it is)
 exit 0
 (silent)
 
-=== CONTROL: read-only git before the lease
-exit 0
-(silent)
+=== read-only git before the lease: not alone
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git status -sb`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
 
-=== CONTROL: echo and cd before the lease
-exit 0
-(silent)
+=== echo and cd before the lease: not alone
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `cd me`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
 
 === @ as the refspec (I1)
 exit 2
@@ -2314,19 +2320,19 @@ If this is genuinely required, ask the human to run it.
 === GIT_DIR= prefix (I3)
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with GIT_DIR set in this command, so git would push from a different repository or config than the one bendit can check — run the push as its own command, without GIT_DIR, from the repository itself.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `GIT_DIR=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === export GIT_DIR earlier (I3)
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with GIT_DIR set in this command, so git would push from a different repository or config than the one bendit can check — run the push as its own command, without GIT_DIR, from the repository itself.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `export GIT_DIR=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === GIT_WORK_TREE= prefix
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with GIT_WORK_TREE set in this command, so git would push from a different repository or config than the one bendit can check — run the push as its own command, without GIT_WORK_TREE, from the repository itself.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `GIT_WORK_TREE=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === CONTROL: plain lease from a repo with nothing fetched
@@ -2336,126 +2342,128 @@ exit 0
 === $(git branch --show-current) refspec (N1)
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `$(git branch --show-current)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git branch --show-current`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === HEAD:$(git rev-parse ...) refspec
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `HEAD:$(git rev-parse --abbrev-ref HEAD)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git rev-parse --abbrev-ref HEAD`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === B=...; $B refspec
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `$B`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with another command. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === $(fetch; echo fc2) refspec
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `$(git fetch -q origin; echo fc2)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git fetch -q origin`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === backticks refspec
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains ``git fetch -q origin; echo fc2``, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git fetch -q origin`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === $(fetch; echo origin) as the remote
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `$(git fetch -q origin; echo origin)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git fetch -q origin`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === bare $(fetch) as an argument
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `$(git fetch -q origin)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git fetch -q origin`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === git -c x.y=$(fetch)
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `x.y=$(git fetch -q origin)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git fetch -q origin`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === redirection target $(fetch)
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `$(git fetch -q origin; echo /dev/null)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git fetch -q origin`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === redirection into >(fetch)
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `>(git fetch -q origin)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git fetch -q origin`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === ${B:-solo} refspec
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `${B:-solo}`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` contains `${B:-solo}`, which the shell expands only when it runs. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === arithmetic $((...)) in a refspec
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `solo$((0))`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` contains `solo$((0))`, which the shell expands only when it runs. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === a glob refspec
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `sol?`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` contains `sol?`, which the shell expands only when it runs. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === a brace expansion
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `{solo,squash}`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` contains `{solo,squash}`, which the shell expands only when it runs. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === a ~user word
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `~solo`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` contains `~solo`, which the shell expands only when it runs. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === <(...) as an argument
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `<(git fetch -q origin)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git fetch -q origin`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === a variable redirection target
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `$LOG`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` contains `$LOG`, which the shell expands only when it runs. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === an unquoted heredoc with $(fetch)
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `<<EOF`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `git fetch -q origin`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === a VAR=$(fetch) prefix
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `X=$(git fetch -q origin)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `X=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === $(...) as the -C folder
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `$(echo me)`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `echo me`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
-=== CONTROL: literal, quoted, piped
-exit 0
-(silent)
+=== literal, quoted, piped: not alone
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `grep -v hint`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
 
 === CONTROL: literal redirection
 exit 0
@@ -2468,55 +2476,61 @@ exit 0
 === git -c push.default=upstream (N2)
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `git -c push.default`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease` sets `push.default` on the command line. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === git -c remote.origin.push=...
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `git -c remote.origin.push`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease` sets `remote.origin.push` on the command line. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === git -c remote.origin.push=..., no remote
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `git -c remote.origin.push`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease` sets `remote.origin.push` on the command line. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === git -c branch.co.merge=...
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `git -c branch.co.merge`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease` sets `branch.co.merge` on the command line. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === git -c branch.co.pushRemote=...
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `git -c branch.co.pushRemote`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease` sets `branch.co.pushRemote` on the command line. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === git --config-env=push.default=PD
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `git -c push.default`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease` sets `push.default` on the command line. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === GIT_CONFIG_PARAMETERS= prefix
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_PARAMETERS push.default`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `GIT_CONFIG_PARAMETERS=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === GIT_CONFIG_COUNT= prefix
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_0=push.default`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `GIT_CONFIG_COUNT=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
+
+=== CONTROL: cur, push.default=current on disk
+exit 0
+(silent)
 
 === GIT_CONFIG_COUNT in the hook's environment
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_0=push.default`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (HEAD):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat e6662cf..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
 === 40 harmless GIT_CONFIG_KEY_* in the environment
@@ -2526,19 +2540,25 @@ exit 0
 === ...one of them push.default
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_19=push.default`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (HEAD):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat e6662cf..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
-=== ...one of them alias.p
+=== ...one of them alias.p, then git p
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_19=alias.p`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `git p` expands to a shell command or a push that bendit cannot read ahead of time, so it cannot tell what it would discard — write the git command out in full, without the alias.
 If this is genuinely required, ask the human to run it.
+
+=== ...alias.p does not change a literal push
+exit 0
+(silent)
 
 === ...and remote.origin.mirror
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_40=remote.origin.mirror`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease`: git could not check here whether this push discards someone else's commits (remote.origin.mirror is set, so this push would overwrite every ref on the remote), so it is refused. Leave this push to the human if it must happen.
 If this is genuinely required, ask the human to run it.
 
 === CONTROL: GIT_CONFIG_COUNT=0
@@ -2548,26 +2568,24 @@ exit 0
 === a count that is not a number
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_COUNT (unreadable)`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease`: git could not check here whether this push discards someone else's commits (git config --get remote.origin.url exited 128), so it is refused. Leave this push to the human if it must happen.
 If this is genuinely required, ask the human to run it.
 
 === a count with a pair missing
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_1 (missing)`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease`: git could not check here whether this push discards someone else's commits (git config --get remote.origin.url exited 128), so it is refused. Leave this push to the human if it must happen.
 If this is genuinely required, ask the human to run it.
 
 === a key with no value
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_0 (missing)`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease`: git could not check here whether this push discards someone else's commits (git config --get remote.origin.url exited 128), so it is refused. Leave this push to the human if it must happen.
 If this is genuinely required, ask the human to run it.
 
-=== keys with no count
-exit 2
---- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_COUNT (unreadable)`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
-If this is genuinely required, ask the human to run it.
+=== keys with no count: git ignores them
+exit 0
+(silent)
 
 === harmless GIT_CONFIG_PARAMETERS
 exit 0
@@ -2576,38 +2594,220 @@ exit 0
 === GIT_CONFIG_PARAMETERS with push.default
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_PARAMETERS push.default`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (HEAD):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat e6662cf..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
 If this is genuinely required, ask the human to run it.
 
 === GIT_CONFIG_PARAMETERS unreadable
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_PARAMETERS (unreadable)`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease`: git could not check here whether this push discards someone else's commits (git config --get remote.origin.url exited 128), so it is refused. Leave this push to the human if it must happen.
 If this is genuinely required, ask the human to run it.
 
-=== harmless GIT_CONFIG_COUNT= prefix
-exit 0
-(silent)
+=== harmless GIT_CONFIG_COUNT= prefix: not alone
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `GIT_CONFIG_COUNT=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
 
-=== harmless export GIT_CONFIG_COUNT=...
-exit 0
-(silent)
+=== harmless export GIT_CONFIG_COUNT=...: not alone
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `export GIT_CONFIG_COUNT=… GIT_CONFIG_KEY_0=… GI...`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
 
 === export of an alias.* key
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_0=alias.p`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `export GIT_CONFIG_COUNT=… GIT_CONFIG_KEY_0=… GI...`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === a line key overrides a harmless env one
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_0=push.default`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `GIT_CONFIG_KEY_0=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === CONTROL: git -c of an unrelated key
 exit 0
 (silent)
+
+=== C-A: include.path in a GIT_CONFIG_* prefix
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `GIT_CONFIG_COUNT=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== C-A: the same, exported
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `export GIT_CONFIG_COUNT=… GIT_CONFIG_KEY_0=… GI...`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== C-A: includeIf.onbranch prefix
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `GIT_CONFIG_COUNT=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== C-A: include.path in GIT_CONFIG_PARAMETERS
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `GIT_CONFIG_PARAMETERS=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== C-A: include.path in the hook's environment
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease`: git could not check here whether this push discards someone else's commits (remote.origin.push decides where this push goes, and bendit does not follow that mapping), so it is refused. Leave this push to the human if it must happen.
+If this is genuinely required, ask the human to run it.
+
+=== C-A: git -c include.path=
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` sets `include.path` on the command line. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== C-B: printf -v GIT_CONFIG_PARAMETERS; export
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `printf -v GIT_CONFIG_PARAMETERS %s 'remote.orig...`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== C-B: printf -v over exported KEY/VALUE
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `printf -v GIT_CONFIG_KEY_0 %s remote.origin.push`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== C-B: GIT_CONFIG_PARAMETERS+=; export
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `export GIT_CONFIG_PARAMETERS`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== I-A: export HOME=
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `export HOME=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== I-A: export XDG_CONFIG_HOME=
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `export XDG_CONFIG_HOME=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== I-A: HOME= prefix
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `HOME=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== I-A: XDG_CONFIG_HOME= prefix
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `XDG_CONFIG_HOME=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== declare -x HOME=; push
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `declare -x HOME=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== read; push
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `read -r X`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== url.*.pushInsteadOf prefix
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `GIT_CONFIG_COUNT=…`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== git -c url.*.pushInsteadOf
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` sets `url.….pushInsteadOf` on the command line. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== git -c remote.origin.mirror=true
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` sets `remote.origin.mirror` on the command line. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== exported alias to push --force, then git p
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git p` expands to a shell command or a push that bendit cannot read ahead of time, so it cannot tell what it would discard — write the git command out in full, without the alias.
+If this is genuinely required, ask the human to run it.
+
+=== exported alias to a lease push, then git p
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git p` expands to a shell command or a push that bendit cannot read ahead of time, so it cannot tell what it would discard — write the git command out in full, without the alias.
+If this is genuinely required, ask the human to run it.
+
+=== include.path on disk: push.default=upstream
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (HEAD):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat e6662cf..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: include.path on disk: push.default=current
+exit 0
+(silent)
+
+=== an alias on disk to a lease push
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git pp` expands to a shell command or a push that bendit cannot read ahead of time, so it cannot tell what it would discard — write the git command out in full, without the alias.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: an alias on disk to git log
+exit 0
+(silent)
+
+=== remote.origin.pushurl on disk
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease`: git could not check here whether this push discards someone else's commits (remote.origin.pushurl sends this push somewhere other than the remote its tracking refs were fetched from), so it is refused. Leave this push to the human if it must happen.
+If this is genuinely required, ask the human to run it.
+
+=== remote.origin.mirror on disk
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease`: git could not check here whether this push discards someone else's commits (remote.origin.mirror is set, so this push would overwrite every ref on the remote), so it is refused. Leave this push to the human if it must happen.
+If this is genuinely required, ask the human to run it.
+
+=== url.*.pushInsteadOf on disk
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease`: git could not check here whether this push discards someone else's commits (url.….pushinsteadof rewrites where this push goes, away from the remote its tracking refs were fetched from), so it is refused. Leave this push to the human if it must happen.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: the same clone, nothing configured
+exit 0
+(silent)
+
+=== CONTROL: a lone lease push of my own work
+exit 0
+(silent)
+
+=== a lone lease push of sam's commit
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` would discard 1 commit(s) by someone else from the remote's feature/checkout — they are on c3673ae and their changes are not in what you push (feature/checkout):
+    c3673ae sam: coupon: keep the discount on retry
+Look at them first: `git log --stat 00b02c0..c3673ae`. To keep them, rebase onto them (`git rebase c3673ae`) and push again; a lease only guards against the remote moving again, never a commit you have already fetched and chose to overwrite.
+If this is genuinely required, ask the human to run it.
 
 === sam's merge with its own fix is lost (M2)
 exit 2
@@ -2644,31 +2844,31 @@ exit 0
 === xargs -I{} supplies the branch (N3)
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` is run through `xargs`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `xargs`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === xargs -I% supplies the branch
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` is run through `xargs`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `xargs`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === plain xargs appends the branch
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` is run through `xargs`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `xargs`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === xargs with every word literal
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` is run through `xargs`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `xargs`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === xargs -0 -n1
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` is run through `xargs`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `xargs`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === xargs -I{} sh -c '... {}'
@@ -2770,13 +2970,13 @@ If this is genuinely required, ask the human to run it.
 === env -S
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` is run through `env -S`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `env`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === env --split-string=
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` is run through `env --split-string=git push --force-w...`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `env`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === watch
@@ -2800,13 +3000,13 @@ If this is genuinely required, ask the human to run it.
 === sudo -s
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` is run through `sudo -s`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `sudo`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === sudo -i
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` is run through `sudo -i`: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `sudo`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === sudo sh -c
@@ -2824,19 +3024,19 @@ If this is genuinely required, ask the human to run it.
 === timeout "$T" (a run-time word)
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` contains `$T`, which the shell expands only when the command runs, so bendit cannot tell what this push would discard — write the branch and commit out literally so bendit can check them.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `timeout`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === a function defined on the line
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` is inside a function defined in this command, which runs only when it is called: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `p()`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === a function over several lines
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` is inside a function defined in this command, which runs only when it is called: the push's words, or when it runs, are decided only at run time, so bendit cannot tell what this push would discard — write the push out literally as its own command.
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `p`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === an alias defined on the line
@@ -2857,29 +3057,41 @@ exit 2
 BLOCKED by bendit safety hook: `git -c alias.p` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
 If this is genuinely required, ask the human to run it.
 
-=== CONTROL: nohup, literal
-exit 0
-(silent)
+=== nohup, literal: not alone
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `nohup`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
 
-=== CONTROL: timeout 30, literal
-exit 0
-(silent)
+=== timeout 30, literal: not alone
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `timeout`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
 
-=== CONTROL: nice -n 5, literal
-exit 0
-(silent)
+=== nice -n 5, literal: not alone
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `nice`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
 
-=== CONTROL: stdbuf -oL, literal
-exit 0
-(silent)
+=== stdbuf -oL, literal: not alone
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `stdbuf`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
 
-=== CONTROL: time, literal
-exit 0
-(silent)
+=== time, literal: not alone
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` is run through `time`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
 
-=== CONTROL: an xargs after the push
-exit 0
-(silent)
+=== an xargs after the push: not alone
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` shares this Bash call with `xargs echo`. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, pipe, prefix, wrapper, variable or routing `-c` — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
 
 === CONTROL: echo text about a lease
 exit 0

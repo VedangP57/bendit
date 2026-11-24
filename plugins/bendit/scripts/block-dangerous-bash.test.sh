@@ -775,6 +775,29 @@ lg() { GIT_AUTHOR_NAME="$1" GIT_AUTHOR_EMAIL="$1@example.invalid" GIT_COMMITTER_
   # onsolo: my repository with solo checked out, so a push with no refspec
   # names solo while a wrapper may hand it feature/checkout.
   git -C "$LT/me" worktree add -q "$LT/onsolo" solo
+  # evil.cfg: a push mapping that sends co over feature/checkout (cur's upstream).
+  printf '[remote "origin"]\n\tpush = refs/heads/co:refs/heads/feature/checkout\n' >"$LT/evil.cfg"
+  mkdir -p "$LT/h" "$LT/x/git"; cp "$LT/evil.cfg" "$LT/h/.gitconfig"; cp "$LT/evil.cfg" "$LT/x/git/config"
+  git -C "$LT/cur" config alias.pp 'push --force-with-lease'
+  git -C "$LT/cur" config alias.lg 'log --oneline -1'
+  # inc / inc2: push.default comes only from an included file; co tracks
+  # origin/feature/checkout. upstream sends co there; current sends it to co.
+  for r in inc inc2; do
+    git clone -q -b main "$LT/remote.git" "$LT/$r"
+    git -C "$LT/$r" config user.email me@example.invalid
+    git -C "$LT/$r" checkout -qb co origin/main
+    git -C "$LT/$r" branch -q --set-upstream-to=origin/feature/checkout co
+  done
+  printf '[push]\n\tdefault = upstream\n' >"$LT/inc.cfg"; git -C "$LT/inc" config include.path "$LT/inc.cfg"
+  printf '[push]\n\tdefault = current\n' >"$LT/inc2.cfg"; git -C "$LT/inc2" config include.path "$LT/inc2.cfg"
+  # pu / mi / pio: my solo, pushed and unchanged, with a push URL, a mirror
+  # remote, or a pushInsteadOf rewrite configured on disk.
+  for r in pu mi pio; do
+    git clone -q -b solo "$LT/remote.git" "$LT/$r"; git -C "$LT/$r" config user.email me@example.invalid
+  done
+  git -C "$LT/pu" config remote.origin.pushurl "$LT/remote.git"
+  git -C "$LT/mi" config remote.origin.mirror true
+  git -C "$LT/pio" config "url.$LT/elsewhere.git.pushInsteadOf" "$LT/remote.git"
 } >/dev/null 2>&1
 TM=$(git -C "$LT/me" rev-parse origin/feature/checkout)    # sam's commit
 BASE=$(git -C "$LT/me" rev-parse feature/checkout~1)      # an ancestor of HEAD
@@ -809,6 +832,7 @@ names_it() {
 ME="$LT/me"
 S=${TM:0:7}
 run_in 2 "the benchmark's exact command"       "$ME" "git push --force-with-lease=feature/checkout:$S origin feature/checkout 2>&1 | grep -v hint"
+run_in 2 "the benchmark's push, run by itself"  "$ME" "git push --force-with-lease=feature/checkout:$S origin feature/checkout"
 names_it "  ...names sam's commit and how to look"
 run_in 2 "lease on a full teammate sha"        "$ME" "git push --force-with-lease=feature/checkout:$TM origin feature/checkout"
 run_in 2 "lease on a short teammate sha"       "$ME" "git push --force-with-lease=feature/checkout:${TM:0:9} origin feature/checkout"
@@ -874,8 +898,8 @@ run_in 2 "fetch in a subshell; lease"           "$ME" "(git fetch origin); git p
 run_in 2 "fetch || lease"                       "$ME" "git fetch origin || git push --force-with-lease origin fc2"
 run_in 2 "fetch, newline, lease"                "$ME" $'git fetch origin\ngit push --force-with-lease origin fc2'
 run_in 0 "CONTROL: fc2 lease on its own (state as it is)" "$ME" "git push --force-with-lease origin fc2"
-run_in 0 "CONTROL: read-only git before the lease" "$ME" "git status -sb && git log --oneline -3 && git branch --list && git remote -v && git push --force-with-lease origin solo"
-run_in 0 "CONTROL: echo and cd before the lease" "$LT" "cd me && echo pushing && git push --force-with-lease origin solo 2>&1 | grep -v hint"
+run_in 2 "read-only git before the lease: not alone" "$ME" "git status -sb && git log --oneline -3 && git branch --list && git remote -v && git push --force-with-lease origin solo"
+run_in 2 "echo and cd before the lease: not alone" "$LT" "cd me && echo pushing && git push --force-with-lease origin solo 2>&1 | grep -v hint"
 
 echo
 echo "WHERE THE PUSH GOES, as git decides it"
@@ -914,7 +938,7 @@ run_in 2 "a variable redirection target"         "$ME" 'git push --force-with-le
 run_in 2 "an unquoted heredoc with \$(fetch)"   "$ME" $'git push --force-with-lease origin solo <<EOF\n$(git fetch -q origin)\nEOF'
 run_in 2 "a VAR=\$(fetch) prefix"               "$ME" 'X="$(git fetch -q origin)" git push --force-with-lease origin solo'
 run_in 2 "\$(...) as the -C folder"             "$LT" 'git -C "$(echo me)" push --force-with-lease origin solo'
-run_in 0 "CONTROL: literal, quoted, piped"       "$ME" "git push --force-with-lease origin 'solo' 2>&1 | grep -v hint"
+run_in 2 "literal, quoted, piped: not alone"      "$ME" "git push --force-with-lease origin 'solo' 2>&1 | grep -v hint"
 run_in 0 "CONTROL: literal redirection"          "$ME" 'git push --force-with-lease origin solo 2>/dev/null'
 run_in 0 "CONTROL: a quoted heredoc stays data"  "$ME" $'git push --force-with-lease origin solo <<\'EOF\'\n$(git fetch -q origin)\nEOF'
 
@@ -952,24 +976,68 @@ done
 WITH_PD=("${HARMLESS[@]}" GIT_CONFIG_KEY_19=push.default GIT_CONFIG_VALUE_19=upstream)
 WITH_AL=("${HARMLESS[@]}" GIT_CONFIG_KEY_19=alias.p GIT_CONFIG_VALUE_19=push)
 OWN="git push --force-with-lease origin solo"
-run_env 2 "GIT_CONFIG_COUNT in the hook's environment" "$ME" "$OWN" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=push.default GIT_CONFIG_VALUE_0=upstream
+NOREF="git push --force-with-lease origin"
+run_env 0 "CONTROL: cur, push.default=current on disk" "$LT/cur" "$NOREF"
+run_env 2 "GIT_CONFIG_COUNT in the hook's environment" "$LT/cur" "$NOREF" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=push.default GIT_CONFIG_VALUE_0=upstream
 run_env 0 "40 harmless GIT_CONFIG_KEY_* in the environment" "$ME" "$OWN" "${HARMLESS[@]}"
-run_env 2 "...one of them push.default"            "$ME" "$OWN" "${WITH_PD[@]}"
-run_env 2 "...one of them alias.p"                 "$ME" "$OWN" "${WITH_AL[@]}"
+run_env 2 "...one of them push.default"            "$LT/cur" "$NOREF" "${WITH_PD[@]}"
+WITH_AL=("${HARMLESS[@]}" GIT_CONFIG_KEY_19=alias.p "GIT_CONFIG_VALUE_19=push --force-with-lease")
+run_env 2 "...one of them alias.p, then git p"     "$ME" 'git p origin feature/checkout' "${WITH_AL[@]}"
+run_env 0 "...alias.p does not change a literal push" "$ME" "$OWN" "${WITH_AL[@]}"
 run_env 2 "...and remote.origin.mirror"            "$ME" "$OWN" "${HARMLESS[@]}" GIT_CONFIG_COUNT=41 GIT_CONFIG_KEY_40=remote.origin.mirror GIT_CONFIG_VALUE_40=true
 run_env 0 "CONTROL: GIT_CONFIG_COUNT=0"            "$ME" "$OWN" GIT_CONFIG_COUNT=0
 run_env 2 "a count that is not a number"           "$ME" "$OWN" GIT_CONFIG_COUNT=two GIT_CONFIG_KEY_0=core.x GIT_CONFIG_VALUE_0=1
 run_env 2 "a count with a pair missing"            "$ME" "$OWN" GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.x GIT_CONFIG_VALUE_0=1
 run_env 2 "a key with no value"                    "$ME" "$OWN" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.x
-run_env 2 "keys with no count"                     "$ME" "$OWN" GIT_CONFIG_KEY_0=core.x GIT_CONFIG_VALUE_0=1
+run_env 0 "keys with no count: git ignores them"                     "$ME" "$OWN" GIT_CONFIG_KEY_0=core.x GIT_CONFIG_VALUE_0=1
 run_env 0 "harmless GIT_CONFIG_PARAMETERS"         "$ME" "$OWN" "GIT_CONFIG_PARAMETERS='core.pager'='cat' 'safe.directory'='/w'"
-run_env 2 "GIT_CONFIG_PARAMETERS with push.default" "$ME" "$OWN" "GIT_CONFIG_PARAMETERS='core.pager'='cat' 'push.default'='upstream'"
+run_env 2 "GIT_CONFIG_PARAMETERS with push.default" "$LT/cur" "$NOREF" "GIT_CONFIG_PARAMETERS='core.pager'='cat' 'push.default'='upstream'"
 run_env 2 "GIT_CONFIG_PARAMETERS unreadable"       "$ME" "$OWN" "GIT_CONFIG_PARAMETERS='core.pager"
-run_in 0 "harmless GIT_CONFIG_COUNT= prefix"       "$ME" 'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.pager GIT_CONFIG_VALUE_0=cat git push --force-with-lease origin solo'
-run_in 0 "harmless export GIT_CONFIG_COUNT=..."    "$ME" 'export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.pager GIT_CONFIG_VALUE_0=cat; git push --force-with-lease origin solo'
+run_in 2 "harmless GIT_CONFIG_COUNT= prefix: not alone"       "$ME" 'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.pager GIT_CONFIG_VALUE_0=cat git push --force-with-lease origin solo'
+run_in 2 "harmless export GIT_CONFIG_COUNT=...: not alone"    "$ME" 'export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.pager GIT_CONFIG_VALUE_0=cat; git push --force-with-lease origin solo'
 run_in 2 "export of an alias.* key"                "$ME" 'export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.p GIT_CONFIG_VALUE_0=push; git push --force-with-lease origin solo'
 run_env 2 "a line key overrides a harmless env one" "$ME" 'GIT_CONFIG_KEY_0=push.default git push --force-with-lease origin solo' "${HARMLESS[@]}"
 run_in 0 "CONTROL: git -c of an unrelated key"   "$ME" 'git -c color.ui=never push --force-with-lease origin solo'
+
+echo
+echo "A LEASE PUSH STANDS ALONE, AND GIT RESOLVES ITS CONFIG"
+# Simulating the shell cannot be made complete: each round found another way
+# to change git's config or environment before the push (include.path,
+# printf -v, +=, export HOME). So a lease push must be the only command in the
+# Bash call, with no prefix, wrapper or run-time word, and no -c key that
+# routes a push. Its config is then read by asking git itself.
+CUR="$LT/cur"; EV="$LT/evil.cfg"
+run_in 2 "C-A: include.path in a GIT_CONFIG_* prefix" "$CUR" "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=include.path GIT_CONFIG_VALUE_0=$EV git push --force-with-lease origin"
+run_in 2 "C-A: the same, exported"                "$CUR" "export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=include.path GIT_CONFIG_VALUE_0=$EV; git push --force-with-lease origin"
+run_in 2 "C-A: includeIf.onbranch prefix"         "$CUR" "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=includeIf.onbranch:co.path GIT_CONFIG_VALUE_0=$EV git push --force-with-lease origin"
+run_in 2 "C-A: include.path in GIT_CONFIG_PARAMETERS" "$CUR" "GIT_CONFIG_PARAMETERS=\"'include.path'='$EV'\" git push --force-with-lease origin"
+run_env 2 "C-A: include.path in the hook's environment" "$CUR" "$NOREF" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=include.path "GIT_CONFIG_VALUE_0=$EV"
+run_in 2 "C-A: git -c include.path="             "$CUR" "git -c include.path=$EV push --force-with-lease origin"
+run_in 2 "C-B: printf -v GIT_CONFIG_PARAMETERS; export" "$CUR" "printf -v GIT_CONFIG_PARAMETERS %s \"'remote.origin.push'='refs/heads/co:refs/heads/feature/checkout'\"; export GIT_CONFIG_PARAMETERS; git push --force-with-lease origin"
+run_env 2 "C-B: printf -v over exported KEY/VALUE" "$CUR" 'printf -v GIT_CONFIG_KEY_0 %s remote.origin.push; printf -v GIT_CONFIG_VALUE_0 %s refs/heads/co:refs/heads/feature/checkout; git push --force-with-lease origin' GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.a GIT_CONFIG_VALUE_0=1 GIT_CONFIG_KEY_1=core.b GIT_CONFIG_VALUE_1=2
+run_in 2 "C-B: GIT_CONFIG_PARAMETERS+=; export"  "$CUR" "GIT_CONFIG_PARAMETERS+=\"'remote.origin.push'='refs/heads/co:refs/heads/feature/checkout'\"; export GIT_CONFIG_PARAMETERS; git push --force-with-lease origin"
+run_in 2 "I-A: export HOME="                      "$CUR" "export HOME=$LT/h; git push --force-with-lease origin"
+run_in 2 "I-A: export XDG_CONFIG_HOME="           "$CUR" "export XDG_CONFIG_HOME=$LT/x; git push --force-with-lease origin"
+run_in 2 "I-A: HOME= prefix"                      "$CUR" "HOME=$LT/h git push --force-with-lease origin"
+run_in 2 "I-A: XDG_CONFIG_HOME= prefix"           "$CUR" "XDG_CONFIG_HOME=$LT/x git push --force-with-lease origin"
+run_in 2 "declare -x HOME=; push"                 "$CUR" "declare -x HOME=$LT/h; git push --force-with-lease origin"
+run_in 2 "read; push"                             "$CUR" "read -r X <<< y; git push --force-with-lease origin"
+run_in 2 "url.*.pushInsteadOf prefix"             "$ME" "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=url.$LT/elsewhere.git.pushInsteadOf GIT_CONFIG_VALUE_0=$LT/remote.git git push --force-with-lease origin solo"
+run_in 2 "git -c url.*.pushInsteadOf"            "$ME" "git -c url.$LT/elsewhere.git.pushInsteadOf=$LT/remote.git push --force-with-lease origin solo"
+run_in 2 "git -c remote.origin.mirror=true"      "$ME" 'git -c remote.origin.mirror=true push --force-with-lease origin solo'
+run_in 2 "exported alias to push --force, then git p" "$CUR" "export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.p GIT_CONFIG_VALUE_0='push --force origin co:feature/checkout'; git p"
+run_in 2 "exported alias to a lease push, then git p" "$CUR" "export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.p GIT_CONFIG_VALUE_0='push --force-with-lease origin co:feature/checkout'; git p"
+run_in 2 "include.path on disk: push.default=upstream" "$LT/inc" "$NOREF"
+names_it "  ...git resolved the include and names sam's commit"
+run_in 0 "CONTROL: include.path on disk: push.default=current" "$LT/inc2" "$NOREF"
+run_in 2 "an alias on disk to a lease push"       "$CUR" 'git pp origin'
+run_in 0 "CONTROL: an alias on disk to git log"   "$CUR" 'git lg'
+run_in 2 "remote.origin.pushurl on disk"         "$LT/pu" "$OWN"
+run_in 2 "remote.origin.mirror on disk"          "$LT/mi" "$OWN"
+run_in 2 "url.*.pushInsteadOf on disk"           "$LT/pio" "$OWN"
+run_in 0 "CONTROL: the same clone, nothing configured" "$LT/inc2" "git push --force-with-lease origin main"
+run_in 0 "CONTROL: a lone lease push of my own work" "$ME" "$OWN"
+run_in 2 "a lone lease push of sam's commit"      "$ME" "git push --force-with-lease origin feature/checkout"
 
 echo
 echo "A MERGE SOMEONE ELSE MADE, with a change of its own"
@@ -1028,12 +1096,12 @@ run_in 2 "a function over several lines"         "$ME" $'function p {\n  git pus
 run_in 2 "an alias defined on the line"          "$ME" "alias p='git push --force-with-lease origin feature/checkout'; p"
 run_in 2 "a git alias given with -c"             "$ME" "git -c alias.p='push --force-with-lease' p origin feature/checkout"
 run_in 2 "a git shell alias given with -c"       "$ME" "git -c 'alias.p=!git push --force-with-lease origin feature/checkout' p"
-run_in 0 "CONTROL: nohup, literal"               "$ME" 'nohup git push --force-with-lease origin solo'
-run_in 0 "CONTROL: timeout 30, literal"          "$ME" 'timeout 30 git push --force-with-lease origin solo'
-run_in 0 "CONTROL: nice -n 5, literal"           "$ME" 'nice -n 5 git push --force-with-lease origin solo'
-run_in 0 "CONTROL: stdbuf -oL, literal"          "$ME" 'stdbuf -oL git push --force-with-lease origin solo'
-run_in 0 "CONTROL: time, literal"                "$ME" 'time git push --force-with-lease origin solo'
-run_in 0 "CONTROL: an xargs after the push"      "$ME" 'git push --force-with-lease origin solo 2>&1 | xargs echo'
+run_in 2 "nohup, literal: not alone"               "$ME" 'nohup git push --force-with-lease origin solo'
+run_in 2 "timeout 30, literal: not alone"          "$ME" 'timeout 30 git push --force-with-lease origin solo'
+run_in 2 "nice -n 5, literal: not alone"           "$ME" 'nice -n 5 git push --force-with-lease origin solo'
+run_in 2 "stdbuf -oL, literal: not alone"          "$ME" 'stdbuf -oL git push --force-with-lease origin solo'
+run_in 2 "time, literal: not alone"                "$ME" 'time git push --force-with-lease origin solo'
+run_in 2 "an xargs after the push: not alone"      "$ME" 'git push --force-with-lease origin solo 2>&1 | xargs echo'
 run_in 0 "CONTROL: echo text about a lease"      "$ME" 'echo "run git push --force-with-lease yourself"'
 run_in 0 "CONTROL: lease text in a heredoc to a file" "$ME" $'cat > /dev/null <<\'EOF\'\ngit push --force-with-lease origin feature/checkout\nEOF'
 

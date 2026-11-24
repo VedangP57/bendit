@@ -116,9 +116,9 @@ The marketplace lists two plugins: `bendit` and the web add-on `bendit-web`.
 ## The install runbook for an agent
 
 [`INSTALL.md`](../INSTALL.md) at the repository root is the same install,
-written for the agent in Claude Code to follow. A person pastes
-`Install bendit in this project by following https://raw.githubusercontent.com/VedangP57/bendit/main/INSTALL.md`
-and the agent works through six numbered steps: check the tools; show the
+written for the agent in Claude Code to follow. A person pastes the four-line
+prompt in the README's [Or let Claude install it](../README.md#or-let-claude-install-it)
+section, which is pinned to the release tag, and the agent works through six numbered steps: check the tools; show the
 person one summary and wait for a yes, then fetch bendit into a temporary
 folder and run `install-route.sh route` and `install-route.sh conflict` (the
 same checks `/bendit:adopt` runs: marketplace names are global to the

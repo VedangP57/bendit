@@ -10,10 +10,12 @@ A guard for force-pushes that would discard someone else's work, a safer way to
 add guards, and a clearer install.
 
 ### Added
-- **Lease rule.** A `git push --force-with-lease` whose expected commit is not
-  your own work (so it would discard someone else's commits) is refused. A plain
-  `--force-with-lease`, and a lease that rebases your own work, still work. What
-  the rule cannot see is listed in [docs/reference.md](docs/reference.md).
+- **Lease rule.** A `git push --force-with-lease` is refused when it would
+  discard commits that are not yours. This covers a plain lease (checked against
+  the remote-tracking ref, so a plain lease after a fetch that brought in
+  someone else's commit is refused) and a lease with an expected value. A lease
+  that only replaces your own rebased work still works. What the rule cannot see
+  is listed in [docs/reference.md](docs/reference.md).
 - **`/bendit:new-guard` proves a guard first.** A new guard must block a real
   past command, and still allow your ordinary commands, before it is turned on.
   A guard that crashes does not count as proof.
@@ -23,7 +25,14 @@ add guards, and a clearer install.
 ### Changed
 - **INSTALL.md** is pinned to the release tag. The trust command uses the
   installed copy and works from a subfolder or a worktree. `/reload-plugins`
-  replaces a restart.
+  replaces the restart before `/bendit:adopt`.
+- **A lease push must stand alone.** A lease push chained with commands outside
+  bendit's allowed lists is now refused even when it is safe, for example
+  `git add -A && git commit -m x && git push --force-with-lease` (v0.5.2 allowed
+  it). bendit cannot see what the earlier commands change before the push runs.
+  Run the push as its own command. The allowed forms are one leading
+  `cd <dir> &&`, read-only commands such as `git status` or `git log`, and plain
+  file chores on temp folders; see [docs/reference.md](docs/reference.md).
 - **README:** plain words first, npx first, and a prompt that has Claude
   install bendit.
 

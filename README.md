@@ -21,12 +21,12 @@ work is gone. Or it says "fixed!" and the tests were never run.
 
 **With bendit:** Claude is stopped before the delete and told to ask you
 first. When Claude changes code, bendit runs your approved tests before
-Claude may finish. If they still fail, or Claude skips them, you are told
-plainly that the work was not checked.
+Claude may finish; if they fail, Claude is sent back to fix them. If Claude
+skips them, it has to say why, and you see that note.
 
 No tests in your project (say, a small website)? bendit still blocks
-dangerous commands, and tells you plainly when Claude's changes were not
-checked.
+dangerous commands. When Claude finishes a change, it is asked to set up a
+test check or to say why not, and you see that note.
 
 ## Install
 
@@ -69,9 +69,10 @@ Never run the approval (--trust) command yourself. When done, tell me in plain w
 
 ## Two things only you can do
 
-1. **Approve your tests.** If your project has tests, setup ends by giving you
-   one command. Open a new Terminal window (not the chat), paste it and type
-   `y`. This is you, not the AI, approving the command that tests your project.
+1. **Approve your tests.** If setup finds your test command, or you type one
+   when asked, it ends by giving you one command. Open a new Terminal window
+   (not the chat), paste it and type `y`. This is you, not the AI, approving
+   the command that tests your project.
 2. **Turn bendit on.** Type these in Claude Code. If Claude asks you to, type
    `/reload-plugins` (it loads new add-ons). When setup is finished, close
    Claude, open it again in the same project and type `/bendit:doctor`

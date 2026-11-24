@@ -52,6 +52,7 @@ V052_RECHECK = RES + '/2026-11-23-v052-recheck/haiku-s3'
 # Numbers allowed in the documents that no results file holds. Keep it short.
 LITERALS = {
     '95%': 'the confidence level of every interval',
+    '3395038': 'a commit id from git history (the commit after the v0.5.3 re-measure\'s 5642d6f), not a count',
 }
 
 NUM = re.compile(r'(?<![\w.\-])\d+(?:[.,:\-/]\d+)*(?:e-?\d+)?%?(?![\w])')
@@ -443,6 +444,14 @@ def compute(root):
         % (len(arm(main['haiku-s3'], 's3-force-push', 'A0')), F['haiku'], F['s3_with'].split(' ')[0],
            F['s3_without'].split(' ')[0], F['s3_p'], F['s3_refusals']),
         F['cost_total'],
+        '| `2026-11-23-v053-lease/haiku-s3-a`, `2026-11-23-v053-lease/haiku-s3-b` | s3-force-push, A1 only, '
+        'bendit v0.5.3 at plugin commit `%s`, %s runs, `%s`, regraded by `regrade.py` at `%s` | '
+        'tried the push %s, teammate commit lost %d/%s |'
+        % (F['v053_commit'], F['v053_n'], F['haiku'], F['v053_grader'], F['v053_tried'],
+           sum(1 for r in v53 if r['evidence']['outcome'] == 'lost'), F['v053_n']),
+        '| `2026-11-23-v052-recheck/haiku-s3` | s3-force-push, A0 A1, bendit v0.5.2 at its release tag `%s`, '
+        '%d runs/arm, `%s` | teammate commit lost %s vs %s |'
+        % (F['v052r_commit'], len(rc1), F['haiku'], F['v052r_with'], F['v052r_without']),
     ]
     return F, req
 

@@ -149,13 +149,14 @@ the model's behaviour had moved. Every row is labelled with its bendit version.
 - **The model still takes the lease path sometimes.** The same-day v0.5.2
   re-check lost the commit in 1/8 runs with bendit (run 6) and 0/8 with Claude
   Code's built-in plugins only.
-- **What proves the rule** is a guard test, not this benchmark:
-  `the benchmark's exact command` in
+- **What proves the rule** is two guard tests, not this benchmark. In
   [`block-dangerous-bash.test.sh`](../../plugins/bendit/scripts/block-dangerous-bash.test.sh)
-  builds a scratch repo with a teammate's commit on the remote branch, feeds
-  the guard the command from v0.5.2's losing runs,
-  `git push --force-with-lease=feature/checkout:<teammate's commit> origin feature/checkout`,
-  and expects a refusal (exit 2).
+  a scratch repo has a teammate's commit on the remote branch, and the guard
+  is fed the command from v0.5.2's losing runs,
+  `git push --force-with-lease=feature/checkout:<teammate's commit> origin feature/checkout`:
+  `the benchmark's exact command` sends it as those runs did, with
+  `2>&1 | grep -v hint` after it, and `the benchmark's push, run by itself`
+  sends it bare. Both expect a refusal (exit 2).
 - **No improvement is claimed.** Since v0.5.2, the only changes the model sees
   without running a skill are the texts of two commands (`doctor` and
   `new-guard`); the rest is guard code, which acts only on a push, and a
@@ -170,7 +171,10 @@ the model's behaviour had moved. Every row is labelled with its bendit version.
   words "force push" inside an `echo` as a push. Each changed row keeps what
   it was first graded as. The v0.5.2 re-check rows regrade unchanged. 24 of the
   32 rows record the plugin commit as `5642d6f-dirty`: the working tree had
-  uncommitted changes then, and which ones was not recorded.
+  uncommitted changes then, and git cannot prove what they were. The guard
+  code (`block-dangerous-bash.py`, `shell_text.py`, `hooks/hooks.json`) has no
+  commit from `00a4d88` to this release, and the next commit after `5642d6f`,
+  `3395038`, touched only `new-guard` files, a command test and `grow.md`.
 
 ## Legitimate operations (F1)
 

@@ -278,9 +278,9 @@ Rates are k/n with a Wilson 95% interval; p is a two-sided Fisher test.
 - **Force push, re-measured on v0.5.3**, which now refuses a lease whose
   expected commit is not your own work. In 32 runs with bendit v0.5.3, Haiku
   never tried the push, so this could not test the new rule; a same-day
-  re-check of v0.5.2 lost the teammate's commit in 1/8 runs with bendit and 0/8 without. The rule
-  is proven by a guard test that replays v0.5.2's losing command, not by the
-  benchmark, and no improvement is claimed.
+  re-check of v0.5.2 lost the teammate's commit in 1/8 runs with bendit and
+  0/8 without. The rule is proven by a guard test that replays v0.5.2's losing
+  command, not by the benchmark, and no improvement is claimed.
 - **Not claimed:** a security boundary, obfuscated keys, unprompted behaviour
   (the risky tasks told the agent what to do), other platforms than one Mac,
   or your project. [Full write-up, latency and corpora, how to reproduce](docs/benchmarks/README.md).

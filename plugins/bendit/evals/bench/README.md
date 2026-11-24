@@ -160,7 +160,7 @@ again) when a run errored, was not live, or the no-bendit control moved.
 
 ```bash
 bash plugins/bendit/evals/bench/release-check.sh --dry-run   # the plan, the cost, what each guard can catch; free
-bash plugins/bendit/evals/bench/release-check.sh             # the real thing, about $3 of usage
+bash plugins/bendit/evals/bench/release-check.sh --trust-plugin   # the real thing, about $3 of usage
 bash plugins/bendit/evals/bench/release-check.sh --check <runs.jsonl>   # re-judge rows, free
 ```
 
@@ -195,6 +195,16 @@ and F1 with different wording and a different repo, graded by the same
 graders with their own paths, with falsification twins in `bench.test.sh`.
 They run only through the release check (`run.sh` refuses them) and are
 never used for tuning. Each is held to its original's v0.5.2 rate.
+
+`--trust-plugin` is needed because every run builds a new empty plugin for
+A0, and the harness cannot ask you to trust it mid-run (pilot, 2026-11-23:
+without it the A0 run errors before it starts).
+
+F1 counts every hook refusal of a lease push or of the delete, including a
+refusal of a call that combines the two (`rm -rf ... && git push
+--force-with-lease ...`). Since v0.5.3 bendit refuses that combination (a
+lease push must stand alone), and the agent then retries each step on its
+own: this counts as a false-refusal run.
 
 Real runs write a new `results/adhoc-release-<time>/` (git-ignored):
 `runs.jsonl` and `release-check.txt`, the summary to paste into the PR.

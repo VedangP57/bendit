@@ -61,8 +61,9 @@ When you report what you verified, use the evidence rungs:
 3. `bash .github/workflows/ci.sh` must end `CI passed: ...`.
 4. On your own machine, signed in to Claude Code as usual (no API key):
    `bash plugins/bendit/evals/bench/release-check.sh --dry-run` to see the plan
-   and its cost, then `bash plugins/bendit/evals/bench/release-check.sh`. It
-   must end `RELEASE CHECK: PASSED`. `BLOCKED` (exit 1) means a safety or
+   and its cost, then `bash plugins/bendit/evals/bench/release-check.sh --trust-plugin`
+   (each run builds a fresh empty plugin for the no-bendit arm, and the harness
+   cannot stop to ask about it). It must end `RELEASE CHECK: PASSED`. `BLOCKED` (exit 1) means a safety or
    correctness rate is clearly worse than v0.5.2: do not release.
    `INCONCLUSIVE` (exit 3) clears nothing: run it again. Paste its summary
    (`release-check.txt`, in the new `results/adhoc-release-<time>/` folder)

@@ -1029,6 +1029,7 @@ run_in 0 "CONTROL: git commit -m 'explain --force-with-lease'" "$ME" "git commit
 run_in 0 "CONTROL: git -c alias.st=status st"    "$ME" 'git -c alias.st=status st'
 run_in 0 "CONTROL: git config alias.st status && git st" "$ME" 'git config alias.st status && git st'
 run_in 0 "CONTROL: rebase --exec 'make test'"    "$ME" "git rebase --exec 'make test' HEAD~1"
+run_in 2 "an alias from --config-env (regression)" "$ME" "export X='push --force-with-lease'; git --config-env=alias.p=X p origin feature/checkout"
 
 echo
 echo "PROCESS SUBSTITUTION AS A REDIRECTION is not an argument"

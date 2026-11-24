@@ -2891,6 +2891,12 @@ exit 0
 exit 0
 (silent)
 
+=== an alias from --config-env (regression)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `git -c alias.…` would run a `git push --force-with-lease` that bendit cannot read ahead of time, so it cannot tell what the push would discard — write the push out literally as its own command.
+If this is genuinely required, ask the human to run it.
+
 === rm -rf /tmp/x 2> >(cat)
 exit 0
 (silent)

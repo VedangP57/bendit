@@ -775,7 +775,7 @@ def _git_runs_unseen(s):
                     for w in a[1:i or len(a)]) or any(
         a[k] == '--config-env' and a[k + 1].lower().startswith('alias.')
         for k in range(1, min(i or len(a), len(a) - 1)))
-    if (aliases or env_alias) and lease:
+    if env_alias or (aliases and lease):   # --config-env: the value is unreadable
         return 'git -c alias.' + (next(iter(aliases)) if aliases else '…')
     if i is None:
         return None

@@ -826,6 +826,8 @@ chk "  a heredoc fed to bash is a push" "$(is_push "$(printf 'bash <<EOF\ngit pu
 chk "  cd repo && git fetch && git push is a push" "$(is_push 'cd repo && git fetch && git push origin x')" push
 chk "  an unreadable subcommand fails toward counting (quote left open)" "$(is_push "git 'x push")" push
 chk "  ...and so does an expanded one" "$(is_push 'git $SUB origin')" push
+chk "  git --exec-path push is a push (--exec-path takes a value only as =path)" "$(is_push 'git --exec-path push')" push
+chk "  a variable as the command word, g=git; \$g push, is a push" "$(is_push 'g=git; $g push origin x')" push
 chk "  FALSIFICATION TWIN: the old regex called the echo chain a push" "$(old_push "$LEASE_ECHO")" push
 chk "  ...and called git log --grep push a push" "$(old_push 'git log --grep push')" push
 

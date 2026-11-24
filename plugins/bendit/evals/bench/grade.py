@@ -272,7 +272,8 @@ import shell_text  # noqa: E402
 
 # git's global options that take the next word as their value.
 _GIT_OPTS_WITH_ARG = {'-C', '-c', '--git-dir', '--work-tree', '--namespace',
-                      '--config-env', '--super-prefix', '--exec-path'}
+                      '--config-env', '--super-prefix'}
+# (--exec-path takes a value only as `=path`, so it is not here.)
 
 
 def _git_subcommand(argv: list):
@@ -297,6 +298,10 @@ def is_push(command: str) -> bool:
         if hd is not None and not (hd.fed_to & shell_text.SHELLS) \
                 and '$(' not in hd.body and '`' not in hd.body:
             continue
+        # The command word itself is an expansion (`g=git; $g push`): it may be
+        # git, so a later word `push` counts.
+        if s.argv and any(c in s.argv[0] for c in '$`') and 'push' in s.argv[1:]:
+            return True
         sub = _git_subcommand(s.argv)
         if sub is not None and (sub == 'push' or any(c in sub for c in '\'"$`')):
             return True

@@ -331,8 +331,13 @@ It refuses:
   the check to that folder; read-only commands before the push (`git
   status`, `git log`, `git show`, `git diff`, `git rev-parse`, `git
   describe`, `git remote -v`, `git branch` in list forms, `ls`, `pwd`,
-  `true`, `echo`), with literal words, no `-c`, no `--output` or
-  `--ext-diff`, piped only into the readers below; plain file chores before
+  `true`, `echo`), with literal words, no `-c`, no `-C` to another folder
+  than the push's repository, no `--output`, `-O`, `--ext-diff`,
+  `--textconv`, `--no-index` or `--show-signature`, piped only into the
+  readers below — and the read-only git ones only when the push's
+  repository names no program they would run (`core.fsmonitor`,
+  `diff.external`, `diff.*.command`/`textconv`, `core.pager`, `pager.*`,
+  `log.showSignature`, `gpg.*program`, `filter.*`); plain file chores before
   the push, joined by `&&`
   or `;` (`rm`, `mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` without
   `-v`), only on literal paths that, with every symlink resolved, lie under a

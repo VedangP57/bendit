@@ -808,6 +808,14 @@ lg() { GIT_AUTHOR_NAME="$1" GIT_AUTHOR_EMAIL="$1@example.invalid" GIT_COMMITTER_
   rm -rf "$LT/hkb/.git/hooks"; ln -s "$LT/hookd" "$LT/hkb/.git/hooks"
   git -C "$LT/hkc" config core.hooksPath "$LT/hooksMissing"
   ln "$LT/hld/.git/config" "$LT/hl"
+  # t3 review: a repo in temp planted earlier with core.fsmonitor (variant 2);
+  # push repos whose own config runs programs on status/log (fsm, pgr).
+  git init -q "$LT/bevw"; git -C "$LT/bevw" config core.fsmonitor "sh $LT/bevh"
+  for r in fsm pgr; do
+    git clone -q -b solo "$LT/remote.git" "$LT/$r"; git -C "$LT/$r" config user.email me@example.invalid
+  done
+  git -C "$LT/fsm" config core.fsmonitor "sh $LT/bevh"
+  git -C "$LT/pgr" config core.pager less
   # evil.cfg: a push mapping that sends co over feature/checkout (cur's upstream).
   printf '[remote "origin"]\n\tpush = refs/heads/co:refs/heads/feature/checkout\n' >"$LT/evil.cfg"
   mkdir -p "$LT/h" "$LT/x/git"; cp "$LT/evil.cfg" "$LT/h/.gitconfig"; cp "$LT/evil.cfg" "$LT/x/git/config"
@@ -1229,6 +1237,17 @@ run_in 2 "echo > a repo file (a chore) && push"   "$ME" "echo x > notes.txt && $
 run_in 2 "git status || push"                     "$ME" "git status || $P_OWN"
 run_in 2 "git fetch && push (not read-only)"      "$ME" "git fetch -q origin && $P_OWN"
 run_in 2 "git status && cd me && push (cd later)"  "$LT" "git -C me status && cd me && $P_OWN"
+run_in 2 "C-1: planted /tmp repo, git -C diff --no-index" "$ME" 'mkdir -p /tmp/bendit-bev/objects /tmp/bendit-bev/refs && printf "ref: refs/heads/m\n" > /tmp/bendit-bev/HEAD && printf "\133diff\135\n\texternal = sh /tmp/bendit-bevh\n" > /tmp/bendit-bev/config && printf "git config remote.origin.push x\n" > /tmp/bendit-bevh && git -C /tmp/bendit-bev diff --no-index /etc/hosts /etc/shells; git push --force-with-lease origin solo'
+run_in 2 "C-1 v2: git -C <planted repo> status"  "$ME" "git -C $LT/bevw status && $P_OWN"
+run_in 2 "I-1: core.fsmonitor in the push repo"  "$LT/fsm" "git status && $P_OWN"
+run_in 2 "core.pager in the push repo, git log"  "$LT/pgr" "git log --oneline -1 && $P_OWN"
+run_in 0 "CONTROL: core.pager repo, ls && push"  "$LT/pgr" "ls && $P_OWN"
+run_in 0 "CONTROL: git -C . status (same repo)"  "$ME" "git -C . status && $P_OWN"
+run_in 2 "git diff --no-index"                   "$ME" "git diff --no-index /etc/hosts /etc/shells; $P_OWN"
+run_in 2 "git log --textconv"                    "$ME" "git log -p --textconv -1 && $P_OWN"
+run_in 2 "git log -O<file>"                      "$ME" "git log -O/tmp/bendit-order && $P_OWN"
+run_in 2 "git log --show-signature"              "$ME" "git log --show-signature -1 && $P_OWN"
+run_in 2 "git diff --ou=<file> (abbreviated)"    "$ME" "git diff --ou=/tmp/bendit-x && $P_OWN"
 
 echo
 echo "A MERGE SOMEONE ELSE MADE, with a change of its own"

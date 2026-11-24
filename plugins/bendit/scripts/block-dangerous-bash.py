@@ -552,7 +552,9 @@ def push_deletes_remote_refs(s):
 # command in the Bash call (one leading literal `cd <dir> &&` or `;`, then
 # read-only commands -- git status/log/show/diff/rev-parse/describe, `git
 # remote -v`, `git branch` list forms, ls, pwd, true, echo; literal words, no
-# -c, no --output/--ext-diff, piped only into pure readers -- and
+# -c, no -C to another folder, no --output/-O/--ext-diff/--textconv/--no-index/
+# --show-signature, piped only into pure readers, and read-only git only when
+# the push repo's config names no program they would run -- and
 # plain file chores -- rm, mkdir -p, touch, cp, mv, echo, printf without -v --
 # only on literal paths that, every symlink resolved, lie under a system temp
 # root (/tmp, /var/folders, DARWIN_USER_TEMP_DIR; never $TMPDIR), in no git
@@ -782,6 +784,23 @@ _BRANCH_LIST = frozenset({'-a', '-r', '-v', '-vv', '--list', '--show-current', '
                           '--remotes', '--verbose', '--no-color'})
 
 
+# Options that make a read-only git command write a file, run a program, or
+# read outside the repository. A long option is refused in any abbreviation.
+_READ_GIT_BAD = ('output', 'output-directory', 'ext-diff', 'textconv', 'no-index',
+                 'show-signature', 'exec')
+# Config keys that make git status/diff/log/show run a program.
+_RUNS_PROGRAM = (r'^(core\.fsmonitor|diff\.external|diff\..*\.(command|textconv)|core\.pager|'
+                 r'pager\..*|log\.showsignature|gpg\.program|gpg\..*\.program|filter\..*)$')
+
+
+def _runs_or_writes(x) -> bool:
+    if x.startswith('--'):
+        body = x[2:].split('=', 1)[0]
+        return bool(body) and any(n.startswith(body) and len(body) >= 2 or body.startswith(n)
+                                  for n in _READ_GIT_BAD)
+    return x.startswith('-O')
+
+
 def _read_only_cmd(c) -> bool:
     """A command from the narrow read-only list that may come before a lease
     push: git status/log/show/diff/rev-parse/describe, `git remote -v`, `git
@@ -810,7 +829,7 @@ def _read_only_cmd(c) -> bool:
             return False   # -c, --config-env, --git-dir, --exec-path...
     sub, rest = raw[i], raw[i + 1:]
     if sub in _READ_GIT:
-        return not any(x.startswith(('--out', '--ext-diff')) for x in rest)
+        return not any(_runs_or_writes(x) for x in rest)
     if sub == 'remote':
         return all(x in ('-v', '--verbose') for x in rest)
     if sub == 'branch':
@@ -826,43 +845,44 @@ def _prelude(s, simples):
     at = next((n for n, x in enumerate(simples) if x is s), 0)
     before = simples[:at]
     if not before:
-        return [], [], None
+        return [], [], [], None
     units, seen = [], set()
     for o in before:
         c = o.cmd
         if o.via or c in s.cmd.pipe:
-            return [], [], f'shares this Bash call with `{_brief(c.argv or o.argv)}`'
+            return [], [], [], f'shares this Bash call with `{_brief(c.argv or o.argv)}`'
         if id(c) in seen:
             continue
         pipe = c.pipe if c in c.pipe else [c]
         if pipe[0] is not c:
-            return [], [], f'shares this Bash call with `{_brief(c.argv or o.argv)}`'
+            return [], [], [], f'shares this Bash call with `{_brief(c.argv or o.argv)}`'
         seen.update(id(x) for x in pipe)
         units.append(pipe)
-    cmds, chores = [], []
+    cmds, chores, gits = [], [], []
     for k, pipe in enumerate(units):
         head, raw = pipe[0], pipe[0].argv
         refuse = (None, None, f'shares this Bash call with `{_brief(raw)}`')
         if k == 0 and raw[:1] == ['cd']:
             if len(raw) != 2 or raw[1].startswith('-') or not _literal(raw[1]) or \
                     head.redirs or not _plain_cmd(head):
-                return [], [], refuse[2]
+                return [], [], [], refuse[2]
         elif _read_only_cmd(head) and all(_output_reader(x.argv) for x in pipe[1:]) and \
                 all(_bad_redirect(x) is None for x in pipe):
-            pass
+            if raw[:1] == ['git']:
+                gits.append(head)
         elif len(pipe) == 1 and _chore_paths(head) is not None:
             chores.append(head)
         else:
-            return [], [], refuse[2]
+            return [], [], [], refuse[2]
         cmds += pipe
     for x, y in zip(units, units[1:] + [[s.cmd]]):
         last = x[-1]
         if not last.words or not y[0].words:
-            return [], [], 'shares this Bash call with another command'
+            return [], [], [], 'shares this Bash call with another command'
         end = max([w.end for w in last.words] + [r.end for r in last.redirs])
         if _COMMAND[0][end:y[0].words[0].start].strip() not in ('&&', ';'):
-            return [], [], f'shares this Bash call with `{_brief(x[0].argv)}`'
-    return cmds, chores, None
+            return [], [], [], f'shares this Bash call with `{_brief(x[0].argv)}`'
+    return cmds, chores, gits, None
 
 
 def _fold(path):
@@ -1000,6 +1020,47 @@ def _hard_link(full, c, p, sources):
     return None
 
 
+def _read_git_problem(s, gits, cd):
+    """Why the read-only git commands before the push may run a program: one
+    runs against another folder than the push's repository, or the push
+    repository's config (includes followed) names a program git status/diff/
+    log/show would run. None when they are safe."""
+    if not gits:
+        return None
+    shell_cwd = _CWD[0] or os.getcwd()
+    if cd:
+        shell_cwd = os.path.normpath(os.path.join(shell_cwd, cd[0].argv[1]))
+    try:
+        push_cwd, opts = _push_dir(s)
+    except _GitCannotTell as why:
+        return f'comes after git commands bendit could not check ({_describe_short(why)})'
+    if opts:
+        return 'is given `--git-dir`/`--work-tree`, so a git command before it reads another repository'
+    for c in gits:
+        raw, here = c.argv, shell_cwd
+        i, _ = _git(raw)
+        k = 1
+        while k < i:
+            if raw[k] == '-C':
+                here = os.path.join(here, os.path.expanduser(raw[k + 1]))
+                k += 2
+            else:
+                k += 1
+        if os.path.realpath(here) != os.path.realpath(push_cwd):
+            return f'comes after `{_brief(raw)}`, which runs git in another folder than the push'
+    try:
+        code, out = _Git(push_cwd, opts).run(['config', '--get-regexp', _RUNS_PROGRAM])
+    except _GitCannotTell as why:
+        return f'comes after git commands bendit could not check ({_describe_short(why)})'
+    if code not in (0, 1):
+        return f'comes after git commands bendit could not check (git config exited {code})'
+    if code == 0 and out.strip():
+        key = out.split(None, 1)[0]
+        return (f'comes after `{_brief(gits[0].argv)}`, and this repo runs programs on git '
+                f'status/diff (`{key}` is set)')
+    return None
+
+
 def _chore_problem(s, cmds):
     """Why a chore before the push may change what git reads, or None. A chore
     is allowed only on plain paths in a system temp folder, outside every git
@@ -1048,7 +1109,7 @@ def _not_alone(s):
     if not raw or _command_name(raw[0]) != 'git' or unwrap(raw) != s.argv:
         return f'is run through `{_brief(raw[:1]) if raw else "a wrapper"}`'   # a prefix, wrapper or VAR=
     allowed = [s.cmd]
-    prelude, chores, why = _prelude(s, simples)
+    prelude, chores, gits, why = _prelude(s, simples)
     if why is not None:
         return why
     allowed += prelude
@@ -1088,7 +1149,8 @@ def _not_alone(s):
     for key in keys:
         if _CMDLINE_KEY.match(key):
             return f'sets `{_key_brief(key)}` on the command line'
-    return _chore_problem(s, [c for c in prelude if c.argv[:1] == ['cd']][:1] + chores)
+    cd = [c for c in prelude if c.argv[:1] == ['cd']][:1]
+    return _read_git_problem(s, gits, cd) or _chore_problem(s, cd + chores)
 
 
 def _git_push(argv) -> bool:

@@ -18,6 +18,8 @@ does, with a judge cost so the runner's split can be checked.
 Environment it reads (test-only):
   FAKE_CLAUDE_LOG      append one JSON line per call: argv and BENDIT_* env
   FAKE_SCENARIO        twin scenario for every case (default: the first)
+  FAKE_SCENARIO_A0     twin scenario when the target is the empty A0 plugin
+  FAKE_TRACE_MODEL     the model the trace's init event names (default claude-fake)
   FAKE_SCAFFOLD_COPY=1 run a COPY of the fixture, outside the plugin -- a
                        harness that would never see the runner's A2 request
   FAKE_COST, FAKE_JUDGE_COST   per-run costUsd and judgeCostUsd
@@ -86,7 +88,7 @@ def main(argv: list) -> int:
     (sandbox / 'tmp').mkdir()
     env = {k: v for k, v in os.environ.items() if not k.startswith('BENDIT_')}
     env.update(HOME=str(sandbox / 'home'), TMPDIR=str(sandbox / 'tmp'))
-    script = target / 'evals' / 'bench' / case / 'fixture.sh'
+    script = target / 'evals' / 'bench' / twins.case_dir(case).relative_to(twins.BENCH) / 'fixture.sh'
     if os.environ.get('FAKE_SCAFFOLD_COPY') == '1':
         copy = sandbox / 'scaffold-copy' / case
         shutil.copytree(str(script.parent), str(copy))
@@ -96,11 +98,13 @@ def main(argv: list) -> int:
     plugins = [name] + [p for p in os.environ.get('FAKE_EXTRA_PLUGINS', '').split(',') if p]
     if name == 'bench-null' and os.environ.get('FAKE_NULL_EXTRA_PLUGIN'):
         plugins.append(os.environ['FAKE_NULL_EXTRA_PLUGIN'])
-    trace = twins.Trace(str(ws), plugins, model='claude-fake', version='0.0.0-fake')
+    trace = twins.Trace(str(ws), plugins, model=os.environ.get('FAKE_TRACE_MODEL') or 'claude-fake',
+                        version='0.0.0-fake')
     try:
         if '--scaffold' in o['flags']:
             twins.run_fixture(case, ws, env, script)
-        scenario = os.environ.get('FAKE_SCENARIO') or twins.SCENARIOS[case][0]
+        scenario = ((name == 'bench-null' and os.environ.get('FAKE_SCENARIO_A0'))
+                    or os.environ.get('FAKE_SCENARIO') or twins.SCENARIOS[case][0])
         edited = twins.apply(case, scenario, ws, trace, env)
         if name == 'bendit' and edited:
             gate = str(target / 'scripts' / 'require-verification.py')

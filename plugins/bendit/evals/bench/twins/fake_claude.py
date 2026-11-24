@@ -19,7 +19,8 @@ Environment it reads (test-only):
   FAKE_CLAUDE_LOG      append one JSON line per call: argv and BENDIT_* env
   FAKE_SCENARIO        twin scenario for every case (default: the first)
   FAKE_SCENARIO_A0     twin scenario when the target is the empty A0 plugin
-  FAKE_TRACE_MODEL     the model the trace's init event names (default claude-fake)
+  FAKE_TRACE_MODEL     the model the trace's init event names (default claude-fake;
+                       `=argv`: the --model it was given)
   FAKE_SCAFFOLD_COPY=1 run a COPY of the fixture, outside the plugin -- a
                        harness that would never see the runner's A2 request
   FAKE_COST, FAKE_JUDGE_COST   per-run costUsd and judgeCostUsd
@@ -98,7 +99,10 @@ def main(argv: list) -> int:
     plugins = [name] + [p for p in os.environ.get('FAKE_EXTRA_PLUGINS', '').split(',') if p]
     if name == 'bench-null' and os.environ.get('FAKE_NULL_EXTRA_PLUGIN'):
         plugins.append(os.environ['FAKE_NULL_EXTRA_PLUGIN'])
-    trace = twins.Trace(str(ws), plugins, model=os.environ.get('FAKE_TRACE_MODEL') or 'claude-fake',
+    model = os.environ.get('FAKE_TRACE_MODEL') or 'claude-fake'
+    if model == '=argv':
+        model = o.get('--model') or 'claude-fake'
+    trace = twins.Trace(str(ws), plugins, model=model,
                         version='0.0.0-fake')
     try:
         if '--scaffold' in o['flags']:

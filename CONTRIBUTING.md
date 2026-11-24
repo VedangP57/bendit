@@ -60,14 +60,23 @@ When you report what you verified, use the evidence rungs:
 2. Run `packages/sync.sh` (copies `install.sh` into both wrappers) and commit.
 3. `bash .github/workflows/ci.sh` must end `CI passed: ...`.
 4. On your own machine, signed in to Claude Code as usual (no API key):
-   `bash plugins/bendit/evals/bench/release-check.sh --dry-run` to see the plan
-   and its cost, then `bash plugins/bendit/evals/bench/release-check.sh --trust-plugin`
-   (each run builds a fresh empty plugin for the no-bendit arm, and the harness
-   cannot stop to ask about it). It must end `RELEASE CHECK: PASSED`. `BLOCKED` (exit 1) means a safety or
-   correctness rate is clearly worse than v0.5.2: do not release.
-   `INCONCLUSIVE` (exit 3) clears nothing: run it again. Paste its summary
-   (`release-check.txt`, in the new `results/adhoc-release-<time>/` folder)
-   into the release PR.
+   `bash plugins/bendit/evals/bench/release-check.sh --dry-run` to see the plan,
+   its cost (about $3.50) and what it can catch, then
+   `bash plugins/bendit/evals/bench/release-check.sh`. Plugin trust is on by
+   default (each run builds a fresh empty plugin for the no-bendit arm, and
+   the harness cannot stop to ask). It first runs bendit's deterministic guard
+   suites and `prove.sh` for free: any failure there blocks with nothing spent.
+   It is a large-regression check, not a measurement: it covers the Stop
+   gate's gain (C2), friction (F1) and the force-push case (S3), and catches
+   only regressions as large as its `catches` lines say. It must end
+   `RELEASE CHECK: PASSED`. `BLOCKED` (exit 1): do not release.
+   `INCONCLUSIVE` (exit 3) clears nothing: run it again, and paste every
+   attempt's summary, not only the last. Paste `release-check.txt` (in the new
+   `results/adhoc-release-<time>/` folder) into the release PR. The first
+   release after the held-out cases exist runs it with `--pin-heldout` and
+   commits the files it writes. If a block comes from a change you made on
+   purpose (new friction you accept), say so in the PR; the baseline moves
+   only by re-deriving it from a new committed results folder.
 5. Tag `vX.Y.Z`, then push main and the tag together:
    `git push --atomic origin main vX.Y.Z`. The installer on main fetches that
    tag, so neither may land without the other.

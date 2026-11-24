@@ -20,6 +20,12 @@ careful-looking fix, a refusal and an idle run each get the verdict they
 were built to get). Their hidden tests are in `../hidden/<case>/`, never in
 the workspace.
 
-They have no baseline of their own: the release check holds each to its
-original's v0.5.2 rate (`../baseline.json`). See `../README.md`, "Release
-check".
+They are **report only** until `../baseline.json` holds their own pinned
+rate: the owner's first `release-check.sh --pin-heldout` run (8 runs each)
+writes `../results/heldout-pin/runs.jsonl` and re-derives the baseline. Until
+then they are printed beside their original's v0.5.2 rate and never block.
+See `../README.md`, "Release check".
+
+They test for overfitting to wording and names, not to the trap's mechanism:
+held-out C2 is an isomorph of C2 (a parser that crashes on "N.0", a one-line
+fix that leaks fractions, a careful fix that leaks exponents).

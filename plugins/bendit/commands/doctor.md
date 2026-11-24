@@ -135,6 +135,11 @@ what it means and the fix the output names:
 Then one sentence: all green, or which guards are OFF and which features FAIL
 right now.
 
+**Print each block once.** Print each block exactly once: the version and checkout rows live in the table only; after the table and the
+sentence under it, never paste a tool output back, whole or cut short (no
+second copy of the `version` or `checkout:` lines, no bare `installed-version`
+line), then go straight to the ending.
+
 **The ending.** The very last thing on screen is for a person who is not an
 engineer: plain words, nothing after it (no table, no file path, no rung). It
 is one status block from the list below, then, when anything is still open,

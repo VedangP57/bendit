@@ -549,7 +549,10 @@ def push_deletes_remote_refs(s):
 # commands do to them cannot be made complete (every round found another way:
 # a fetch first, xargs supplying the branch, include.path, printf -v, `+=`,
 # export HOME). So a lease push is checked only when it is the ONE plain
-# command in the Bash call: no other statement or pipe stage, no prefix
+# command in the Bash call (one leading literal `cd <dir> &&` or `;`, and
+# output readers after it -- grep, tail, head, cat, wc, sort, uniq, `sed -n`
+# printing, awk with no system/getline/pipe/redirect -- excepted): no other
+# statement or pipe stage, no prefix
 # (VAR=, HOME=, GIT_*), no wrapper (xargs, sh -c, eval, nohup, sudo...), no
 # function or alias in the line, no run-time word (`$(...)`, `$VAR`, a glob,
 # a brace expansion, `~user`, `<(...)`), and no `-c`/`--config-env` key in
@@ -627,6 +630,73 @@ def _key_brief(key):
     return re.sub(r'(?i)^url\..*\.(\w+)$', r'url.….\1', key)
 
 
+# Commands that only read the push's output and print or count it.
+_READERS = frozenset({'grep', 'egrep', 'fgrep', 'tail', 'head', 'cat', 'wc', 'sort', 'uniq',
+                      'sed', 'awk'})
+_SED_PRINT = re.compile(r'^\s*(?:(?:\d+|\$|/[^/]*/)(?:\s*,\s*(?:\d+|\$|/[^/]*/))?\s*!?\s*p\s*;?\s*)+$')
+
+
+def _output_reader(argv) -> bool:
+    """A pipeline stage after the push that can only read and print: it runs
+    nothing and writes no file (its own redirections aside)."""
+    if not argv or argv[0] not in _READERS:
+        return False
+    name, args = argv[0], argv[1:]
+    if name == 'sort':
+        return not any(x.startswith(('-o', '--output')) for x in args)
+    if name == 'uniq':
+        return not any(not x.startswith('-') for x in args)   # `uniq in out` writes out
+    if name == 'sed':
+        scripts, k, quiet = [], 0, False
+        while k < len(args):
+            x = args[k]
+            if x in ('-n', '--quiet', '--silent'):
+                quiet = True
+            elif x in ('-e', '--expression') and k + 1 < len(args):
+                scripts.append(args[k + 1])
+                k += 1
+            elif x.startswith('-'):
+                return False   # -i, -f, -s... : not a plain print
+            else:
+                scripts.append(x)
+            k += 1
+        return quiet and bool(scripts) and all(_SED_PRINT.match(p) for p in scripts)
+    if name == 'awk':
+        prog, k = None, 0
+        while k < len(args):
+            x = args[k]
+            if x in ('-F', '-v'):
+                k += 2
+                continue
+            if x.startswith(('-F', '-v')) and len(x) > 2:
+                k += 1
+                continue
+            if x.startswith('-'):
+                return False   # -f progfile and the rest
+            prog = x
+            break
+        return prog is not None and not re.search(r'system\s*\(|getline|[|>]', prog)
+    return True
+
+
+def _leading_cd(s, simples):
+    """The one `cd <literal>` that may come before the push, joined by `&&`
+    or `;` and nothing else, or None when there is none. Anything that looks
+    like one but is not plain is left for the caller to refuse."""
+    first = simples[0] if simples else None
+    if first is None or first is s or first.argv[0] != 'cd' or first.via:
+        return None
+    raw = first.cmd.argv
+    if len(raw) != 2 or raw[0] != 'cd' or raw[1].startswith(('-', '~')) or _RUNTIME.search(raw[1]):
+        return None
+    if first.cmd.redirs or first.cmd.heredocs or first.cmd.herestrings or first.cmd.subshell:
+        return None
+    if len(first.cmd.pipe) != 1 or s.cmd.pipe[0] is not s.cmd:
+        return None
+    between = _COMMAND[0][first.cmd.words[-1].end:s.cmd.words[0].start].strip()
+    return first if between in ('&&', ';') else None
+
+
 def _not_alone(s):
     """Why this lease push is not one plain command standing alone in the Bash
     call, or None. Simulating what other commands do to git's config and
@@ -637,10 +707,20 @@ def _not_alone(s):
         return f'is run through `{s.via[-1]}`'
     if not raw or _command_name(raw[0]) != 'git' or unwrap(raw) != s.argv:
         return f'is run through `{_brief(raw[:1]) if raw else "a wrapper"}`'   # a prefix, wrapper or VAR=
-    others = [o for o in simples if o is not s]
+    allowed = [s.cmd]
+    cd = _leading_cd(s, simples)
+    if cd is not None:
+        allowed.append(cd.cmd)
+    if s.cmd in s.cmd.pipe:
+        at = s.cmd.pipe.index(s.cmd)
+        if at:
+            return f'reads `{_brief(s.cmd.pipe[0].argv)}` on its stdin'
+        allowed += [c for c in s.cmd.pipe[at + 1:] if _output_reader(c.argv)]
+    others = [o for o in simples if o is not s and o.cmd not in allowed]
     if others:
         return f'shares this Bash call with `{_brief(others[0].cmd.argv or others[0].argv)}`'
-    if len(lex(_COMMAND[0]).cmds) != 1:
+    if any(o.cmd is not s.cmd and o.via for o in simples) or \
+            len(lex(_COMMAND[0]).cmds) != len(allowed):
         return 'shares this Bash call with another command'
     if s.cmd.subshell or s.cmd.fed_by is not None:
         return 'runs in a subshell'
@@ -1100,10 +1180,11 @@ def force_with_lease_foreign(s):
     alone = _not_alone(s)
     if alone is not None:
         return (f'`{written}` {alone}. bendit checks a lease push only when it is the one plain '
-                f'command in the Bash call — no other command, pipe, prefix, wrapper, variable or '
-                f'routing `-c` — because anything else can change what it pushes or what git '
-                f'compares against. Run the push by itself, as one plain command, so bendit can '
-                f'check it')
+                f'command in the Bash call — no other command, prefix, wrapper, variable or '
+                f'routing `-c`; only a leading `cd <dir> &&` and output readers after it (`| grep`, '
+                f'`| tail`, `2>&1`) are fine — because anything else can change what it pushes or '
+                f'what git compares against. Run the push by itself, as one plain command, so '
+                f'bendit can check it')
     try:
         cwd, opts = _push_dir(s)
         g = _Git(cwd, opts)

@@ -832,6 +832,7 @@ names_it() {
 ME="$LT/me"
 S=${TM:0:7}
 run_in 2 "the benchmark's exact command"       "$ME" "git push --force-with-lease=feature/checkout:$S origin feature/checkout 2>&1 | grep -v hint"
+names_it "  ...names sam's commit and how to look"
 run_in 2 "the benchmark's push, run by itself"  "$ME" "git push --force-with-lease=feature/checkout:$S origin feature/checkout"
 names_it "  ...names sam's commit and how to look"
 run_in 2 "lease on a full teammate sha"        "$ME" "git push --force-with-lease=feature/checkout:$TM origin feature/checkout"
@@ -938,7 +939,7 @@ run_in 2 "a variable redirection target"         "$ME" 'git push --force-with-le
 run_in 2 "an unquoted heredoc with \$(fetch)"   "$ME" $'git push --force-with-lease origin solo <<EOF\n$(git fetch -q origin)\nEOF'
 run_in 2 "a VAR=\$(fetch) prefix"               "$ME" 'X="$(git fetch -q origin)" git push --force-with-lease origin solo'
 run_in 2 "\$(...) as the -C folder"             "$LT" 'git -C "$(echo me)" push --force-with-lease origin solo'
-run_in 2 "literal, quoted, piped: not alone"      "$ME" "git push --force-with-lease origin 'solo' 2>&1 | grep -v hint"
+run_in 0 "CONTROL: literal, quoted, piped"       "$ME" "git push --force-with-lease origin 'solo' 2>&1 | grep -v hint"
 run_in 0 "CONTROL: literal redirection"          "$ME" 'git push --force-with-lease origin solo 2>/dev/null'
 run_in 0 "CONTROL: a quoted heredoc stays data"  "$ME" $'git push --force-with-lease origin solo <<\'EOF\'\n$(git fetch -q origin)\nEOF'
 
@@ -1038,6 +1039,45 @@ run_in 2 "url.*.pushInsteadOf on disk"           "$LT/pio" "$OWN"
 run_in 0 "CONTROL: the same clone, nothing configured" "$LT/inc2" "git push --force-with-lease origin main"
 run_in 0 "CONTROL: a lone lease push of my own work" "$ME" "$OWN"
 run_in 2 "a lone lease push of sam's commit"      "$ME" "git push --force-with-lease origin feature/checkout"
+
+echo
+echo "A LONE LEASE PUSH MAY PIPE ITS OUTPUT AND START WITH A PLAIN cd"
+# Only readers that cannot run or write anything may follow the push, and only
+# one literal `cd <dir> &&` (or `;`) may come before it; the check then runs in
+# that folder.
+run_in 0 "F1 form: own work | grep -v hint"      "$ME" 'git push --force-with-lease origin solo 2>&1 | grep -v hint'
+run_in 0 "own work | tail -n 5"                   "$ME" 'git push --force-with-lease origin solo 2>&1 | tail -n 5'
+run_in 0 "own work | head -3 | wc -l"            "$ME" 'git push --force-with-lease origin solo 2>&1 | head -3 | wc -l'
+run_in 0 "own work | sed -n '/hint/p'"           "$ME" "git push --force-with-lease origin solo 2>&1 | sed -n '/hint/p'"
+run_in 0 "own work | awk '{print \$1}'"          "$ME" "git push --force-with-lease origin solo 2>&1 | awk '{print \$1}'"
+run_in 0 "own work | sort | uniq | cat"          "$ME" 'git push --force-with-lease origin solo 2>&1 | sort | uniq | cat'
+run_in 0 "own work > file 2>&1"                  "$ME" 'git push --force-with-lease origin solo > /dev/null 2>&1'
+run_in 0 "own work >> file, 2> file"             "$ME" 'git push --force-with-lease origin solo >> /dev/null 2> /dev/null'
+run_in 2 "sam's commit | grep: still refused"    "$ME" 'git push --force-with-lease origin feature/checkout 2>&1 | grep -v hint'
+names_it "  ...on the merits, naming sam's commit"
+run_in 2 "| sh"                                   "$ME" 'git push --force-with-lease origin solo 2>&1 | sh'
+run_in 2 "| xargs"                                "$ME" 'git push --force-with-lease origin solo 2>&1 | xargs'
+run_in 2 "| tee >(...)"                           "$ME" 'git push --force-with-lease origin solo 2>&1 | tee >(cat)'
+run_in 2 "| awk '{system(\$0)}'"                  "$ME" "git push --force-with-lease origin solo 2>&1 | awk '{system(\$0)}'"
+run_in 2 "| awk getline from a command"           "$ME" 'git push --force-with-lease origin solo 2>&1 | awk '\''{"git fetch" | getline x}'\'''
+run_in 2 "| awk print > file"                     "$ME" 'git push --force-with-lease origin solo 2>&1 | awk '\''{print > "out"}'\'''
+run_in 2 "| sed -n with a w command"              "$ME" "git push --force-with-lease origin solo 2>&1 | sed -n 'w out'"
+run_in 2 "| sed without -n"                        "$ME" "git push --force-with-lease origin solo 2>&1 | sed 's/a/b/e'"
+run_in 2 "| sort -o file"                         "$ME" 'git push --force-with-lease origin solo 2>&1 | sort -o out'
+run_in 2 "| grep with a \$(fetch) pattern"       "$ME" 'git push --force-with-lease origin solo 2>&1 | grep "$(git fetch -q origin)"'
+run_in 2 "a reader BEFORE the push"               "$ME" 'cat /dev/null | git push --force-with-lease origin solo'
+run_in 0 "cd repo && own work"                    "$LT" 'cd me && git push --force-with-lease origin solo'
+run_in 0 "cd repo ; own work"                     "$LT" 'cd me ; git push --force-with-lease origin solo'
+run_in 0 "cd repo && own work | grep"             "$LT" 'cd me && git push --force-with-lease origin solo 2>&1 | grep -v hint'
+run_in 2 "cd repo && sam's commit"                "$LT" 'cd me && git push --force-with-lease origin feature/checkout'
+names_it "  ...checked in that repo, naming sam's commit"
+run_in 2 "cd up && no refspec (upstream there)"   "$LT" 'cd up && git push --force-with-lease origin'
+run_in 2 "cd "\$X" && ..."                       "$LT" 'cd "$X" && git push --force-with-lease origin solo'
+run_in 2 "cd ~user && ..."                         "$LT" 'cd ~me && git push --force-with-lease origin solo'
+run_in 2 "cd repo & push (background cd)"         "$LT" 'cd me & git push --force-with-lease origin solo'
+run_in 2 "cd repo || push"                        "$LT" 'cd me || git push --force-with-lease origin solo'
+run_in 2 "two cds"                                "$LT" 'cd me && cd . && git push --force-with-lease origin solo'
+run_in 2 "cd -P repo && ..."                      "$LT" 'cd -P me && git push --force-with-lease origin solo'
 
 echo
 echo "A MERGE SOMEONE ELSE MADE, with a change of its own"

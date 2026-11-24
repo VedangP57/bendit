@@ -327,7 +327,11 @@ It refuses:
   A merge by someone else whose own change (a conflict fix) would be lost
   counts too. **The push must stand alone:** bendit checks a lease push only
   when it is the one plain command in the Bash call — no other command or
-  pipe stage (not even `2>&1 | grep`), no prefix (`VAR=`, `HOME=`, `GIT_*=`),
+  pipe stage, except one leading literal `cd <dir> &&` (or `;`), which moves
+  the check to that folder, and output readers after the push (`grep`,
+  `tail`, `head`, `cat`, `wc`, `sort`, `uniq`, `sed -n` that only prints, `awk`
+  with no `system(`, `getline`, `|` or `>`) and redirections of its output;
+  no prefix (`VAR=`, `HOME=`, `GIT_*=`),
   no wrapper (`xargs`, `sh -c`, `eval`, `nohup`, `timeout`, `sudo`…), no
   function or alias in the line, no run-time word (`$(…)`, backticks,
   `$VAR`, `${…}`, a glob, a brace expansion, `~user`, `<(…)`), and no

@@ -4,6 +4,45 @@ All notable changes. Dates are UTC.
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-11-24
+
+A guard for force-pushes that would discard someone else's work, a safer way to
+add guards, and a clearer install.
+
+### Added
+- **Lease rule.** A `git push --force-with-lease` whose expected commit is not
+  your own work (so it would discard someone else's commits) is refused. A plain
+  `--force-with-lease`, and a lease that rebases your own work, still work. What
+  the rule cannot see is listed in [docs/reference.md](docs/reference.md).
+- **`/bendit:new-guard` proves a guard first.** A new guard must block a real
+  past command, and still allow your ordinary commands, before it is turned on.
+  A guard that crashes does not count as proof.
+- **A local release check** (`plugins/bendit/evals/bench/release-check.sh`). It
+  runs on your machine against a pinned baseline, with held-out cases.
+
+### Changed
+- **INSTALL.md** is pinned to the release tag. The trust command uses the
+  installed copy and works from a subfolder or a worktree. `/reload-plugins`
+  replaces a restart.
+- **README:** plain words first, npx first, and a prompt that has Claude
+  install bendit.
+
+### Fixed
+- **The grow guide hides secrets.** Past commands it replays are shown
+  redacted.
+- **The doctor prints each block once.**
+- **The benchmark grader counts a push only when git actually runs push**, not
+  when the word merely appears, and not when it hides behind `--exec-path` or a
+  variable.
+- **The installer says where bendit installs from** and handles a missing
+  registry.
+
+### Benchmark note
+The force-push re-measure (32 Haiku runs) had no run that tried the push, so it
+could not test the new rule. The rule is proven by a test that replays the exact
+command from v0.5.2's losing runs. This release does not claim a safety
+improvement from the benchmark.
+
 ## [0.5.2] - 2026-11-23
 
 A fix for the doctor in git worktrees, and the first with/without benchmark.

@@ -42,7 +42,7 @@ bendit                 # run in your project folder
 ```
 
 That URL is "latest". To pin a release, put its tag in the URL, for example
-`https://raw.githubusercontent.com/VedangP57/bendit/v0.5.2/install.sh`
+`https://raw.githubusercontent.com/VedangP57/bendit/v0.5.3/install.sh`
 (`/<tag>/` for any other release).
 
 **What it does.** The installer checks that your machine has what bendit needs

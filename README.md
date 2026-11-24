@@ -12,17 +12,25 @@
 </div>
 
 bendit is a free add-on for [Claude Code](https://claude.com/claude-code). It
-blocks dangerous commands, like deleting a folder or overwriting work saved on
-GitHub. It also makes the AI run your project's tests before it says "done".
+blocks dangerous commands, like deleting a folder or overwriting work saved
+online. Once you approve your test command, it also makes the AI run your
+tests before it says "done".
 
 **Without bendit:** you ask Claude to "clean up", it deletes a folder, and the
 work is gone. Or it says "fixed!" and the tests were never run.
 
 **With bendit:** Claude is stopped before the delete and told to ask you
-first. It cannot finish until your tests pass, or it tells you plainly that
-they did not.
+first. When Claude changes code, bendit runs your approved tests before
+Claude may finish. If they still fail, or Claude skips them, you are told
+plainly that the work was not checked.
+
+No tests in your project (say, a small website)? bendit still blocks
+dangerous commands, and tells you plainly when Claude's changes were not
+checked.
 
 ## Install
+
+**Not sure which to pick?** Use [Or let Claude install it](#or-let-claude-install-it) below.
 
 Open a Terminal in your project folder (macOS or Linux) and run **one** of these:
 
@@ -42,12 +50,15 @@ pipx run bendit
 brew install vedangp57/tap/bendit && bendit
 ```
 
-Any one is enough. They are the same installer: it checks your computer, asks
-before installing anything, then opens Claude Code to finish.
+`npx` needs Node, `pipx` needs Python, `brew` needs Homebrew; `curl` is already
+on macOS and most Linux. Any one is enough. They are the same installer: it
+checks your computer, downloads bendit, asks before installing any other tool
+it needs, then opens Claude Code to finish.
 
 ## Or let Claude install it
 
-Open Claude Code in your project and paste this:
+Open Claude Code in your project and paste this. Claude checks what your
+computer needs, and shows you the list before it changes anything:
 
 ```text
 Install bendit (github.com/VedangP57/bendit) in this project.
@@ -58,18 +69,20 @@ Never run the approval (--trust) command yourself. When done, tell me in plain w
 
 ## Two things only you can do
 
-Claude will remind you of both.
-
-1. **Approve your tests.** At the end, Claude gives you one command. Open a
-   new Terminal window (not the chat), paste it and type `y`. This is you, not
-   the AI, saying which tests must pass before the AI may say "done".
-2. **Turn bendit on.** If Claude asks you to, type `/reload-plugins`. When
-   setup is finished, close Claude, open it again in the same project and type
-   `/bendit:doctor`.
+1. **Approve your tests.** If your project has tests, setup ends by giving you
+   one command. Open a new Terminal window (not the chat), paste it and type
+   `y`. This is you, not the AI, approving the command that tests your project.
+2. **Turn bendit on.** Type these in Claude Code. If Claude asks you to, type
+   `/reload-plugins` (it loads new add-ons). When setup is finished, close
+   Claude, open it again in the same project and type `/bendit:doctor`
+   (bendit's self-check).
 
 When everything works, the last line you see is:
 
 > bendit is active in this window: it just stopped a test force-push, as it should.
+
+(A force-push can overwrite work saved online. bendit tries a harmless fake one
+on itself, to prove it is on.)
 
 ---
 

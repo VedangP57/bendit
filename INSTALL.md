@@ -35,7 +35,7 @@ command -v claude && command -v git && python3 -c 'import sys; sys.exit(0 if sys
 Otherwise, find out what is missing. This installs nothing:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh | bash -s -- --check
+curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/v0.5.3/install.sh | bash -s -- --check
 ```
 
 Tell the person what it printed, then stop. Do not install the tools yourself.
@@ -43,7 +43,7 @@ The person can run the installer in their own terminal, where it asks before
 each install:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/v0.5.3/install.sh | bash
 ```
 
 ## 2. Show the plan, then check that the name `bendit` is free
@@ -97,9 +97,10 @@ Otherwise:
 2. **Fetch bendit** into a new temporary folder:
 
    ```bash
-   K="$(mktemp -d)" && git clone --depth 1 https://github.com/VedangP57/bendit "$K/bendit" && echo "KIT=$K/bendit"
+   K="$(mktemp -d)" && git clone --depth 1 --branch v0.5.3 https://github.com/VedangP57/bendit "$K/bendit" && echo "KIT=$K/bendit"
    ```
 
+   This downloads the exact release, `v0.5.3`, never the moving `main` branch.
    Note the path after `KIT=`. Shell variables do not last from one command
    to the next, so in the commands below, write that path where `<KIT>` is.
 
@@ -167,12 +168,10 @@ bendit files and prints one approval command for the person.
 test -f .claude/bendit.json
 ```
 
-Otherwise, Claude Code loads a new plugin when it starts. If `/bendit:adopt`
-is already among the commands you can run, run it. If not, ask the person to:
-
-1. close Claude Code;
-2. open it again in this project;
-3. type `/bendit:adopt`.
+Otherwise, Claude Code only notices a new plugin when it reloads. If
+`/bendit:adopt` is already among the commands you can run, run it. If not, ask
+the person to type `/reload-plugins` and then `/bendit:adopt`. No restart is
+needed for this.
 
 Either way, `/bendit:adopt` asks the person its question. Wait for their
 reply. Never reply for them. A run that stops part way is safe to repeat: it
@@ -185,8 +184,27 @@ person's computer with their permissions. So a person, not the agent, approves
 it, with a command that `/bendit:adopt` prints. It looks like this:
 
 ```bash
-python3 <bendit's folder>/scripts/require-verification.py --trust <project folder>
+python3 <bendit's installed folder>/scripts/require-verification.py --trust <project folder>
 ```
+
+`<bendit's installed folder>` is the copy Claude Code installed in step 3. It
+is not the temporary download, which step 3 deleted. This prints it, and only
+reads:
+
+```bash
+python3 -c '
+import json, os, sys
+root = os.path.realpath(".")
+reg = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"), "plugins", "installed_plugins.json")
+es = json.load(open(reg)).get("plugins", {}).get("bendit@bendit", [])
+here = [e["installPath"] for e in es if e.get("scope") == "project" and os.path.realpath(e.get("projectPath") or "/") == root]
+anyw = [e["installPath"] for e in es if e.get("scope") == "user"]
+print((here or anyw or [sys.exit("bendit is not installed for this project")])[0])'
+```
+
+Write that path into the command you hand over, in full, and check that
+`require-verification.py` exists under its `scripts` folder. If `/bendit:adopt`
+already printed the command with a path you can see exists, use that one.
 
 Never run it yourself. bendit's own guard refuses it from the agent anyway. Ask
 the person to open a new Terminal window (not the chat), paste the command
@@ -220,7 +238,9 @@ This check only reads. Run it again after the person says they are done.
 window the person will use.
 
 Ask the person to close Claude Code, open it again in this project and type
-`/bendit:doctor`. When everything works, it ends with:
+`/bendit:doctor`. This is the one place a restart stays: `/reload-plugins` is
+not known to switch on bendit's guards in a window that was already open, and
+this step must prove them in the window the person will really use. When everything works, it ends with:
 
 > bendit is active in this window: it just stopped a test force-push, as it should.
 

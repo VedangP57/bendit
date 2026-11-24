@@ -86,6 +86,13 @@ expect_capture "--version" run_installer "$S" --version
 chk "--version exits 0"               "$EXPECT_CODE" 0
 chk "--version prints the version"    "$EXPECT_STDOUT" "bendit installer $VERSION"
 chk "BENDIT_VERSION equals plugin.json" "$VERSION" "$PLUGIN_VERSION"
+# INSTALL.md is what an agent follows: every release tag it names must be this
+# release's (a bump that forgets it fails here), and it must name at least one.
+# BENDIT_INSTALL_MD lets the test be pointed at another copy.
+INSTALL_MD="${BENDIT_INSTALL_MD:-$SD/../../../INSTALL.md}"
+INSTALL_MD_TAGS="$(grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' "$INSTALL_MD" 2>/dev/null | sort -u | tr '\n' ' ')"
+chk "INSTALL.md names only the tag v$PLUGIN_VERSION" "$INSTALL_MD_TAGS" "v$PLUGIN_VERSION "
+chk "INSTALL.md fetches nothing from main" "$(grep -c 'bendit/main/' "$INSTALL_MD")|$(grep 'git clone' "$INSTALL_MD" | grep -vc -- '--branch v[0-9]')" "0|0"
 expect_capture "--help" run_installer "$S" --help
 chk "--help exits 0"                  "$EXPECT_CODE" 0
 for f in --check --version --help; do

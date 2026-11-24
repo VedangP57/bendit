@@ -186,7 +186,7 @@ person's computer with their permissions. So a person, not the agent, approves
 it, with a command that `/bendit:adopt` prints. It looks like this:
 
 ```bash
-python3 <bendit's installed folder>/scripts/require-verification.py --trust <project folder>
+python3 "<bendit's installed folder>/scripts/require-verification.py" --trust "<project folder>"
 ```
 
 `<bendit's installed folder>` is the copy Claude Code installed in step 3. It
@@ -266,7 +266,7 @@ the person when they are the person's to do.
 
 ## If something goes wrong
 
-- `/bendit:doctor` says which guards are off, and why.
+- `/bendit:doctor` says which of bendit's protections are not working, and why.
 - "Unknown command": type the prefix, `/bendit:adopt`, not `/adopt`.
 - To undo everything, the report from `/bendit:adopt` ends with a "How to undo
   all of it" section with the exact commands for this project.

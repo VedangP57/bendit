@@ -10,12 +10,13 @@ for [Claude Code](https://claude.com/claude-code).
 From inside your project folder, on macOS or Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh | bash
 npx bendit
+curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh | bash
 pipx run bendit        # or: uvx bendit
+brew install vedangp57/tap/bendit && bendit
 ```
 
-Any one of the three does the same thing: it checks your machine, asks before
+Any one of these does the same thing: it checks your machine, asks before
 installing anything, and opens Claude Code on `/bendit:adopt`: one question,
 then one approval line. Engineers who want every choice can run
 `/bendit:adopt --detailed`.

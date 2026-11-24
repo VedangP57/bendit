@@ -100,6 +100,27 @@ chk "a clone with --branch v0.5 is caught" "$(grep 'git clone' "$T/short-branch.
 # Adding one needs a decision, so the wording and the bare command are pinned.
 chk "INSTALL.md marketplace add has no ref" "$(grep -c '^  claude plugin marketplace add https://github.com/VedangP57/bendit --scope project$' "$INSTALL_MD")" 1
 chk "INSTALL.md says bendit installs from main" "$(tr '\n' ' ' < "$INSTALL_MD" | tr -s ' ' | grep -c 'bendit installs from its main branch, which only changes when a new release is published')" 1
+# The README's install lines and paste-in prompt: every tag on a line naming
+# this repository must be this release's, and there must be one. The README's
+# other versions (benchmark and eval history) never sit on such a line.
+echo "README install lines and prompt"
+README_MD="${BENDIT_README_MD:-$SD/../../../README.md}"
+readme_tags() { grep -F 'VedangP57/bendit' "$1" 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | sort -u | tr '\n' ' '; }
+chk "README names only the tag v$PLUGIN_VERSION" "$(readme_tags "$README_MD")" "v$PLUGIN_VERSION "
+chk "README prompt follows INSTALL.md at the tag" "$(grep -c "^Follow https://raw.githubusercontent.com/VedangP57/bendit/v$PLUGIN_VERSION/INSTALL.md step by step" "$README_MD")" 1
+chk "README curl line is pinned to the tag" "$(grep -c "^curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/v$PLUGIN_VERSION/install.sh | bash\$" "$README_MD")" 1
+# A stale tag is caught, whatever this release is: a README written for v0.5.2,
+# and one where only the curl line was bumped, both fail against 0.5.3.
+printf 'curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/v0.5.2/install.sh | bash\nFollow https://raw.githubusercontent.com/VedangP57/bendit/v0.5.2/INSTALL.md step by step\n' > "$T/readme-old.md"
+chk "a README with v0.5.2 fails against 0.5.3" "$([ "$(readme_tags "$T/readme-old.md")" = "v0.5.3 " ] && echo passed || echo failed)" failed
+sed '1s/v0\.5\.2/v0.5.3/' "$T/readme-old.md" > "$T/readme-half.md"
+chk "a README bumped only on one line fails" "$([ "$(readme_tags "$T/readme-half.md")" = "v0.5.3 " ] && echo passed || echo failed)" failed
+sed 's/v0\.5\.2/v0.5.3/g' "$T/readme-old.md" > "$T/readme-new.md"
+chk "CONTROL: the same README at v0.5.3 passes" "$([ "$(readme_tags "$T/readme-new.md")" = "v0.5.3 " ] && echo passed || echo failed)" passed
+# Order on the first screen: npx, then curl, then pipx, then brew.
+ln_of() { grep -nE "$1" "$README_MD" | head -1 | cut -d: -f1; }
+l1="$(ln_of '^npx bendit$')"; l2="$(ln_of '^curl -fsSL .*/install\.sh \| bash$')"; l3="$(ln_of '^pipx run bendit$')"; l4="$(ln_of '^brew install vedangp57/tap/bendit && bendit$')"
+chk "README install order is npx, curl, pipx, brew" "$([ -n "$l1" ] && [ -n "$l2" ] && [ -n "$l3" ] && [ -n "$l4" ] && [ "$l1" -lt "$l2" ] && [ "$l2" -lt "$l3" ] && [ "$l3" -lt "$l4" ] && echo yes || echo "no ($l1 $l2 $l3 $l4)")" yes
 # The trust-path one-liner, extracted from INSTALL.md itself so it cannot drift.
 echo "INSTALL.md installed-path one-liner"
 TP="$T/trustpath"; mkdir -p "$TP/cfg/plugins" "$TP/repo" && ( cd "$TP/repo" && git init -q && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m i && mkdir sub && git worktree add -q "$TP/wt" -b wt 2>/dev/null )

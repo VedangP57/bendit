@@ -230,7 +230,7 @@ else
 fi
 pin "$IN" '/bendit:adopt'
 pin "$IN" '/bendit:doctor'
-pin "$IN" 'require-verification.py --trust'
+pin "$IN" 'require-verification.py" --trust "<project folder>"'
 pin "$IN" 'Never run it yourself'
 pin "$IN" 'claude plugin install bendit@bendit --scope project'
 # Nothing is installed before the person has seen one summary and said yes, and
@@ -265,7 +265,24 @@ pin "$NT" 'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND'
 pin "$NT" 'plugins/bendit/scripts/vocabulary.json'
 pin "$NT" 'https://github.com/poteto/noodle'
 pin "$KIT/scripts/vocabulary.json" '"notice": "NOTICE'
-pin "$RM" 'Paste into Claude Code: Install bendit in this project by following https://raw.githubusercontent.com/VedangP57/bendit/main/INSTALL.md'
+# The README's paste-in prompt, line by line: it pins the runbook to this
+# release's tag (install.test.sh binds the tag to plugin.json) and carries the
+# two guardrails that hold even if the fetched file were tampered with.
+pin "$RM" 'Install bendit (github.com/VedangP57/bendit) in this project.'
+pin "$RM" 'step by step; use no other web page.'
+pin "$RM" 'Before you install or change anything, show me the full list and wait for my yes.'
+pin "$RM" 'Never run the approval (--trust) command yourself. When done, tell me in plain words the steps only I can do.'
+hasnt "$RM" 'bendit/main/INSTALL.md'
+# The first screen (everything above the "How it works and the proof" link) is
+# for a reader who is not an engineer: none of the expert words below.
+FS="$(mktemp)"; sed -n '1,/How it works and the proof/p' "$RM" > "$FS"
+if grep -q 'How it works and the proof' "$FS" && [ "$(wc -l < "$FS")" -lt "$(wc -l < "$RM")" ]; then
+  printf '  ok    README first screen found (%s lines)\n' "$(wc -l < "$FS" | tr -d ' ')"; pass=$((pass+1))
+else printf '  FAIL  README has no "How it works and the proof" line ending its first screen\n'; fail=$((fail+1)); fi
+jargon="$(grep -inwE 'hooks?|guards?|PreToolUse|harness|fail(s)? closed|the user' "$FS")"
+if [ -z "$jargon" ]; then printf '  ok    README first screen has no expert words\n'; pass=$((pass+1))
+else printf '  FAIL  README first screen has expert words: %s\n' "$jargon"; fail=$((fail+1)); fi
+rm -f "$FS"
 pin "$RM" '**Start here:**'
 # INSTALL step 2's "Skip if" accepts every URL form install-route accepts
 # for this repo (else a false "not installed", a needless re-run), and no other repo.

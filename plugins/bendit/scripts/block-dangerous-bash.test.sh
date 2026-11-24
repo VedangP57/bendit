@@ -798,6 +798,16 @@ lg() { GIT_AUTHOR_NAME="$1" GIT_AUTHOR_EMAIL="$1@example.invalid" GIT_COMMITTER_
   ln -s .git "$LT/stage/gl"; ln -s "$LT/me/.git" "$LT/stage/abs"
   git clone -q -b solo "$LT/remote.git" "$LT/inc3"; git -C "$LT/inc3" config user.email me@example.invalid
   git -C "$LT/inc3" config include.path "$LT/missing.cfg"
+  # temp-chores verify: hooks folders in temp (core.hooksPath, a symlinked
+  # .git/hooks, a hooksPath not there yet), a hard link to a .git/config.
+  for r in hka hkb hkc hld; do
+    git clone -q -b solo "$LT/remote.git" "$LT/$r"; git -C "$LT/$r" config user.email me@example.invalid
+  done
+  mkdir -p "$LT/hooksA" "$LT/hookd" "$LT/hd"; printf '#!/bin/sh\n' >"$LT/hd/pre-push"
+  git -C "$LT/hka" config core.hooksPath "$LT/hooksA"
+  rm -rf "$LT/hkb/.git/hooks"; ln -s "$LT/hookd" "$LT/hkb/.git/hooks"
+  git -C "$LT/hkc" config core.hooksPath "$LT/hooksMissing"
+  ln "$LT/hld/.git/config" "$LT/hl"
   # evil.cfg: a push mapping that sends co over feature/checkout (cur's upstream).
   printf '[remote "origin"]\n\tpush = refs/heads/co:refs/heads/feature/checkout\n' >"$LT/evil.cfg"
   mkdir -p "$LT/h" "$LT/x/git"; cp "$LT/evil.cfg" "$LT/h/.gitconfig"; cp "$LT/evil.cfg" "$LT/x/git/config"
@@ -1183,6 +1193,14 @@ run_in 2 "a temp root itself"                     "$ME" 'rm -f /tmp && git push 
 run_in 2 "a .. in a temp path"                    "$ME" 'touch /tmp/a/../b && git push --force-with-lease origin solo'
 run_in 0 "CONTROL: the pilot: rm -rf /tmp/<dir> && own push" "$ME" 'rm -rf /tmp/bendit-old-reports && git push --force-with-lease origin solo'
 run_in 0 "CONTROL: a plain temp file, then own push" "$ME" "touch $LT/stage2/plain.txt && git push --force-with-lease origin solo"
+OWNS="git push --force-with-lease origin solo"
+run_in 2 "A1/N1: cp into core.hooksPath (temp)"   "$LT/hka" "cp $LT/evil.cfg $LT/hooksA/pre-push && $OWNS"
+run_in 2 "A2/N1: cp into a symlinked .git/hooks"  "$LT/hkb" "cp $LT/evil.cfg $LT/hookd/pre-push && $OWNS"
+run_in 2 "A9/N1: mv a folder onto a missing hooksPath" "$LT/hkc" "mv $LT/hd $LT/hooksMissing && $OWNS"
+run_in 2 "A3/N2: cp onto a hard link to .git/config" "$LT/hld" "cp $LT/evil.cfg $LT/hl && $OWNS"
+run_in 2 "A4/N3: cp into the bare remote's hooks"  "$ME" "cp $LT/evil.cfg $LT/remote.git/hooks/post-receive && $OWNS"
+run_in 2 "A8/N3: mv the bare remote's ref"         "$ME" "mv $LT/remote.git/refs/heads/solo $LT/stage2/old && $OWNS"
+run_in 0 "CONTROL: temp cleanup, then own push"    "$ME" "rm -rf /tmp/bendit-verify-old && $OWNS"
 
 echo
 echo "A MERGE SOMEONE ELSE MADE, with a change of its own"

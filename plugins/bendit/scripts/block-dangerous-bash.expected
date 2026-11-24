@@ -3280,7 +3280,7 @@ If this is genuinely required, ask the human to run it.
 === I2: mv a link within temp, write through
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` comes after `mv …/abs …/abs`, whose path `…/abs` is inside a git repository. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, prefix, wrapper, variable or routing `-c`; only a leading `cd <dir> &&`, plain file chores before it (`rm`, `mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` on literal paths in a temp folder outside any git repository), output readers after it (`| grep`, `| tail`) and `2>&1` or `>/dev/null` are fine — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+BLOCKED by bendit safety hook: `--force-with-lease` comes after `mv …/abs …/abs`, whose path `…/abs` is inside a git repository (a bare one). bendit checks a lease push only when it is the one plain command in the Bash call — no other command, prefix, wrapper, variable or routing `-c`; only a leading `cd <dir> &&`, plain file chores before it (`rm`, `mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` on literal paths in a temp folder outside any git repository), output readers after it (`| grep`, `| tail`) and `2>&1` or `>/dev/null` are fine — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
 If this is genuinely required, ask the human to run it.
 
 === I2: cp -a a folder holding a link
@@ -3330,6 +3330,46 @@ exit 0
 (silent)
 
 === CONTROL: a plain temp file, then own push
+exit 0
+(silent)
+
+=== A1/N1: cp into core.hooksPath (temp)
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` comes after `cp …/evil.cfg …/pre-push`, whose path `…/pre-push` is, holds or lies in a file or folder git reads for this push. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, prefix, wrapper, variable or routing `-c`; only a leading `cd <dir> &&`, plain file chores before it (`rm`, `mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` on literal paths in a temp folder outside any git repository), output readers after it (`| grep`, `| tail`) and `2>&1` or `>/dev/null` are fine — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== A2/N1: cp into a symlinked .git/hooks
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` comes after `cp …/evil.cfg …/pre-push`, whose path `…/pre-push` is, holds or lies in a file or folder git reads for this push. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, prefix, wrapper, variable or routing `-c`; only a leading `cd <dir> &&`, plain file chores before it (`rm`, `mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` on literal paths in a temp folder outside any git repository), output readers after it (`| grep`, `| tail`) and `2>&1` or `>/dev/null` are fine — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== A9/N1: mv a folder onto a missing hooksPath
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` comes after `mv …/hd …/hooksMissing`, whose path `…/hooksMissing` is, holds or lies in a file or folder git reads for this push. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, prefix, wrapper, variable or routing `-c`; only a leading `cd <dir> &&`, plain file chores before it (`rm`, `mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` on literal paths in a temp folder outside any git repository), output readers after it (`| grep`, `| tail`) and `2>&1` or `>/dev/null` are fine — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== A3/N2: cp onto a hard link to .git/config
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` comes after `cp …/evil.cfg …/hl`, whose path `…/hl` is a hard link, which may be another file git reads. bendit checks a lease push only when it is the one plain command in the Bash call — no other command, prefix, wrapper, variable or routing `-c`; only a leading `cd <dir> &&`, plain file chores before it (`rm`, `mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` on literal paths in a temp folder outside any git repository), output readers after it (`| grep`, `| tail`) and `2>&1` or `>/dev/null` are fine — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== A4/N3: cp into the bare remote's hooks
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` comes after `cp …/evil.cfg …/post-receive`, whose path `…/post-receive` is inside a git repository (a bare one). bendit checks a lease push only when it is the one plain command in the Bash call — no other command, prefix, wrapper, variable or routing `-c`; only a leading `cd <dir> &&`, plain file chores before it (`rm`, `mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` on literal paths in a temp folder outside any git repository), output readers after it (`| grep`, `| tail`) and `2>&1` or `>/dev/null` are fine — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== A8/N3: mv the bare remote's ref
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` comes after `mv …/solo …/old`, whose path `…/solo` is inside a git repository (a bare one). bendit checks a lease push only when it is the one plain command in the Bash call — no other command, prefix, wrapper, variable or routing `-c`; only a leading `cd <dir> &&`, plain file chores before it (`rm`, `mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` on literal paths in a temp folder outside any git repository), output readers after it (`| grep`, `| tail`) and `2>&1` or `>/dev/null` are fine — because anything else can change what it pushes or what git compares against. Run the push by itself, as one plain command, so bendit can check it.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: temp cleanup, then own push
 exit 0
 (silent)
 

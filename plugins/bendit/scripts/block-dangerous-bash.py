@@ -554,7 +554,9 @@ def push_deletes_remote_refs(s):
 # only on literal paths that, every symlink resolved, lie under a system temp
 # root (/tmp, /var/folders, DARWIN_USER_TEMP_DIR; never $TMPDIR), in no git
 # repository (a `.git` found walking up, case-insensitively), outside the
-# push repo and every config or include file git lists, with no `..`, no
+# push repo (its hooks folder and core.hooksPath included) and every config
+# or include file git lists, never a bare repository or a hard-linked file,
+# with no `..`, no
 # dangling link and no cp/mv of a symlink, and
 # output readers after it -- grep, tail, head, cat, wc, sort, uniq, `sed -n`
 # printing, awk with no system/getline/pipe/redirect -- excepted, and
@@ -586,7 +588,9 @@ def push_deletes_remote_refs(s):
 # tracking ref is assumed to be refs/remotes/<remote>/<branch> (the default
 # fetch refspec). State changed by an EARLIER, separate Bash call that git's
 # own config resolution does not reflect -- a shell variable exported earlier
-# in the session -- is not seen: the hook runs with its own environment. A
+# in the session -- is not seen: the hook runs with its own environment. Code
+# that runs during a push (hooks set up earlier, tools that push for you) is
+# outside what a reader of the command line can see. A
 # lease flag only a file or another program supplies is not seen. A plain
 # force push from config (remote.<r>.mirror, a `+` remote.<r>.push refspec,
 # an alias to `push --force`) is not caught by any rule.
@@ -866,6 +870,10 @@ def _temp_path_problem(full, roots):
     while True:
         if os.path.lexists(os.path.join(probe, '.git')):   # case-insensitive volumes match .GIT
             return 'is inside a git repository'
+        if os.path.isfile(os.path.join(probe, 'HEAD')) and \
+                os.path.isdir(os.path.join(probe, 'objects')) and \
+                os.path.isdir(os.path.join(probe, 'refs')):
+            return 'is inside a git repository (a bare one)'
         parent = os.path.dirname(probe)
         if parent == probe:
             break
@@ -882,10 +890,19 @@ def _push_repo_paths(s):
     home = os.environ.get('HOME') or os.path.expanduser('~')
     xdg = os.environ.get('XDG_CONFIG_HOME') or os.path.join(home, '.config')
     out = {os.path.join(home, '.gitconfig'), os.path.join(xdg, 'git')}
-    for args in (['--show-toplevel'], ['--absolute-git-dir'], ['--git-common-dir']):
+    top = cwd
+    for args in (['--show-toplevel'], ['--absolute-git-dir'], ['--git-common-dir'],
+                 ['--git-path', 'hooks']):
         code, val = g.run(['rev-parse'] + args)
         if code == 0 and val.strip():
             out.add(os.path.join(cwd, val.strip()))
+            if args == ['--show-toplevel']:
+                top = val.strip()
+    # The folder git runs hooks from during the push: core.hooksPath, which
+    # may point outside the repository (into a temp folder) or not exist yet.
+    for value in g.config_all('core.hooksPath'):
+        value = os.path.expanduser(value.strip())
+        out.update({os.path.join(top, value), os.path.join(cwd, value)})
     code, listed = g.run(['config', '--list', '--show-origin'])
     if code != 0:
         raise _GitCannotTell(f'git config --list --show-origin exited {code}')
@@ -902,6 +919,24 @@ def _push_repo_paths(s):
                 target = os.path.expanduser(target)
                 out.add(os.path.join(os.path.dirname(os.path.join(cwd, path)), target))
     return {_fold(os.path.realpath(p)).rstrip('/') for p in out if p}
+
+
+def _hard_link(full, c, p, sources):
+    """Why writing `full` could rewrite another file through a hard link: an
+    existing file with more than one link, or, for a cp/mv destination that is
+    a folder, such a file under the source's name inside it."""
+    targets = [full]
+    if c.argv[0] in ('cp', 'mv') and p not in sources and os.path.isdir(full):
+        targets += [os.path.join(full, os.path.basename(x.rstrip('/'))) for x in sources]
+    for t in targets:
+        try:
+            st = os.lstat(t)
+        except OSError:
+            continue
+        import stat
+        if not stat.S_ISDIR(st.st_mode) and st.st_nlink > 1:
+            return 'is a hard link, which may be another file git reads'
+    return None
 
 
 def _chore_problem(s, cmds):
@@ -928,6 +963,8 @@ def _chore_problem(s, cmds):
         for p in paths:
             full = os.path.join(shell_cwd, p)
             why = _temp_path_problem(full, roots)
+            if why is None:
+                why = _hard_link(full, c, p, sources)
             if why is None:
                 folded = _fold(os.path.realpath(full)).rstrip('/')
                 if any(folded == r or _under(folded, r) or _under(r, folded) for r in repo):

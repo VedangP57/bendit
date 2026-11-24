@@ -367,7 +367,9 @@ It refuses:
   Known limit: state changed by an earlier, separate Bash call that git's own
   config resolution does not reflect — such as a shell variable exported
   earlier in the agent's session — is not seen by the guard, which runs with
-  its own environment.
+  its own environment. Known limit: the guard reads the command line. Code
+  that runs during a push — hooks set up earlier, or tools that push for
+  you — is outside what it can see.
   Known limit: authorship is the commit's author email, which anyone can set;
 - `git reset --hard`, `git checkout .`, `git restore .`, `git clean -f`;
 - deleting the folder the shell is in, or a parent of it;

@@ -52,12 +52,16 @@ snapshot with `--accept`, **read it**, and run again without `--accept`.
 
 Replay real history through it. Claude Code keeps session transcripts as JSONL
 under `~/.claude/projects/<project-path-with-dashes>/`; this feeds every Bash
-command recorded there to the guard and prints what it would have refused:
+command recorded there to the guard and prints what it would have refused.
+Transcripts hold secrets: print a command only through `fire_log.preview_of`
+(redacted, then cut to 120 characters), never raw, as this does:
 
 ```bash
-python3 - "$HOME/.claude/projects/<dir>" .claude/hooks/<name>.py <<'PY'
+python3 - "$HOME/.claude/projects/<dir>" .claude/hooks/<name>.py KIT/scripts <<'PY'
 import json, pathlib, subprocess, sys
 src, guard = pathlib.Path(sys.argv[1]), sys.argv[2]
+sys.path.insert(0, sys.argv[3])
+from fire_log import preview_of  # no fire_log, no output: never print unredacted
 seen = refused = 0
 for f in sorted(src.glob('*.jsonl')):
     for line in f.open(errors='replace'):
@@ -73,7 +77,7 @@ for f in sorted(src.glob('*.jsonl')):
                 r = subprocess.run(['python3', guard], input=p, capture_output=True, text=True)
                 if r.returncode == 2:
                     refused += 1
-                    print('REFUSED:', cmd[:160].replace('\n', ' '))
+                    print('REFUSED:', preview_of(cmd))
 print(f'{refused} of {seen} commands refused')
 PY
 ```
@@ -83,7 +87,25 @@ path. Read every REFUSED line. If most are legitimate work, narrow the rule or
 pick another layer. A rule that fires ninety times to catch one real mistake is
 worse than no rule.
 
-## 5. Turn it on and prove it
+## 5. Prove it on the real past command
+
+The guard must refuse the command the agent really ran. Take it from
+`/bendit:guard-report` (the `most recent` column) or from an example
+`/bendit:suggest-guards` printed, or ask the person to paste it.
+Never invent or retype a command to replay. Then:
+
+```bash
+bash KIT/scripts/new-guard.sh <name> --replay "<the real command>"
+```
+
+Every `--replay` must exit 2 with a reason, and every ordinary command must
+exit 0: a built-in list of ~20 everyday commands, or the person's own with
+`--allow-file <file>` (one per line). Exit 1 means not proven: fix the rule,
+not the replay. It never writes settings, and prints commands redacted.
+Adapted from poteto's pstack: prove each check catches a real past mistake
+before you trust it.
+
+## 6. Turn it on and prove it
 
 1. Show the user the snippet `new-guard.sh` printed and the merged
    `.claude/settings.json`; write it only on a yes.
@@ -94,7 +116,7 @@ worse than no rule.
    the prose rule it replaces: two definitions of one rule drift apart.
 4. Add `bash .claude/hooks/<name>.test.sh` to CI so the guard cannot rot.
 
-## 6. Measure whether it changed behaviour
+## 7. Measure whether it changed behaviour
 
 A guard that passes its suite is proved to refuse. Whether the *agent* now makes
 the mistake less often is a separate question, answered with an eval: a task

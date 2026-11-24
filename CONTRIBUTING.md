@@ -51,7 +51,7 @@ When you report what you verified, use the evidence rungs:
 ## Releasing
 
 1. Bump the version in all five places, to the same value (the Homebrew template
-   has no version of its own; step 6 passes it in, and the suite renders it and
+   has no version of its own; step 7 passes it in, and the suite renders it and
    compares it with `BENDIT_VERSION`): `BENDIT_VERSION` in
    `install.sh`, `version` in `plugins/bendit/.claude-plugin/plugin.json` and
    `plugins/bendit-web/.claude-plugin/plugin.json`, `packages/npm/package.json`
@@ -59,15 +59,33 @@ When you report what you verified, use the evidence rungs:
    differ).
 2. Run `packages/sync.sh` (copies `install.sh` into both wrappers) and commit.
 3. `bash .github/workflows/ci.sh` must end `CI passed: ...`.
-4. Tag `vX.Y.Z`, then push main and the tag together:
+4. On your own machine, signed in to Claude Code as usual (no API key):
+   `bash plugins/bendit/evals/bench/release-check.sh --dry-run` to see the plan,
+   its cost (about $3.50) and what it can catch, then
+   `bash plugins/bendit/evals/bench/release-check.sh`. Plugin trust is on by
+   default (each run builds a fresh empty plugin for the no-bendit arm, and
+   the harness cannot stop to ask). It first runs bendit's deterministic guard
+   suites and `prove.sh` for free: any failure there blocks with nothing spent.
+   It is a large-regression check, not a measurement: it covers the Stop
+   gate's gain (C2), friction (F1) and the force-push case (S3), and catches
+   only regressions as large as its `catches` lines say. It must end
+   `RELEASE CHECK: PASSED`. `BLOCKED` (exit 1): do not release.
+   `INCONCLUSIVE` (exit 3) clears nothing: run it again, and paste every
+   attempt's summary, not only the last. Paste `release-check.txt` (in the new
+   `results/adhoc-release-<time>/` folder) into the release PR. The first
+   release after the held-out cases exist runs it with `--pin-heldout` and
+   commits the files it writes. If a block comes from a change you made on
+   purpose (new friction you accept), say so in the PR; the baseline moves
+   only by re-deriving it from a new committed results folder.
+5. Tag `vX.Y.Z`, then push main and the tag together:
    `git push --atomic origin main vX.Y.Z`. The installer on main fetches that
    tag, so neither may land without the other.
-5. Publish, **only after the repo is public**, by the owner, from their own
+6. Publish, **only after the repo is public**, by the owner, from their own
    accounts: `npm publish` in `packages/npm`. For PyPI, in `packages/pypi`:
    `python3 -m pip install build twine`, then `rm -rf dist`,
    `python3 -m build`, check the wheel holds the installer
    (`unzip -l dist/*.whl | grep bendit/install.sh`), and `twine upload dist/*`.
-6. Homebrew, after the tag is pushed (the formula needs the tag tarball). The
+7. Homebrew, after the tag is pushed (the formula needs the tag tarball). The
    template is `packages/homebrew/bendit.rb.tmpl`; it takes the version and the
    tarball's sha256, never a copy of `install.sh`:
    `curl -fsSL https://github.com/VedangP57/bendit/archive/refs/tags/vX.Y.Z.tar.gz | shasum -a 256`,

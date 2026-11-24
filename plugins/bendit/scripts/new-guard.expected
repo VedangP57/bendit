@@ -24,6 +24,8 @@ Next:
   1. edit RULES in no-skip-hooks.py to encode the mistake, and the BLOCK/ALLOW cases in no-skip-hooks.test.sh
   2. bash "<tmp>/proj/.claude/hooks/no-skip-hooks.test.sh" --accept     (records no-skip-hooks.expected; read it)
   3. bash "<tmp>/proj/.claude/hooks/no-skip-hooks.test.sh"              (must pass with no --accept)
+  4. prove it on the real command the agent ran, before turning it on:
+     new-guard.sh no-skip-hooks --replay "<the real command>"
 
 === second scaffold of the same name
 exit 1
@@ -57,4 +59,139 @@ Next:
   1. edit RULES in outside-guard.py to encode the mistake, and the BLOCK/ALLOW cases in outside-guard.test.sh
   2. bash "<tmp>/elsewhere/outside-guard.test.sh" --accept     (records outside-guard.expected; read it)
   3. bash "<tmp>/elsewhere/outside-guard.test.sh"              (must pass with no --accept)
+  4. prove it on the real command the agent ran, before turning it on:
+     new-guard.sh outside-guard --replay "<the real command>"
+
+=== replay: a guard that refuses the real command and allows the built-in list
+exit 0
+--- stdout
+Proving no-force-push (<tmp>/proj/.claude/hooks/no-force-push.py)
+
+Real past commands (1): each must be refused (exit 2 with a reason)
+  refused      git push --force origin main
+               BLOCKED by no-force-push: test rule.
+
+Ordinary commands (22, built-in everyday list): each must be allowed (exit 0)
+  allowed      git status
+  allowed      git log --oneline -10
+  allowed      git diff
+  allowed      git diff --staged
+  allowed      git add -A
+  allowed      git commit -m "fix: handle empty input"
+  allowed      git push -u origin feature-branch
+  allowed      git pull --rebase
+  allowed      git checkout -b feature-branch
+  allowed      git branch -a
+  allowed      git stash
+  allowed      ls -la
+  allowed      cat README.md
+  allowed      grep -rn TODO src
+  allowed      npm test
+  allowed      npm run build
+  allowed      pnpm install
+  allowed      pytest -q
+  allowed      python3 -m pytest tests
+  allowed      make test
+  allowed      mkdir -p build
+  allowed      echo done
+
+PROVEN: no-force-push refuses all 1 real past command(s) and allows all 22 ordinary one(s).
+Not enabled. Nothing in settings was changed: show the person the snippet new-guard.sh printed when it scaffolded this guard, and add it only on a yes.
+
+=== replay: a guard that does not refuse the real command
+exit 1
+--- stdout
+Proving blocks-nothing (<tmp>/proj/.claude/hooks/blocks-nothing.py)
+
+Real past commands (1): each must be refused (exit 2 with a reason)
+  NOT REFUSED  git push --force origin main
+               exit 0: the guard let it through
+
+Ordinary commands (22, built-in everyday list): each must be allowed (exit 0)
+  allowed      git status
+  allowed      git log --oneline -10
+  allowed      git diff
+  allowed      git diff --staged
+  allowed      git add -A
+  allowed      git commit -m "fix: handle empty input"
+  allowed      git push -u origin feature-branch
+  allowed      git pull --rebase
+  allowed      git checkout -b feature-branch
+  allowed      git branch -a
+  allowed      git stash
+  allowed      ls -la
+  allowed      cat README.md
+  allowed      grep -rn TODO src
+  allowed      npm test
+  allowed      npm run build
+  allowed      pnpm install
+  allowed      pytest -q
+  allowed      python3 -m pytest tests
+  allowed      make test
+  allowed      mkdir -p build
+  allowed      echo done
+
+NOT PROVEN. Do not turn blocks-nothing on.
+  1 of 1 real past command(s) got through: the rule in blocks-nothing.py does not catch the mistake yet.
+  Fix the rule in blocks-nothing.py, not the replay, and run this again.
+
+=== replay: a guard that refuses everything
+exit 1
+--- stdout
+Proving blocks-all (<tmp>/proj/.claude/hooks/blocks-all.py)
+
+Real past commands (1): each must be refused (exit 2 with a reason)
+  refused      git push --force origin main
+               BLOCKED by blocks-all: test rule.
+
+Ordinary commands (22, built-in everyday list): each must be allowed (exit 0)
+  NOT ALLOWED  git status
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  git log --oneline -10
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  git diff
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  git diff --staged
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  git add -A
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  git commit -m "fix: handle empty input"
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  git push -u origin feature-branch
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  git pull --rebase
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  git checkout -b feature-branch
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  git branch -a
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  git stash
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  ls -la
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  cat README.md
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  grep -rn TODO src
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  npm test
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  npm run build
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  pnpm install
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  pytest -q
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  python3 -m pytest tests
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  make test
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  mkdir -p build
+               BLOCKED by blocks-all: test rule.
+  NOT ALLOWED  echo done
+               BLOCKED by blocks-all: test rule.
+
+NOT PROVEN. Do not turn blocks-all on.
+  22 of 22 ordinary command(s) were not allowed: a guard that fires on ordinary work gets uninstalled.
+  If one of those really is the mistake in this project, pass --allow-file with the commands this person runs every day instead of the built-in list.
+  Fix the rule in blocks-all.py, not the replay, and run this again.
 

@@ -91,6 +91,46 @@ hasnt "$SG" 'Bash(rm'
 hasnt "$SG" '.claude/settings.json'
 pin "$KIT/skills/adopt-bendit/references/grow.md" '/bendit:suggest-guards'
 
+echo; echo "NEW-GUARD: PROVE IT ON A REAL PAST COMMAND, NEVER AN INVENTED ONE"
+NG="$CMD/new-guard.md"
+GW="$KIT/skills/adopt-bendit/references/grow.md"
+pin "$NG" 'new-guard.sh <name> --replay "<the real command>"'
+pin "$NG" '`/bendit:guard-report`'
+pin "$NG" '`/bendit:suggest-guards`'
+pin "$NG" 'ask the person to paste it'
+pin "$NG" 'Never invent or retype a command to replay'
+pin "$NG" 'Exit 1 on a replay means the guard is not proven'
+pin "$NG" 'never weaken the replay'
+pin "$NG" 'Adapted from poteto'"'"'s pstack'
+hasnt "$NG" '.claude/settings.json" >'
+pin "$GW" 'new-guard.sh <name> --replay "<the real command>"'
+pin "$GW" '`/bendit:guard-report`'
+pin "$GW" 'ask the person to paste it'
+pin "$GW" 'Never invent or retype a command to replay'
+pin "$GW" '--allow-file'
+pin "$GW" 'Adapted from poteto'"'"'s pstack'
+pin "$GW" "print a command only through \`fire_log.preview_of\`"
+pin "$GW" "print('REFUSED:', preview_of(cmd))"
+hasnt "$GW" 'cmd[:160]'
+pin "$GW" ".claude/hooks/<name>.py KIT/scripts <<'PY'"
+hasnt "$GW" '"$KIT/scripts" <<'
+# Run grow.md's own false-positive replay on a transcript holding a secret: the
+# secret must not reach the output. The secret is built in two pieces so the
+# repo never holds it whole.
+RT="$(mktemp -d)"
+sed -n "/^python3 - \"\$HOME\/.claude\/projects/,/^PY\$/p" "$GW" | sed '1d;$d' > "$RT/replay.py"
+mkdir "$RT/proj"
+printf 'import sys\nprint("BLOCKED", file=sys.stderr)\nsys.exit(2)\n' > "$RT/guard.py"
+SECRET="hunter2""secretpw"
+python3 -c 'import json,sys;print(json.dumps({"message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"git push --force https://bot:"+sys.argv[1]+"@10.0.0.1/r.git main"}}]}}))' "$SECRET" > "$RT/proj/s.jsonl"
+out="$(python3 "$RT/replay.py" "$RT/proj" "$RT/guard.py" "$SD" 2>&1)"
+if [ -s "$RT/replay.py" ] && printf '%s' "$out" | grep -q '^1 of 1 commands refused' \
+   && printf '%s' "$out" | grep -q 'REFUSED: git push --force https://' \
+   && ! printf '%s' "$out" | grep -q "$SECRET"; then
+  printf '  ok    grow.md replay prints the refused command redacted\n'; pass=$((pass+1))
+else printf '  FAIL  grow.md replay leaked or did not run: %s\n' "$(printf '%s' "$out" | sed "s/$SECRET/<SECRET>/g" | head -3)"; fail=$((fail+1)); fi
+rm -rf "$RT"
+
 echo; echo "PRIMARY-CHECKOUT-GUARD: --detailed ASKS (DEFAULT NO), QUICK NEVER TURNS IT ON"
 REF="$KIT/skills/adopt-bendit/references"
 pin "$REF/interview.md" '7. **Edit only in a separate copy?**'
@@ -120,6 +160,8 @@ pin "$DR" 'one `version` row: the `running: bendit <version>` line'
 pin "$DR" 'another checkout of this repo will load a different bendit'
 pin "$DR" 'give each update command exactly as printed'
 pin "$DR" 'Exit 2 means the versions could not be read'
+pin "$DR" 'Print each block exactly once: the version and checkout rows live in the table only'
+pin "$DR" 'never paste a tool output back, whole or cut short'
 pin "$DR" '> bendit is running in this window, but not the copy installed for this project.'
 pin "$DR" 'anything other than `installed`'
 pin "$DR" 'Only project-scope installs are compared between checkouts'
@@ -188,7 +230,7 @@ else
 fi
 pin "$IN" '/bendit:adopt'
 pin "$IN" '/bendit:doctor'
-pin "$IN" 'require-verification.py --trust'
+pin "$IN" 'require-verification.py" --trust "<project folder>"'
 pin "$IN" 'Never run it yourself'
 pin "$IN" 'claude plugin install bendit@bendit --scope project'
 # Nothing is installed before the person has seen one summary and said yes, and
@@ -223,7 +265,24 @@ pin "$NT" 'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND'
 pin "$NT" 'plugins/bendit/scripts/vocabulary.json'
 pin "$NT" 'https://github.com/poteto/noodle'
 pin "$KIT/scripts/vocabulary.json" '"notice": "NOTICE'
-pin "$RM" 'Paste into Claude Code: Install bendit in this project by following https://raw.githubusercontent.com/VedangP57/bendit/main/INSTALL.md'
+# The README's paste-in prompt, line by line: it pins the runbook to this
+# release's tag (install.test.sh binds the tag to plugin.json) and carries the
+# two guardrails that hold even if the fetched file were tampered with.
+pin "$RM" 'Install bendit (github.com/VedangP57/bendit) in this project.'
+pin "$RM" 'step by step; use no other web page.'
+pin "$RM" 'Before you install or change anything, show me the full list and wait for my yes.'
+pin "$RM" 'Never run the approval (--trust) command yourself. When done, tell me in plain words the steps only I can do.'
+hasnt "$RM" 'bendit/main/INSTALL.md'
+# The first screen (everything above the "How it works and the proof" link) is
+# for a reader who is not an engineer: none of the expert words below.
+FS="$(mktemp)"; sed -n '1,/How it works and the proof/p' "$RM" > "$FS"
+if grep -q 'How it works and the proof' "$FS" && [ "$(wc -l < "$FS")" -lt "$(wc -l < "$RM")" ]; then
+  printf '  ok    README first screen found (%s lines)\n' "$(wc -l < "$FS" | tr -d ' ')"; pass=$((pass+1))
+else printf '  FAIL  README has no "How it works and the proof" line ending its first screen\n'; fail=$((fail+1)); fi
+jargon="$(grep -inwE 'hooks?|guards?|PreToolUse|harness|fail(s)? closed|the user' "$FS")"
+if [ -z "$jargon" ]; then printf '  ok    README first screen has no expert words\n'; pass=$((pass+1))
+else printf '  FAIL  README first screen has expert words: %s\n' "$jargon"; fail=$((fail+1)); fi
+rm -f "$FS"
 pin "$RM" '**Start here:**'
 # INSTALL step 2's "Skip if" accepts every URL form install-route accepts
 # for this repo (else a false "not installed", a needless re-run), and no other repo.

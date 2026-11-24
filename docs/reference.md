@@ -42,7 +42,7 @@ bendit                 # run in your project folder
 ```
 
 That URL is "latest". To pin a release, put its tag in the URL, for example
-`https://raw.githubusercontent.com/VedangP57/bendit/v0.5.2/install.sh`
+`https://raw.githubusercontent.com/VedangP57/bendit/v0.5.3/install.sh`
 (`/<tag>/` for any other release).
 
 **What it does.** The installer checks that your machine has what bendit needs
@@ -116,9 +116,9 @@ The marketplace lists two plugins: `bendit` and the web add-on `bendit-web`.
 ## The install runbook for an agent
 
 [`INSTALL.md`](../INSTALL.md) at the repository root is the same install,
-written for the agent in Claude Code to follow. A person pastes
-`Install bendit in this project by following https://raw.githubusercontent.com/VedangP57/bendit/main/INSTALL.md`
-and the agent works through six numbered steps: check the tools; show the
+written for the agent in Claude Code to follow. A person pastes the four-line
+prompt in the README's [Or let Claude install it](../README.md#or-let-claude-install-it)
+section, which is pinned to the release tag, and the agent works through six numbered steps: check the tools; show the
 person one summary and wait for a yes, then fetch bendit into a temporary
 folder and run `install-route.sh route` and `install-route.sh conflict` (the
 same checks `/bendit:adopt` runs: marketplace names are global to the
@@ -312,6 +312,87 @@ It refuses:
 - `supabase db push` and `supabase db reset`; `prisma migrate reset` and
   `prisma db push --force-reset`;
 - force pushes (`--force`, `-f`, `+refspec`, `--mirror`, `--delete`, `:branch`);
+- a lease push that would discard someone else's commits, in any form
+  (`--force-with-lease`, `=<ref>`, `=<ref>:<expect>`, `=<sha>`). The expected
+  commit is the explicit one, or else the local remote-tracking ref of the
+  branch pushed; with no such ref (nothing fetched) the push is allowed. The
+  commits that would be lost are the `+` lines of `git cherry <pushed>
+  <expect>`: commits whose change is not in the push. It refuses when any of
+  them has an author email other than `git config user.email` (or when
+  user.email is unset and anything would be lost), and names them: short sha,
+  author, subject, five at most. A rebase of your own work (every patch kept)
+  and a squash or amend of your own commits stay allowed. Local git only
+  (`rev-parse`, `cherry`, `log`, `config`; never a fetch), in the hook's
+  folder after `git -C` and a literal `cd`; any git error or timeout refuses.
+  A merge by someone else whose own change (a conflict fix) would be lost
+  counts too. **Nothing before the push but the allowed forms:** the check
+  sees the repository as it is before the Bash call runs, so a command that
+  runs before the push could change what it compares against. Before the
+  push, only these may come: one leading literal `cd <dir> &&` (or `;`), which moves
+  the check to that folder; read-only commands before the push (`git
+  status`, `git log`, `git show`, `git diff`, `git rev-parse`, `git
+  describe`, `git remote -v`, `git branch` in list forms, `ls`, `pwd`,
+  `true`, `echo`, and `find` with no `-exec`, `-execdir`, `-ok`, `-okdir`,
+  `-delete`, `-fprint*` or `-fls`), with literal words, no `-c`, no `-C` to another folder
+  than the push's repository, no `--output`, `-O`, `--ext-diff`,
+  `--textconv`, `--no-index` or `--show-signature`, piped only into the
+  readers below; plain file chores before
+  the push, joined by `&&`
+  or `;` (`rm`, `mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` without
+  `-v`), only on literal paths that, with every symlink resolved, lie under a
+  system temp folder (`/tmp`, `/var/folders`, the user temp dir — never
+  `$TMPDIR`, which the shell may not share with the hook), in no git
+  repository (a `.git` found walking up, compared case-insensitively), and
+  outside the push's repository and every config or include file git lists;
+  a `..`, a dangling link, or a `cp`/`mv` of a symlink refuses — `rm` is
+  still judged by its own rule. **After the push, any command that runs once
+  it has finished:** whole commands or pipelines joined to it by `;`, `&&` or
+  `||` (`; git status -sb`, `&& git log --oneline -1 origin/<b>`, `|| echo
+  failed`) cannot change what it sends, so they are allowed — each is still
+  judged by every other bendit rule (`push; rm -rf ./src` is refused as a
+  recursive delete). Refused after the push: a `&` anywhere after it (the
+  command runs alongside it), a newline, subshell, `$(…)` or heredoc between
+  them, a second push (any `git push`, the word `push` anywhere after it, a
+  `git` alias or runner such as `git rebase`/`git config`, or `git -c`), a
+  command name bendit cannot read, and any compound command or function
+  (`{ }`, `if`, `while`, `f() { }`) in the line. A pipe from the push still
+  goes only into output readers (`grep`,
+  `tail`, `head`, `cat`, `wc`, `sort`, `uniq`, `sed -n` that only prints, `awk`
+  with no `system(`, `getline`, `|` or `>`; not `tee`, which writes a file), and redirections of its output
+  to `/dev/null` or another descriptor (`2>&1`) only — a file target is
+  truncated by the shell before git reads its config; a `cd` is resolved
+  logically from the payload's folder, as bash does; no `--receive-pack` or
+  `--exec`, which run a local command; `--repo=<remote>` is the destination
+  when no remote is written;
+  no prefix (`VAR=`, `HOME=`, `GIT_*=`),
+  no wrapper (`xargs`, `sh -c`, `eval`, `nohup`, `timeout`, `sudo`…), no
+  function or alias in the line, no run-time word (`$(…)`, backticks,
+  `$VAR`, `${…}`, a glob, a brace expansion, `~user`, `<(…)`), and no
+  `-c`/`--config-env` key in `push.*`, `remote.*`, `branch.*`, `alias.*`,
+  `include.*`, `includeIf.*`, `url.*` or `core.sshCommand`. Anything else is refused with "run
+  the push by itself, as one plain command, so bendit can check it".
+  **git resolves the config:** every setting is read with `git config` in the
+  push's folder, so `include.path`, `includeIf`, `GIT_CONFIG_*` and `HOME`
+  apply as git applies them (the 40 harmless `GIT_CONFIG_KEY_*` entries a
+  sandbox sets change nothing). Where the push goes follows git: `@` is
+  HEAD; with no refspec, `push.default`, `branch.<b>.merge`,
+  `branch.<b>.pushRemote` and `remote.pushDefault` decide. `remote.<r>.mirror`,
+  a `+` refspec in `remote.<r>.push`, `remote.<r>.pushurl`, a
+  `url.*.pushInsteadOf` that rewrites the remote, a `remote.<r>.push` mapping
+  the push relies on, and any git error refuse. A `git <alias>` that git
+  resolves to a push or a `!` shell command refuses, as do `git rebase
+  --exec`/`-x` and `git submodule foreach` running a lease push, and a lease
+  push run by `watch`, `parallel`, `script`, `su`, `source` or an alias
+  defined in the line. Rule id `force-with-lease-foreign`.
+  Known limit: state changed by an earlier, separate Bash call that git's own
+  config resolution does not reflect — such as a shell variable exported
+  earlier in the agent's session — is not seen by the guard, which runs with
+  its own environment. Known limit: the guard reads the command line. Code
+  that runs during a push — hooks set up earlier, or tools that push for
+  you — is outside what it can see. So are programs configured earlier
+  (`core.fsmonitor`, filters such as Git LFS, pagers, an external diff),
+  which can run during a `git status` or `git diff` before the push.
+  Known limit: authorship is the commit's author email, which anyone can set;
 - `git reset --hard`, `git checkout .`, `git restore .`, `git clean -f`;
 - deleting the folder the shell is in, or a parent of it;
 - live secrets typed into a command: Stripe live secret and restricted keys,
@@ -320,7 +401,8 @@ It refuses:
   pre-answering the bendit installer;
 - a payload it cannot read.
 
-It allows, among others: `git push --force-with-lease`, `git clean -n`,
+It allows, among others: `git push --force-with-lease` when it discards only
+your own commits or nothing, `git clean -n`,
 `rm -rf /tmp/scratch`, `rm file`, `rmdir build`, `supabase db diff`, a Stripe
 test key, `grep -r "DROP TABLE" supabase/migrations`, and commit messages or
 heredoc bodies that only mention `rm -rf`.
@@ -334,7 +416,11 @@ argument, so `git commit -m "explain rm -rf"` is allowed.
 **Known gaps** (listed in the guard's header): a command behind a variable, a
 script file (`bash clean.sh`), `ssh host 'rm …'`, brace expansion,
 `busybox`/`parallel`/`flock`/`docker run`, `psql -f drop.sql`, symlinks,
-perl and ruby one-liners, and forging bendit's own state files.
+perl and ruby one-liners, and forging bendit's own state files. A plain force
+push that comes from git config is not detected: `remote.<r>.mirror`, a `+`
+refspec in `remote.<r>.push`, or an alias to `push --force` (given with `-c`,
+set by `git config`, or on disk). Nor is a push in a script or git hook
+written and then run in the same command.
 
 The test suite feeds it more than 360 commands and snapshots every message
 ([`block-dangerous-bash.expected`](../plugins/bendit/scripts/block-dangerous-bash.expected)).
@@ -382,6 +468,20 @@ you, for example `[bendit] <name>: verified by /bendit:verify at <time>`.
 **Known gaps** (in the gate's header): forging its stamps, hand-writing
 `verified`, deleting the marks log, writing the approval list directly or
 faking a terminal. "The gate stops an agent that is hasty, not one set on lying."
+
+**Known limit: a change made only through a shell command may not be marked.**
+The gate learns that code changed from PostToolUse marks. For Edit, Write and
+MultiEdit it reads the file named in `tool_input`; for Bash it relies on the
+changed files the tool reports (`tool_response.bashEditDiff.changedFiles`, read
+in `edited()` in `require-verification.py`). If that report is missing or
+empty, no mark is recorded and the gate has nothing to verify. In the v0.5.3
+release check, 1 of 32 Haiku runs, with the test command approved, wrote its
+change only with `cat > timesheet/hours.py <<'EOF' ... EOF` and no Edit or Write
+tool. The gate never ran the tests and the run ended with them failing. It was
+the only run that wrote code that way and the only one the gate missed; every
+run that used Edit or Write was checked. Why that run recorded no mark has not
+been established, and it is under investigation. The gap predates v0.5.3:
+`require-verification.py` and `hooks.json` are unchanged since v0.5.2.
 
 **Generating a harness.** `scripts/scaffold-verification-skill.sh <repo>
 [--dry-run] [--kind web|cli|library] [--dev] [--pm npm|pnpm|yarn|bun] [--name] [--force]

@@ -106,7 +106,7 @@ class Word(NamedTuple):
 
 class Heredoc:
     __slots__ = ('delim', 'quoted', 'dash', 'cmd', 'body', 'body_start',
-                 'body_end', 'closed', 'is_code')
+                 'body_end', 'closed', 'is_code', 'fed_to')
 
     def __init__(self, delim, quoted, dash, cmd):
         self.delim, self.quoted, self.dash, self.cmd = delim, quoted, dash, cmd
@@ -114,12 +114,13 @@ class Heredoc:
         self.body_start = self.body_end = -1
         self.closed = False
         self.is_code = True
+        self.fed_to = frozenset()   # names of the commands reading the body
 
 
 class Cmd:
     """One simple command as written: its words and what is attached to it."""
     __slots__ = ('words', 'seq', 'subshell', 'pipe', 'heredocs', 'herestrings',
-                 'cond', 'chain')
+                 'cond', 'chain', 'redirs', 'fed_by')
 
     def __init__(self, seq, subshell, pipe, cond=False, chain=0):
         self.words: List[Word] = []
@@ -134,6 +135,11 @@ class Cmd:
         self.chain = chain
         self.heredocs: List[Heredoc] = []
         self.herestrings: List[str] = []
+        # The target word of each redirection (`2>"$F"`), quotes removed,
+        # nothing expanded. Heredoc delimiters are in heredocs instead.
+        self.redirs: List[Word] = []
+        # The heredoc whose body this command was lexed from, or None.
+        self.fed_by: Optional[Heredoc] = None
 
     @property
     def argv(self):
@@ -347,12 +353,17 @@ class _Lexer:
             hd.closed = True
             receivers = hd.cmd.pipe[hd.cmd.pipe.index(hd.cmd):] if hd.cmd in hd.cmd.pipe else [hd.cmd]
             fed_to = {(unwrap(c.argv) or [''])[0] for c in receivers}
+            hd.fed_to = frozenset(fed_to)
             # A QUOTED delimiter means bash expands nothing in the body: it is
             # data -- unless the command reading it is itself an interpreter
             # the caller cares about, in which case it is the program.
             hd.is_code = (not hd.quoted) or bool(fed_to & self.keep_for)
             if hd.is_code:
+                first = len(self.cmds)
                 self.lex(i, term[0], None, True)
+                for c in self.cmds[first:]:
+                    if c.fed_by is None:
+                        c.fed_by = hd
             i = term[1] + 1 if term[1] < end else end
         return i
 
@@ -456,6 +467,15 @@ class _Lexer:
                 if j >= end or t[j] in '\n;&|)':
                     i = j
                     continue
+                if t[j] in '<>' and j + 1 < end and t[j + 1] == '(':
+                    # `2> >(cmd)`: the target is a process substitution. Its
+                    # command is lexed like any other; the target itself is a
+                    # redirection, not an argument of this command.
+                    self._mark(j, j + 2)
+                    k = self.lex(j + 2, end, ')', True)
+                    cmd.redirs.append(Word(t[j:k], j, k))
+                    i = k
+                    continue
                 val, j2, quoted = self.read_word(j, end)
                 if op in ('<<', '<<-'):
                     hd = Heredoc(val, quoted, op == '<<-', cmd)
@@ -464,6 +484,8 @@ class _Lexer:
                     self.pending.append(hd)
                 elif op == '<<<':
                     cmd.herestrings.append(val)
+                else:
+                    cmd.redirs.append(Word(val, j, j2))
                 i = max(j2, j + 1) if j2 == j else j2
                 continue
             start = i
@@ -704,6 +726,9 @@ class Simple(NamedTuple):
     seq: int              # execution order at the top level
     subshell: bool        # runs in a child: a cd here moves nothing
     deferred: bool        # inside a trap body: runs at exit
+    # The commands that launched this one from a string or an argument list
+    # (`sh -c`, `eval`, `trap`, `find -exec`, a runner), outermost first.
+    via: tuple = ()
 
 
 def shell_c_string(argv: List[str]) -> Optional[str]:
@@ -753,18 +778,19 @@ def _exec_groups(argv):
         i += 1
 
 
-def _expand(cmd, words, seq, subshell, deferred, depth) -> Iterator[Simple]:
+def _expand(cmd, words, seq, subshell, deferred, depth, via=()) -> Iterator[Simple]:
     argv = unwrap(words)
     if not argv:
         return
-    yield Simple(argv, cmd, seq, subshell, deferred)
+    yield Simple(argv, cmd, seq, subshell, deferred, via)
     if depth > 6:
         return
     name = argv[0]
 
     def nested(text, sub, dfr=deferred):
         yield from simple_commands(text, _seq=seq, _subshell=sub,
-                                   _deferred=dfr, _depth=depth + 1)
+                                   _deferred=dfr, _depth=depth + 1,
+                                   _via=via + (name,))
 
     if name in SHELLS:
         s = shell_c_string(argv)
@@ -784,7 +810,8 @@ def _expand(cmd, words, seq, subshell, deferred, depth) -> Iterator[Simple]:
         yield from nested(argv[1], subshell, True)
     elif name == 'find':
         for group in _exec_groups(argv):
-            yield from _expand(cmd, group, seq, True, deferred, depth + 1)
+            yield from _expand(cmd, group, seq, True, deferred, depth + 1,
+                               via + (name,))
     elif name not in ('echo', 'printf'):
         # A runner this module does not know (`docker exec c sh -c ...`,
         # `hc exec -- sh -c ...`) handing a shell a string: the string is code.
@@ -797,7 +824,7 @@ def _expand(cmd, words, seq, subshell, deferred, depth) -> Iterator[Simple]:
 
 
 def simple_commands(text: str, *, _seq=None, _subshell=False, _deferred=False,
-                    _depth=0) -> List[Simple]:
+                    _depth=0, _via=()) -> List[Simple]:
     """Every command this text would run, wrappers removed, nested shells,
     eval, trap bodies, find -exec, xargs and shell-fed heredocs included."""
     lexed = lex(text, SHELLS)
@@ -805,5 +832,5 @@ def simple_commands(text: str, *, _seq=None, _subshell=False, _deferred=False,
     for cmd in lexed.cmds:
         seq = cmd.seq if _seq is None else _seq
         out.extend(_expand(cmd, cmd.argv, seq, cmd.subshell or _subshell,
-                           _deferred, _depth))
+                           _deferred, _depth, _via))
     return out

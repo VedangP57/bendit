@@ -2,64 +2,156 @@
 
 # bendit
 
-**Safety rails for Claude Code that are enforced, not just written down.**
-
-bendit stops your AI coding agent before it deletes a folder, force-pushes or
-drops a table, and runs your project's own check (usually its tests) before it
-may end a turn that changed code.
+**Stops your AI coding assistant from wrecking your project.**
 
 [![ci](https://github.com/VedangP57/bendit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/VedangP57/bendit/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![npm](https://img.shields.io/npm/v/bendit.svg)](https://www.npmjs.com/package/bendit)
 [![PyPI](https://img.shields.io/pypi/v/bendit.svg)](https://pypi.org/project/bendit/)
 
-[Quick start](#quick-start) · [What you get](#what-you-get) · [Evidence](#evidence) · [Benchmark](#with-and-without-bendit) · [Limits](#what-it-does-not-protect-against) · [Reference](docs/reference.md) · [Credits](#credits)
-
 </div>
+
+bendit is a free add-on for [Claude Code](https://claude.com/claude-code). It
+blocks dangerous commands, like deleting a folder or overwriting work saved
+online. Once you approve your test command, it also makes the AI run your
+tests before it says "done".
+
+**Without bendit:** you ask Claude to "clean up", it deletes a folder, and the
+work is gone. Or it says "fixed!" and the tests were never run.
+
+**With bendit:** Claude is stopped before the delete and told to ask you
+first. When Claude changes code, bendit runs your approved tests before
+Claude may finish; if they fail, Claude is sent back to fix them. If Claude
+skips them, it has to say why, and you see that note.
+
+No tests in your project (say, a small website)? bendit still blocks
+dangerous commands. When Claude finishes a change, it is asked to set up a
+test check or to say why not, and you see that note.
+
+## Install
+
+**Not sure which to pick?** Use [Or let Claude install it](#or-let-claude-install-it) below.
+
+Open a Terminal in your project folder (macOS or Linux) and run **one** of these:
+
+```bash
+npx bendit
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/v0.5.3/install.sh | bash
+```
+
+```bash
+pipx run bendit
+```
+
+```bash
+brew install vedangp57/tap/bendit && bendit
+```
+
+`npx` needs Node, `pipx` needs Python, `brew` needs Homebrew; `curl` is already
+on macOS and most Linux. Any one is enough. They are the same installer: it
+checks your computer, downloads bendit, asks before installing any other tool
+it needs, then opens Claude Code to finish.
+
+## Or let Claude install it
+
+Open Claude Code in your project and paste this. Claude checks what your
+computer needs, and shows you the list before it changes anything:
+
+```text
+Install bendit (github.com/VedangP57/bendit) in this project.
+Follow https://raw.githubusercontent.com/VedangP57/bendit/v0.5.3/INSTALL.md step by step; use no other web page.
+Before you install or change anything, show me the full list and wait for my yes.
+Never run the approval (--trust) command yourself. When done, tell me in plain words the steps only I can do.
+```
+
+## Two things only you can do
+
+1. **Approve your tests.** If setup finds your test command, or you type one
+   when asked, it ends by giving you one command. Open a new Terminal window
+   (not the chat), paste it and type `y`. This is you, not the AI, approving
+   the command that tests your project.
+2. **Turn bendit on.** Type these in Claude Code. If Claude asks you to, type
+   `/reload-plugins` (it loads new add-ons). When setup is finished, close
+   Claude, open it again in the same project and type `/bendit:doctor`
+   (bendit's self-check).
+
+When everything works, the last line you see is:
+
+> bendit is active in this window: it just stopped a test force-push, as it should.
+
+(A force-push can overwrite work saved online. bendit tries a harmless fake one
+on itself, to prove it is on.)
+
+---
+
+**[How it works and the proof →](#see-it-block)**
+
+[Install, step by step](#install-step-by-step) · [What you get](#what-you-get) · [Evidence](#evidence) · [Benchmark](#with-and-without-bendit) · [Limits](#what-it-does-not-protect-against) · [Manual install](#manual-install-pinning-and-installer-details) · [Reference](docs/reference.md) · [Credits](#credits)
+
+## See it block
 
 Most people steer an AI coding agent with a rules file (`CLAUDE.md` or
 `AGENTS.md`), and the agent can quietly ignore it: real projects have "keep
 files short" beside a hundred long files, and safety hooks that never fired
 because they read the wrong field of their input. bendit turns the rules that
 matter into checks that actually say no. When the agent tries something
-destructive, Claude Code refuses the command and shows the agent why:
+destructive, Claude Code refuses the command and shows the agent why.
+
+Below, bendit's real check is handed the request "run `rm -rf ./build-old`",
+exactly as Claude Code hands it over. It refuses, and the folder is still there:
 
 ```console
-$ rm -fr ./build
+$ echo '{"tool_name":"Bash","tool_input":{"command":"rm -rf ./build-old"}}' | python3 "$BENDIT/plugins/bendit/scripts/block-dangerous-bash.py"; echo "exit code: $?"
 BLOCKED by bendit safety hook: recursive delete (rm -r, with or without -f) — run it yourself if you mean it; only a folder inside /tmp or $TMPDIR is allowed.
 If this is genuinely required, ask the human to run it.
+exit code: 2
 ```
 
-<sub>Copied verbatim from the guard's test snapshots,
+<sub>Run in a scratch git repository holding a `build-old` folder, with
+`$BENDIT` set to a checkout of this repository. The two lines are the hook's
+stderr (stdout is empty); exit code 2 is how a hook tells Claude Code to refuse.
+The same lines are in the guard's test snapshots,
 [`block-dangerous-bash.expected`](plugins/bendit/scripts/block-dangerous-bash.expected),
 which CI compares on every change.</sub>
 
-## Quick start
+### See it block, safely
 
-Run one command from inside your project folder (macOS or Linux):
+After setup, in Claude Code, ask the agent to run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/main/install.sh | bash
+git push --force bendit-probe HEAD
 ```
 
-Or, if you prefer a package manager, run **one** of these instead (same installer):
-`npx bendit` · `pipx run bendit` · `uvx bendit` · `brew install vedangp57/tap/bendit`
-(Homebrew installs the command `bendit`; run it in your project folder.)
+Nothing is named `bendit-probe`, so without bendit git would only fail with
+`'bendit-probe' does not appear to be a git repository`. With bendit, the
+command never runs and the agent is told:
 
-The command checks that your computer has what bendit needs (`claude`, `git`,
+```console
+BLOCKED by bendit safety hook: force push — use --force-with-lease, and never on a shared branch.
+If this is genuinely required, ask the human to run it.
+```
+
+`/bendit:doctor` runs this exact test for you, after checking that the name is unused.
+
+## Install, step by step
+
+The install commands at the top are one installer, packaged four ways (and
+`uvx bendit` works too). Homebrew installs the command `bendit`; run it in your
+project folder.
+
+The installer checks that your computer has what bendit needs (`claude`, `git`,
 `python3` 3.9 or newer), asks before installing anything that is missing (type
 `y` to agree; just pressing Enter means no), then opens Claude Code on
 `/bendit:adopt`.
 
-Or let the agent do it, from Claude Code opened in your project:
-
-Paste into Claude Code: Install bendit in this project by following https://raw.githubusercontent.com/VedangP57/bendit/main/INSTALL.md
-
-The agent then follows [INSTALL.md](INSTALL.md) step by step. Each step first
-checks whether it is already done, so a run that stopped half way picks up
-where it left off. On this path the agent first shows you what it will
-install, and installs nothing until you say yes. The approval line below
-stays yours.
+If you let Claude install it instead, the agent follows [INSTALL.md](INSTALL.md)
+step by step. Each step first checks whether it is already done, so a run that
+stopped half way picks up where it left off. On this path the agent first shows
+you what it will install, and installs nothing until you say yes. The approval
+line below stays yours.
 
 ### What happens next
 
@@ -88,7 +180,7 @@ If something is still open, it ends with "What to do next:" and numbered steps i
 
 | I want to… | Do this |
 |---|---|
-| just have it set up | the [quick start](#quick-start) above |
+| just have it set up | the [install](#install) at the top |
 | make every choice myself (invariants, CI, branches, which guards, how it is installed) | run `/bendit:adopt --detailed` in Claude Code; it is also how to change a project later |
 | install it by hand, or pin a version | expand [Manual install…](#manual-install-pinning-and-installer-details) below |
 | measure whether a rule changes what the agent does | [the evals method](plugins/bendit/evals/README.md) |
@@ -129,25 +221,6 @@ What is a wall and what is a suggestion:
 **Enforced**: a hook refuses the action, and a guard that crashes, or cannot
 load its own code, refuses too (it fails closed). **Advice**: the agent may ignore it. [Full table](docs/reference.md#enforced-and-advice-in-full).
 
-## See it block, safely
-
-After setup, in Claude Code, ask the agent to run:
-
-```bash
-git push --force bendit-probe HEAD
-```
-
-Nothing is named `bendit-probe`, so without bendit git would only fail with
-`'bendit-probe' does not appear to be a git repository`. With bendit, the
-command never runs and the agent is told:
-
-```console
-BLOCKED by bendit safety hook: force push — use --force-with-lease, and never on a shared branch.
-If this is genuinely required, ask the human to run it.
-```
-
-`/bendit:doctor` runs this exact test for you, after checking that the name is unused.
-
 ## Evidence
 
 From the v0.2.0 eval sweep (2026-11-19, Claude Code CLI 2.1.328, judge sonnet): each task
@@ -182,6 +255,7 @@ run many times with and without bendit, compared with a two-sided Fisher test.
 
 The v0.5.2 benchmark (2026-11-23, Claude Code CLI 2.1.330) gave the same tasks
 to Claude Code with and without bendit and graded the end state by script.
+"Without" means Claude Code's built-in plugins only.
 Rates are k/n with a Wilson 95% interval; p is a two-sided Fisher test.
 
 | What was measured | Model | With bendit | Without | p |
@@ -200,7 +274,13 @@ Rates are k/n with a Wilson 95% interval; p is a two-sided Fisher test.
   overrides a person who said not to run the tests.
 - **No safety gain here.** Opus keeps keys out of commands by itself.
   The force-push loss went through `--force-with-lease` naming the teammate's
-  commit, which bendit allows by design; the difference is within chance.
+  commit, which bendit v0.5.2 allowed by design; the difference is within chance.
+- **Force push, re-measured on v0.5.3**, which now refuses a lease whose
+  expected commit is not your own work. In 32 runs with bendit v0.5.3, Haiku
+  never tried the push, so this could not test the new rule; a same-day
+  re-check of v0.5.2 lost the teammate's commit in 1/8 runs with bendit and
+  0/8 without. The rule is proven by a guard test that replays v0.5.2's losing
+  command, not by the benchmark, and no improvement is claimed.
 - **Not claimed:** a security boundary, obfuscated keys, unprompted behaviour
   (the risky tasks told the agent what to do), other platforms than one Mac,
   or your project. [Full write-up, latency and corpora, how to reproduce](docs/benchmarks/README.md).
@@ -221,6 +301,9 @@ Rates are k/n with a Wilson 95% interval; p is a two-sided Fisher test.
   by writing a one-line reason. You are always shown that reason.
 - **Your check runs with your permissions.** Once you approve it, the Stop gate
   runs `.claude/verify-harness` unsandboxed. Change it, and it needs approval again.
+- **A code change made only through a shell command may not be noticed**, so
+  the test check may not run. Seen once in 32 checked runs.
+  [Details](docs/reference.md#the-stop-gate-in-detail).
 - **Advice is advice.** Notes and skills can be ignored.
 - **Claude Code only**, on **macOS and Linux**. The installer refuses Windows.
 - **Network:** the hooks make no network calls of their own, except the
@@ -333,9 +416,10 @@ claude plugin install bendit@bendit
 /bendit:adopt --detailed   # the full interview, every choice yours
 ```
 
-The install URL above is "latest". To pin a release, put its tag in the URL,
-for example `https://raw.githubusercontent.com/VedangP57/bendit/v0.5.2/install.sh`
-(`/<tag>/` for any other release).
+The install line at the top is pinned to this release:
+`https://raw.githubusercontent.com/VedangP57/bendit/v0.5.3/install.sh`. The
+commands below use `main`, which is always the newest release. Put `/<tag>/` in
+place of `/main/` for any other release.
 
 To read the installer before running it:
 

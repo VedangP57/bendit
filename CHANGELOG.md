@@ -4,6 +4,68 @@ All notable changes. Dates are UTC.
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-11-24
+
+A guard for force-pushes that would discard someone else's work, a safer way to
+add guards, and a clearer install.
+
+### Added
+- **Lease rule.** A `git push --force-with-lease` is refused when it would
+  discard commits that are not yours. This covers a plain lease (checked against
+  the remote-tracking ref, so a plain lease after a fetch that brought in
+  someone else's commit is refused) and a lease with an expected value. A lease
+  that only replaces your own rebased work still works. What the rule cannot see
+  is listed in [docs/reference.md](docs/reference.md).
+- **`/bendit:new-guard` proves a guard first.** A new guard must block a real
+  past command, and still allow your ordinary commands, before it is turned on.
+  A guard that crashes does not count as proof.
+- **A local release check** (`plugins/bendit/evals/bench/release-check.sh`). It
+  runs on your machine against a pinned baseline, with held-out cases.
+
+### Changed
+- **INSTALL.md** is pinned to the release tag. The trust command uses the
+  installed copy and works from a subfolder or a worktree. `/reload-plugins`
+  replaces the restart before `/bendit:adopt`.
+- **Only allowed forms may come before a lease push.** A lease push that comes
+  after commands outside bendit's allowed lists is now refused even when it is
+  safe, for example `git add -A && git commit -m x && git push
+  --force-with-lease` (v0.5.2 allowed it). bendit cannot see what the earlier
+  commands change before the push runs. Run those first, as their own command.
+  The allowed forms before the push are one leading `cd <dir> &&`, read-only
+  commands such as `git status`, `git log`, `ls` or a `find` that runs and
+  writes nothing, and plain file chores on temp folders. After the push, any
+  command joined by `;`, `&&` or `||` is allowed (`; git status -sb`), because
+  it runs only once the push has finished; each is still checked by every other
+  bendit rule. Still refused after it: `&`, a second push, `git -c`, and a pipe
+  into anything but an output reader. See [docs/reference.md](docs/reference.md).
+- **README:** plain words first, npx first, and a prompt that has Claude
+  install bendit.
+
+### Fixed
+- **The grow guide hides secrets.** Past commands it replays are shown
+  redacted.
+- **The doctor prints each block once.**
+- **The benchmark grader counts a push only when git actually runs push**, not
+  when the word merely appears, and not when it hides behind `--exec-path` or a
+  variable.
+- **INSTALL.md says where bendit installs from**, and its trust one-liner
+  handles a missing plugin registry.
+
+### Known limits
+- **A code change made only through a shell command may not be noticed by the
+  test check.** Seen in 1 of 32 runs in this release's check. It predates this
+  release (the Stop gate is unchanged since v0.5.2) and was found by the new
+  release check. Under investigation. See
+  [docs/reference.md](docs/reference.md#the-stop-gate-in-detail).
+
+### Benchmark note
+The force-push re-measure (32 Haiku runs) had no run that tried the push, so it
+could not test the new rule. A same-day re-check of v0.5.2 still lost the
+teammate's commit in 1/8 runs with bendit (0/8 without). The rule is proven by a
+test that replays the exact command from v0.5.2's losing runs. This release does
+not claim a safety improvement from the benchmark. Details:
+[docs/benchmarks](docs/benchmarks/README.md#force-push-s3-re-measured-on-v053).
+
 ## [0.5.2] - 2026-11-23
 
 A fix for the doctor in git worktrees, and the first with/without benchmark.

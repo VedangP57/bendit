@@ -86,6 +86,64 @@ expect_capture "--version" run_installer "$S" --version
 chk "--version exits 0"               "$EXPECT_CODE" 0
 chk "--version prints the version"    "$EXPECT_STDOUT" "bendit installer $VERSION"
 chk "BENDIT_VERSION equals plugin.json" "$VERSION" "$PLUGIN_VERSION"
+# INSTALL.md is what an agent follows: every release tag it names must be this
+# release's (a bump that forgets it fails here), and it must name at least one.
+# BENDIT_INSTALL_MD lets the test be pointed at another copy.
+INSTALL_MD="${BENDIT_INSTALL_MD:-$SD/../../../INSTALL.md}"
+INSTALL_MD_TAGS="$(grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' "$INSTALL_MD" 2>/dev/null | sort -u | tr '\n' ' ')"
+chk "INSTALL.md names only the tag v$PLUGIN_VERSION" "$INSTALL_MD_TAGS" "v$PLUGIN_VERSION "
+chk "INSTALL.md fetches nothing from main" "$(grep -c 'bendit/main/' "$INSTALL_MD")|$(grep 'git clone' "$INSTALL_MD" | grep -vc -- "--branch v$PLUGIN_VERSION ")" "0|0"
+# A branch like v0.5 must not pass: the pin is the full x.y.z of this release.
+printf 'git clone --depth 1 --branch v0.5 https://x "$K"\n' > "$T/short-branch.md"
+chk "a clone with --branch v0.5 is caught" "$(grep 'git clone' "$T/short-branch.md" | grep -vc -- "--branch v$PLUGIN_VERSION ")" 1
+# bendit installs from main on purpose (a ref would freeze `claude plugin update`).
+# Adding one needs a decision, so the wording and the bare command are pinned.
+chk "INSTALL.md marketplace add has no ref" "$(grep -c '^  claude plugin marketplace add https://github.com/VedangP57/bendit --scope project$' "$INSTALL_MD")" 1
+chk "INSTALL.md says bendit installs from main" "$(tr '\n' ' ' < "$INSTALL_MD" | tr -s ' ' | grep -c 'bendit installs from its main branch, which only changes when a new release is published')" 1
+# The README's install lines and paste-in prompt. readme_pinned is THE check,
+# run on the README and on the fixtures alike: every tag on a line naming this
+# repository is v<version> (and there is one), and the prompt's Follow line and
+# the curl line both name it. The README's other versions (benchmark and eval
+# history) never sit on such a line.
+echo "README install lines and prompt"
+README_MD="${BENDIT_README_MD:-$SD/../../../README.md}"
+readme_pinned() {  # readme_pinned <file> <version> -> yes, or what is wrong
+  local f="$1" v="$2" tags
+  tags="$(grep -F 'VedangP57/bendit' "$f" 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | sort -u | tr '\n' ' ')"
+  [ "$tags" = "v$v " ] || { echo "tags: ${tags:-none}"; return; }
+  grep -q "^Follow https://raw.githubusercontent.com/VedangP57/bendit/v$v/INSTALL.md step by step" "$f" || { echo "no pinned Follow line"; return; }
+  grep -q "^curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/v$v/install.sh | bash\$" "$f" || { echo "no pinned curl line"; return; }
+  echo yes
+}
+chk "README install lines and prompt name only v$PLUGIN_VERSION" "$(readme_pinned "$README_MD" "$PLUGIN_VERSION")" yes
+# The same check catches a stale tag: a README written for v0.5.2, and one where
+# only the curl line was bumped, both fail against this release.
+STALE=0.5.2; [ "$PLUGIN_VERSION" != "$STALE" ] || STALE=0.0.1
+printf 'curl -fsSL https://raw.githubusercontent.com/VedangP57/bendit/v%s/install.sh | bash\nFollow https://raw.githubusercontent.com/VedangP57/bendit/v%s/INSTALL.md step by step\n' "$STALE" "$STALE" > "$T/readme-old.md"
+chk "a README with v$STALE fails against $PLUGIN_VERSION" "$([ "$(readme_pinned "$T/readme-old.md" "$PLUGIN_VERSION")" = yes ] && echo passed || echo failed)" failed
+sed "1s/v$STALE/v$PLUGIN_VERSION/" "$T/readme-old.md" > "$T/readme-half.md"
+chk "a README bumped only on the curl line fails" "$([ "$(readme_pinned "$T/readme-half.md" "$PLUGIN_VERSION")" = yes ] && echo passed || echo failed)" failed
+sed "s/v$STALE/v$PLUGIN_VERSION/g" "$T/readme-old.md" > "$T/readme-new.md"
+chk "CONTROL: the same README at v$PLUGIN_VERSION passes" "$(readme_pinned "$T/readme-new.md" "$PLUGIN_VERSION")" yes
+# Order on the first screen: npx, then curl, then pipx, then brew.
+ln_of() { grep -nE "$1" "$README_MD" | head -1 | cut -d: -f1; }
+l1="$(ln_of '^npx bendit$')"; l2="$(ln_of '^curl -fsSL .*/install\.sh \| bash$')"; l3="$(ln_of '^pipx run bendit$')"; l4="$(ln_of '^brew install vedangp57/tap/bendit && bendit$')"
+chk "README install order is npx, curl, pipx, brew" "$([ -n "$l1" ] && [ -n "$l2" ] && [ -n "$l3" ] && [ -n "$l4" ] && [ "$l1" -lt "$l2" ] && [ "$l2" -lt "$l3" ] && [ "$l3" -lt "$l4" ] && echo yes || echo "no ($l1 $l2 $l3 $l4)")" yes
+# The trust-path one-liner, extracted from INSTALL.md itself so it cannot drift.
+echo "INSTALL.md installed-path one-liner"
+TP="$T/trustpath"; mkdir -p "$TP/cfg/plugins" "$TP/repo" && ( cd "$TP/repo" && git init -q && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m i && mkdir sub && git worktree add -q "$TP/wt" -b wt 2>/dev/null )
+TP="$(cd "$TP" && pwd -P)"
+awk '/^```bash$/{b=1;n=0;next} /^```$/{if(b&&buf~/installed_plugins\.json/){printf "%s",buf;exit} b=0;buf="";next} b{buf=buf $0 "\n"}' "$INSTALL_MD" > "$TP/oneliner.sh"
+chk "the one-liner was found in INSTALL.md" "$([ -s "$TP/oneliner.sh" ] && echo yes || echo no)" yes
+printf '{"plugins":{"bendit@bendit":[{"scope":"project","projectPath":"%s","installPath":"/main/0.5.2"},{"scope":"project","projectPath":"%s","installPath":"/stale/0.5.0"}]}}\n' "$TP/repo" "$TP/wt" > "$TP/cfg/plugins/installed_plugins.json"
+tp() { ( cd "$1" && CLAUDE_CONFIG_DIR="$TP/cfg" bash "$TP/oneliner.sh" 2>&1; echo "rc=$?" ); }
+chk "project root -> its install"         "$(tp "$TP/repo")"     "$(printf '/main/0.5.2\nrc=0')"
+chk "subfolder -> the same install"       "$(tp "$TP/repo/sub")" "$(printf '/main/0.5.2\nrc=0')"
+chk "worktree -> the MAIN checkout's"     "$(tp "$TP/wt")"       "$(printf '/main/0.5.2\nrc=0')"
+printf '{"plugins":{}}\n' > "$TP/cfg/plugins/installed_plugins.json"
+chk "no install -> plain message, exit 1" "$(tp "$TP/repo")"     "$(printf 'bendit is not installed for this project\nrc=1')"
+rm "$TP/cfg/plugins/installed_plugins.json"
+chk "no registry file -> same message, exit 1" "$(tp "$TP/repo")" "$(printf 'bendit is not installed for this project\nrc=1')"
 expect_capture "--help" run_installer "$S" --help
 chk "--help exits 0"                  "$EXPECT_CODE" 0
 for f in --check --version --help; do

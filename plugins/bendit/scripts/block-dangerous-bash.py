@@ -87,7 +87,8 @@ def _refuse_uncaught(_type, exc, _tb):
 if __name__ == '__main__':
     sys.excepthook = _refuse_uncaught
 try:
-    from shell_text import SHELLS, SQL_CLIENTS, _match_close, lex, simple_commands, unwrap  # noqa: E402
+    from shell_text import SHELLS, SQL_CLIENTS, _match_close, lex, shell_c_string, simple_commands, unwrap  # noqa: E402
+    from shell_text import _ASSIGN as _SH_ASSIGN, _command_name  # noqa: E402
 except SystemExit as _exc:   # a helper that exits on import never reaches excepthook
     raise ImportError(f'shell_text.py raised SystemExit on import (exit {_exc.code})') from None
 
@@ -515,6 +516,1276 @@ def push_deletes_remote_refs(s):
     return False
 
 
+# A LEASE THAT DISCARDS SOMEONE ELSE'S COMMITS. A lease overwrites the remote
+# ref only if it still points at the expected commit -- so whatever is on that
+# commit and not in the push is discarded. The v0.5.2 benchmark (s3-force-push)
+# lost a teammate's commit exactly so: the agent fetched, saw sam's 51dc142, and
+# ran
+#   git push --force-with-lease=feature/checkout:51dc142 origin feature/checkout
+# The lease only guards against the remote moving AGAIN; it cannot protect a
+# commit the agent has already fetched and chosen to overwrite. A plain
+# `--force-with-lease` after that fetch does the same: its expected value is
+# the remote-tracking ref, which now holds sam's commit.
+#
+# ONE criterion for every lease form:
+#   EXPECT  the explicit expected commit (`=<ref>:<expect>`, `=<sha>`); for a
+#           plain lease or `=<ref>`, the local remote-tracking ref of the
+#           destination (refs/remotes/<remote>/<branch>; @{push} when no
+#           refspec is given). No such ref locally: allowed -- nothing was
+#           fetched, so the server-side lease does its job.
+#   LOST    the `+` lines of `git cherry <pushed> <expect>`: commits on EXPECT
+#           whose change is not in the push. A rebase of your own work keeps
+#           every patch, so nothing is LOST.
+#   REFUSE  when a LOST commit's author email is not `git config user.email`
+#           (or user.email is unset and anything is LOST). Squashing or
+#           amending your own commits loses only your own: allowed.
+# LOCAL git only -- rev-parse, cherry, log, config; never a fetch -- in the
+# payload's cwd (after `git -C` and a literal `cd` earlier in the command),
+# under one deadline inside the hook's 10 s. Whenever git cannot answer
+# (unknown commit, not a repo, git missing, a timeout) the push is refused.
+#
+# NOTHING BUT ALLOWED FORMS BEFORE A LEASE PUSH. The check sees the repository and the
+# environment before the command runs, and simulating what other shell
+# commands do to them cannot be made complete (every round found another way:
+# a fetch first, xargs supplying the branch, include.path, printf -v, `+=`,
+# export HOME). So a lease push is checked only when it is the ONE plain
+# command in the Bash call (one leading literal `cd <dir> &&` or `;`, then
+# read-only commands -- git status/log/show/diff/rev-parse/describe, `git
+# remote -v`, `git branch` list forms, ls, pwd, true, echo, find with no
+# -exec*/-ok*/-delete/-fprint*/-fls; literal words, no
+# -c, no -C to another folder, no --output/-O/--ext-diff/--textconv/--no-index/
+# --show-signature, piped only into pure readers -- and
+# plain file chores -- rm, mkdir -p, touch, cp, mv, echo, printf without -v --
+# only on literal paths that, every symlink resolved, lie under a system temp
+# root (/tmp, /var/folders, DARWIN_USER_TEMP_DIR; never $TMPDIR), in no git
+# repository (a `.git` found walking up, case-insensitively), outside the
+# push repo (its hooks folder and core.hooksPath included) and every config
+# or include file git lists, never a bare repository or a hard-linked file,
+# with no `..`, no
+# dangling link and no cp/mv of a symlink, and
+# output readers after it -- grep, tail, head, cat, wc, sort, uniq, `sed -n`
+# printing, awk with no system/getline/pipe/redirect -- excepted, and
+# redirections only to /dev/null or another fd, since a file target is
+# truncated before git reads its config; no --receive-pack/--exec, which run
+# a local command; a cd is resolved logically, as bash does). AFTER the push,
+# whole pipelines joined by `;`, `&&` or `||` only: they start once it has
+# finished and cannot change what it sends, and every other rule still judges
+# them. Not after it: `&`, a newline/subshell/$(...)/heredoc between them, a
+# second push (git push, the word push, a git alias or runner, git -c), a
+# command name not literal, or a compound command or function in the line.
+# Otherwise: no other statement or pipe stage, no prefix
+# (VAR=, HOME=, GIT_*), no wrapper (xargs, sh -c, eval, nohup, sudo...), no
+# function or alias in the line, no run-time word (`$(...)`, `$VAR`, a glob,
+# a brace expansion, `~user`, `<(...)`), and no `-c`/`--config-env` key in
+# push.*, remote.*, branch.*, alias.*, include.*, includeIf.* or url.*.
+# Anything else refuses: "run the push by itself, as one plain command".
+#
+# GIT RESOLVES THE CONFIG. Every setting is read by asking git (`git config
+# --get/--get-all/--get-regexp` in the push's folder, with the hook's own
+# environment), so include.path, includeIf, GIT_CONFIG_* and HOME apply as
+# git applies them. Where the push goes follows git: `@` is HEAD; with no
+# refspec, push.default, branch.<b>.merge, branch.<b>.pushRemote and
+# remote.pushDefault decide it. remote.<r>.mirror, a `+` remote.<r>.push
+# refspec, remote.<r>.pushurl, a url.*.pushInsteadOf that rewrites the remote,
+# and a remote.<r>.push mapping the push relies on all refuse; so does any git
+# error. A merge by someone else whose OWN change (a conflict fix) would be
+# lost counts as lost. A `git <alias>` that git resolves to a push or a `!`
+# shell command refuses, as do `git rebase --exec` and `git submodule foreach`
+# running a lease push, and a lease push run by watch, parallel, script, su,
+# source or an alias defined in the line.
+#
+# KNOWN LIMITS: authorship is the author email, which anyone can set. The
+# tracking ref is assumed to be refs/remotes/<remote>/<branch> (the default
+# fetch refspec). State changed by an EARLIER, separate Bash call that git's
+# own config resolution does not reflect -- a shell variable exported earlier
+# in the session -- is not seen: the hook runs with its own environment. Code
+# that runs during a push (hooks set up earlier, tools that push for you) is
+# outside what a reader of the command line can see. A
+# lease flag only a file or another program supplies is not seen. A plain
+# force push from config (remote.<r>.mirror, a `+` remote.<r>.push refspec,
+# an alias to `push --force`) is not caught by any rule.
+_LEASE_DEADLINE_S = 6.0   # every git call for one command; the hook's timeout is 10 s
+_HEXISH = re.compile(r'^[0-9a-fA-F]{7,40}$')
+# A word the shell changes when the command runs: a substitution, a variable,
+# arithmetic, a glob, a brace expansion, process substitution. Read as written
+# it names nothing real, and a substitution may itself fetch first.
+_RUNTIME = re.compile(r'[$`*?\[]|^[<>]\(|\{[^}]*(?:,|\.\.)[^}]*\}')
+# `git -c` / `--config-env` keys that route a push, change what it compares
+# against, or bring in more config. On the push's own command line: refuse.
+_CMDLINE_KEY = re.compile(r'(?i)^(?:(?:push|remote|branch|alias|include|includeif|url)\.|'
+                          r'core\.sshcommand$)')
+_CWD = [None]       # the payload's cwd; set by inspect()
+_SIMPLES = [[]]     # every simple command of the command being judged; set by _verdict()
+_COMMAND = ['']     # the text of the command being judged; set by _verdict()
+
+
+def _runtime_word(s):
+    """The first word of the push -- argument, prefix, redirection target,
+    here-string, unquoted heredoc -- that the shell expands at run time, or None."""
+    words = s.cmd.argv
+    for k, w in enumerate(words):
+        if _RUNTIME.search(w):
+            return w
+        if w.startswith('~') and not (k and words[k - 1] == '-C' and (w == '~' or w.startswith('~/'))):
+            return w   # ~user, or a ~ anywhere but a literal -C path
+    for w in [r.value for r in getattr(s.cmd, 'redirs', [])] + list(s.cmd.herestrings):
+        if _RUNTIME.search(w) or w.startswith('~'):
+            return w
+    for hd in s.cmd.heredocs:
+        if not hd.quoted and re.search(r'[$`]', hd.body):
+            return f'<<{hd.delim}'
+    return None
+
+
+# Commands that run another command, from their words, a string, or stdin.
+_LAUNCHERS = frozenset({'xargs', 'parallel', 'sem', 'find', 'eval', 'source', '.', 'watch',
+                        'script', 'su', 'runuser', 'alias', 'trap', 'env', 'sudo', 'doas',
+                        'nohup', 'timeout', 'gtimeout', 'nice', 'stdbuf', 'time', 'exec',
+                        'command', 'builtin'}) | SHELLS
+_LEASE_TEXT = re.compile(r'--force-w')   # any spelling git accepts of --force-with-lease
+def _short_path(w):
+    """A long absolute path shown by its last part: `…/.gitconfig`."""
+    parts = w.rstrip('/').split('/')
+    if w.startswith('/') and len(parts) > 3:
+        return '…/' + parts[-1]
+    # an absolute path inside a word (`gitdir: /a/b/c`): keep its last part
+    return re.sub(r'(?<![\w.~-])/(?:[^/\s]+/){2,}([^/\s]*)', r'…/\1', w)
+
+
+def _brief(words, width=50):
+    """Words for a message: `NAME=value` shown as `NAME=…`, long absolute
+    paths shortened, cut to `width`."""
+    out = ' '.join(_short_path(re.sub(r'^([A-Za-z_]\w*\+?=).+', r'\1…', w, flags=re.S))
+                   for w in words)
+    return out if len(out) <= width else out[:width - 3] + '...'
+
+
+def _key_brief(key):
+    """A config key for a message, with a url.<base>. subsection left out."""
+    return re.sub(r'(?i)^url\..*\.(\w+)$', r'url.….\1', key)
+
+
+# Commands that only read the push's output and print or count it.
+_READERS = frozenset({'grep', 'egrep', 'fgrep', 'tail', 'head', 'cat', 'wc', 'sort', 'uniq',
+                      'sed', 'awk'})
+_SED_PRINT = re.compile(r'^\s*(?:(?:\d+|\$|/[^/]*/)(?:\s*,\s*(?:\d+|\$|/[^/]*/))?\s*!?\s*p\s*;?\s*)+$')
+
+
+def _output_reader(argv) -> bool:
+    """A pipeline stage after the push that can only read and print: it runs
+    nothing and writes no file (its own redirections aside)."""
+    if not argv or argv[0] not in _READERS:
+        return False
+    name, args = argv[0], argv[1:]
+    if name == 'sort':
+        return not any(x.startswith(('-o', '--output')) for x in args)
+    if name == 'uniq':
+        return not any(not x.startswith('-') for x in args)   # `uniq in out` writes out
+    if name == 'sed':
+        scripts, k, quiet = [], 0, False
+        while k < len(args):
+            x = args[k]
+            if x in ('-n', '--quiet', '--silent'):
+                quiet = True
+            elif x in ('-e', '--expression') and k + 1 < len(args):
+                scripts.append(args[k + 1])
+                k += 1
+            elif x.startswith('-'):
+                return False   # -i, -f, -s... : not a plain print
+            else:
+                scripts.append(x)
+            k += 1
+        return quiet and bool(scripts) and all(_SED_PRINT.match(p) for p in scripts)
+    if name == 'awk':
+        prog, k = None, 0
+        while k < len(args):
+            x = args[k]
+            if x in ('-F', '-v'):
+                k += 2
+                continue
+            if x.startswith(('-F', '-v')) and len(x) > 2:
+                k += 1
+                continue
+            if x.startswith('-'):
+                return False   # -f progfile and the rest
+            prog = x
+            break
+        return prog is not None and not re.search(r'system\s*\(|getline|[|>]', prog)
+    return True
+
+
+def _bad_redirect(cmd):
+    """A redirection target other than /dev/null or an fd duplication
+    (`2>&1`, `>&2`), or None. A file target is truncated by the shell before
+    git starts, and could be a config file git is about to read."""
+    text = _COMMAND[0]
+    for r in cmd.redirs:
+        if r.value == '/dev/null':
+            continue
+        if (r.value.isdigit() or r.value == '-') and text[:r.start].rstrip().endswith('&'):
+            continue
+        return r.value
+    return None
+
+
+_CHORES = frozenset({'rm', 'mkdir', 'touch', 'cp', 'mv', 'echo', 'printf'})
+# Options each chore may take; anything else (an option with a value, such as
+# `cp -t DIR` or `touch -r FILE`) refuses.
+_CHORE_SHORT = {'mkdir': 'pv', 'touch': 'cam', 'cp': 'aRrfinpPvLHTu', 'mv': 'finvTu'}
+_CHORE_LONG = {'mkdir': {'--parents', '--verbose'}}
+
+
+def _literal(w) -> bool:
+    return not (_RUNTIME.search(w) or w.startswith('~'))
+
+
+def _plain_cmd(c) -> bool:
+    return not (c.subshell or c.heredocs or c.herestrings or c.fed_by is not None
+                or len(c.pipe) != 1)
+
+
+def _chore_paths(c):
+    """The paths a plain file chore names (arguments and redirect targets),
+    or None when it is not one: another command, an option that takes a
+    value, `printf -v`, `mkdir` without -p, a word not written literally."""
+    raw, text = c.argv, _COMMAND[0]
+    if not raw or raw[0] not in _CHORES or not _plain_cmd(c):
+        return None
+    if not all(_literal(w) for w in raw) or not all(_literal(r.value) for r in c.redirs):
+        return None
+    name, args, paths, opts = raw[0], raw[1:], [], True
+    if name in ('echo', 'printf'):
+        if name == 'printf' and any(x.startswith('-v') for x in args):
+            return None
+    else:
+        for x in args:
+            if opts and x == '--':
+                opts = False
+            elif opts and x.startswith('-') and len(x) > 1:
+                if name == 'rm':
+                    continue   # any flags; rm's own rule judges recursion
+                if x.startswith('--'):
+                    if x not in _CHORE_LONG.get(name, ()):
+                        return None
+                elif any(ch not in _CHORE_SHORT[name] for ch in x[1:]):
+                    return None
+            else:
+                paths.append(x)
+        if name == 'mkdir' and not any(x in ('-p', '--parents') or
+                                       (x.startswith('-') and not x.startswith('--') and 'p' in x)
+                                       for x in args):
+            return None
+    for r in c.redirs:
+        if r.value == '/dev/null':
+            continue
+        if (r.value.isdigit() or r.value == '-') and text[:r.start].rstrip().endswith('&'):
+            continue
+        paths.append(r.value)
+    return paths
+
+
+_READ_GIT = frozenset({'status', 'log', 'show', 'diff', 'rev-parse', 'describe'})
+_BRANCH_LIST = frozenset({'-a', '-r', '-v', '-vv', '--list', '--show-current', '--all',
+                          '--remotes', '--verbose', '--no-color'})
+
+
+# Options that make a read-only git command write a file, run a program, or
+# read outside the repository. A long option is refused in any abbreviation.
+_READ_GIT_BAD = ('output', 'output-directory', 'ext-diff', 'textconv', 'no-index',
+                 'show-signature', 'exec')
+
+
+# find primaries that run a command, delete, or write a file (any spelling
+# that starts so): -exec, -execdir, -ok, -okdir, -delete, -fprint*, -fls.
+_FIND_ACTS = ('-exec', '-ok', '-delete', '-fprint', '-fls')
+
+
+def _runs_or_writes(x) -> bool:
+    if x.startswith('--'):
+        body = x[2:].split('=', 1)[0]
+        return bool(body) and any(n.startswith(body) and len(body) >= 2 or body.startswith(n)
+                                  for n in _READ_GIT_BAD)
+    return x.startswith('-O')
+
+
+def _read_only_cmd(c) -> bool:
+    """A command from the narrow read-only list that may come before a lease
+    push: git status/log/show/diff/rev-parse/describe, `git remote -v`, `git
+    branch` in list forms, ls, pwd, true, echo, find with no primary that
+    runs, deletes or writes (_FIND_ACTS) -- every word literal, no -c,
+    no file output, and (checked by the caller) no redirect but /dev/null."""
+    raw = c.argv
+    if not raw or c.subshell or c.heredocs or c.herestrings or c.fed_by is not None:
+        return False
+    if not all(_literal(w) for w in raw):
+        return False
+    name = raw[0]
+    if name in ('ls', 'pwd', 'true', 'echo'):
+        return True
+    if name == 'find':   # only reads and prints, like ls -R
+        return not any(x.startswith(_FIND_ACTS) for x in raw[1:])
+    if name != 'git':
+        return False
+    i, _ = _git(raw)
+    if i is None:
+        return False
+    k = 1
+    while k < i:   # global options: only -C <dir> and the pager switches
+        if raw[k] == '-C' and k + 1 < i:
+            k += 2
+        elif raw[k] in ('--no-pager', '-P', '--no-optional-locks'):
+            k += 1
+        else:
+            return False   # -c, --config-env, --git-dir, --exec-path...
+    sub, rest = raw[i], raw[i + 1:]
+    if sub in _READ_GIT:
+        return not any(_runs_or_writes(x) for x in rest)
+    if sub == 'remote':
+        return all(x in ('-v', '--verbose') for x in rest)
+    if sub == 'branch':
+        return all(x in _BRANCH_LIST for x in rest)
+    return False
+
+
+def _prelude(s, simples):
+    """(commands, chores, None) for what may come before the push -- one
+    literal `cd <dir>` first, then plain file chores and read-only commands
+    (each optionally piped into pure readers), joined by `&&` or `;` -- or
+    ([], [], reason) when something before it is not allowed."""
+    at = next((n for n, x in enumerate(simples) if x is s), 0)
+    before = simples[:at]
+    if not before:
+        return [], [], [], None
+    units, seen = [], set()
+    for o in before:
+        c = o.cmd
+        if o.via or c in s.cmd.pipe:
+            return [], [], [], f'shares this Bash call with `{_brief(c.argv or o.argv)}`'
+        if id(c) in seen:
+            continue
+        pipe = c.pipe if c in c.pipe else [c]
+        if pipe[0] is not c:
+            return [], [], [], f'shares this Bash call with `{_brief(c.argv or o.argv)}`'
+        seen.update(id(x) for x in pipe)
+        units.append(pipe)
+    cmds, chores, gits = [], [], []
+    for k, pipe in enumerate(units):
+        head, raw = pipe[0], pipe[0].argv
+        refuse = (None, None, f'shares this Bash call with `{_brief(raw)}`')
+        if k == 0 and raw[:1] == ['cd']:
+            if len(raw) != 2 or raw[1].startswith('-') or not _literal(raw[1]) or \
+                    head.redirs or not _plain_cmd(head):
+                return [], [], [], refuse[2]
+        elif _read_only_cmd(head) and all(_output_reader(x.argv) for x in pipe[1:]) and \
+                all(_bad_redirect(x) is None for x in pipe):
+            if raw[:1] == ['git']:
+                gits.append(head)
+        elif len(pipe) == 1 and _chore_paths(head) is not None:
+            chores.append(head)
+        else:
+            return [], [], [], refuse[2]
+        cmds += pipe
+    for x, y in zip(units, units[1:] + [[s.cmd]]):
+        last = x[-1]
+        if not last.words or not y[0].words:
+            return [], [], [], 'shares this Bash call with another command'
+        end = max([w.end for w in last.words] + [r.end for r in last.redirs])
+        if _COMMAND[0][end:y[0].words[0].start].strip() not in ('&&', ';'):
+            return [], [], [], f'shares this Bash call with `{_brief(x[0].argv)}`'
+    return cmds, chores, gits, None
+
+
+def _fold(path):
+    """A path compared the way a case-insensitive volume compares it."""
+    import unicodedata
+    return unicodedata.normalize('NFKC', path).casefold()
+
+
+def _temp_roots():
+    """System temp roots, resolved: /tmp, /private/tmp, /var/folders and
+    getconf DARWIN_USER_TEMP_DIR. Never $TMPDIR: the shell that runs the
+    command need not share the hook's environment."""
+    roots = ['/tmp', '/private/tmp', '/var/folders', '/private/var/folders']
+    try:
+        import subprocess
+        r = subprocess.run(['getconf', 'DARWIN_USER_TEMP_DIR'], stdout=subprocess.PIPE,
+                           stderr=subprocess.DEVNULL, timeout=2)
+        if r.returncode == 0 and r.stdout.strip():
+            roots.append(r.stdout.decode('utf-8', 'replace').strip())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return {_fold(os.path.realpath(x)).rstrip('/') for x in roots}
+
+
+def _under(path, root):
+    return path.startswith(root.rstrip('/') + '/')
+
+
+def _holds_link(path, limit=2000):
+    """`path` is a symlink, or a folder holding one (or too big to look)."""
+    if os.path.islink(path):
+        return True
+    if not os.path.isdir(path):
+        return False
+    seen = 0
+    for top, dirs, files in os.walk(path):
+        for name in dirs + files:
+            seen += 1
+            if seen > limit or os.path.islink(os.path.join(top, name)):
+                return True
+    return False
+
+
+def _temp_path_problem(full, roots):
+    """Why the chore path `full` (absolute, as written) is not a plain path in
+    a system temp folder outside every git repository, or None."""
+    parts = full.split('/')
+    if '..' in parts:
+        return 'has `..` in it'
+    if any(_fold(x) in ('.git', '.gitmodules', '.gitconfig') for x in parts):
+        return 'names a git file'
+    # Deepest existing ancestor; what does not exist yet must not be a link.
+    anc = full
+    while not os.path.exists(anc):
+        if os.path.lexists(anc):
+            return 'is a dangling symlink'
+        parent = os.path.dirname(anc)
+        if parent == anc:
+            break
+        anc = parent
+    real = os.path.realpath(full)
+    folded = _fold(real)
+    if not any(_under(folded, r) for r in roots):
+        return 'is not inside a system temp folder'
+    probe = real
+    while True:
+        if os.path.lexists(os.path.join(probe, '.git')):   # case-insensitive volumes match .GIT
+            return 'is inside a git repository'
+        if os.path.isfile(os.path.join(probe, 'HEAD')) and \
+                os.path.isdir(os.path.join(probe, 'objects')) and \
+                os.path.isdir(os.path.join(probe, 'refs')):
+            return 'is inside a git repository (a bare one)'
+        parent = os.path.dirname(probe)
+        if parent == probe:
+            break
+        probe = parent
+    return None
+
+
+def _push_repo_paths(s):
+    """Folded real paths of the push repo's top level, git dir and common dir,
+    and of every config file and include target git lists for it. Raises
+    _GitCannotTell when git fails."""
+    cwd, opts = _push_dir(s)
+    g = _Git(cwd, opts)
+    home = os.environ.get('HOME') or os.path.expanduser('~')
+    xdg = os.environ.get('XDG_CONFIG_HOME') or os.path.join(home, '.config')
+    out = {os.path.join(home, '.gitconfig'), os.path.join(xdg, 'git')}
+    top = cwd
+    for args in (['--show-toplevel'], ['--absolute-git-dir'], ['--git-common-dir'],
+                 ['--git-path', 'hooks']):
+        code, val = g.run(['rev-parse'] + args)
+        if code == 0 and val.strip():
+            out.add(os.path.join(cwd, val.strip()))
+            if args == ['--show-toplevel']:
+                top = val.strip()
+    # The folder git runs hooks from during the push: core.hooksPath, which
+    # may point outside the repository (into a temp folder) or not exist yet.
+    for value in g.config_all('core.hooksPath'):
+        value = os.path.expanduser(value.strip())
+        out.update({os.path.join(top, value), os.path.join(cwd, value)})
+    code, listed = g.run(['config', '--list', '--show-origin'])
+    if code != 0:
+        raise _GitCannotTell(f'git config --list --show-origin exited {code}')
+    code, inc = g.run(['config', '--show-origin', '--get-regexp', r'^include(if\..*)?\.path$'])
+    if code not in (0, 1):
+        raise _GitCannotTell(f'git config --get-regexp include exited {code}')
+    for line in listed.splitlines() + inc.splitlines():
+        origin, _, rest = line.partition('\t')
+        if origin.startswith('file:'):
+            path = origin[5:].strip('"')
+            out.add(os.path.join(cwd, path))
+            if rest.lower().startswith('include'):
+                target = rest.split(' ', 1)[1] if ' ' in rest else ''
+                target = os.path.expanduser(target)
+                out.add(os.path.join(os.path.dirname(os.path.join(cwd, path)), target))
+    return {_fold(os.path.realpath(p)).rstrip('/') for p in out if p}
+
+
+def _hard_link(full, c, p, sources):
+    """Why writing `full` could rewrite another file through a hard link: an
+    existing file with more than one link, or, for a cp/mv destination that is
+    a folder, such a file under the source's name inside it."""
+    targets = [full]
+    if c.argv[0] in ('cp', 'mv') and p not in sources and os.path.isdir(full):
+        targets += [os.path.join(full, os.path.basename(x.rstrip('/'))) for x in sources]
+    for t in targets:
+        try:
+            st = os.lstat(t)
+        except OSError:
+            continue
+        import stat
+        if not stat.S_ISDIR(st.st_mode) and st.st_nlink > 1:
+            return 'is a hard link, which may be another file git reads'
+    return None
+
+
+def _read_git_problem(s, gits, cd):
+    """Why the read-only git commands before the push may run a program
+    planted in this same command: one runs against another folder than the
+    push's repository. None when they are safe."""
+    if not gits:
+        return None
+    shell_cwd = _CWD[0] or os.getcwd()
+    if cd:
+        shell_cwd = os.path.normpath(os.path.join(shell_cwd, cd[0].argv[1]))
+    try:
+        push_cwd, opts = _push_dir(s)
+    except _GitCannotTell as why:
+        return f'comes after git commands bendit could not check ({_describe_short(why)})'
+    if opts:
+        return 'is given `--git-dir`/`--work-tree`, so a git command before it reads another repository'
+    for c in gits:
+        raw, here = c.argv, shell_cwd
+        i, _ = _git(raw)
+        k = 1
+        while k < i:
+            if raw[k] == '-C':
+                here = os.path.join(here, os.path.expanduser(raw[k + 1]))
+                k += 2
+            else:
+                k += 1
+        if os.path.realpath(here) != os.path.realpath(push_cwd):
+            return f'comes after `{_brief(raw)}`, which runs git in another folder than the push'
+    # Programs configured EARLIER (core.fsmonitor, filters, pagers, an external
+    # diff) may run here: the documented prior-setup limit, like hooks. Checking
+    # for them refused almost every developer machine (Git LFS, delta).
+    return None
+
+
+def _chore_problem(s, cmds):
+    """Why a chore before the push may change what git reads, or None. A chore
+    is allowed only on plain paths in a system temp folder, outside every git
+    repository and outside the push repo, and never copies or moves a link."""
+    chores = [c for c in cmds if c.argv[:1] != ['cd']]
+    if not chores:
+        return None
+    shell_cwd = _CWD[0] or os.getcwd()
+    if cmds[0].argv[:1] == ['cd']:
+        shell_cwd = os.path.join(shell_cwd, cmds[0].argv[1])
+    roots = _temp_roots()
+    try:
+        repo = _push_repo_paths(s)
+    except _GitCannotTell as why:
+        return f'comes after file chores bendit could not check ({_describe_short(why)})'
+    for c in chores:
+        paths = _chore_paths(c)
+        sources = []
+        if c.argv[0] in ('cp', 'mv'):
+            plain = [x for x in c.argv[1:] if not x.startswith('-')]
+            sources = plain[:-1]
+        for p in paths:
+            full = os.path.join(shell_cwd, p)
+            why = _temp_path_problem(full, roots)
+            if why is None:
+                why = _hard_link(full, c, p, sources)
+            if why is None:
+                folded = _fold(os.path.realpath(full)).rstrip('/')
+                if any(folded == r or _under(folded, r) or _under(r, folded) for r in repo):
+                    why = 'is, holds or lies in a file or folder git reads for this push'
+                elif p in sources and _holds_link(full):
+                    why = 'is or holds a symlink'
+            if why is not None:
+                return f'comes after `{_brief(c.argv)}`, whose path `{_short_path(p)}` {why}'
+    return None
+
+
+def _cmd_end(c):
+    return max([w.end for w in c.words] + [r.end for r in c.redirs])
+
+
+def _background_amp(text, code, start):
+    """True when text[start:] holds a `&` that sends a command to the
+    background (not `&&`, `|&`, `&>`, `>&`, `<&`), as the lexer marked code."""
+    for i in range(start, len(text)):
+        if text[i] != '&' or not code[i]:
+            continue
+        prev = text[i - 1] if i else ''
+        nxt = text[i + 1] if i + 1 < len(text) else ''
+        if prev in ('<', '>', '&', '|') or nxt in ('>', '&'):
+            continue
+        return True
+    return False
+
+
+# Words that open or close a compound command or a function body. With one
+# in the line, the order the text shows is not the order commands run in.
+_COMPOUND = frozenset({'{', '}', 'function', 'if', 'then', 'elif', 'else', 'fi', 'while',
+                       'until', 'for', 'select', 'do', 'done', 'case', 'esac', '!', '[[', 'coproc'})
+_PUSH_WORD = re.compile(r'(?<![\w./-])push(?![\w./-])')
+
+
+def _push_end(s):
+    """Where the lease push's pipeline ends in the command text, or None."""
+    pipe = s.cmd.pipe if s.cmd in s.cmd.pipe else [s.cmd]
+    if not all(c.words for c in pipe):
+        return None
+    return max(_cmd_end(c) for c in pipe)
+
+
+def _after_push(s, simples):
+    """(commands, simples) written after the lease push's pipeline at the top
+    level: not in a subshell, `$(...)` or heredoc body (a heredoc of the push
+    is expanded BEFORE it runs), with the simples they launch."""
+    end = _push_end(s)
+    later, after, owner = [], [], None
+    if end is None:
+        return after, later
+    for o in simples:
+        if not o.via:
+            c = o.cmd
+            owner = c if (c.words and c.words[0].start > end and not c.subshell
+                          and c.fed_by is None) else None
+            if owner is not None and c not in after:
+                after.append(c)
+        if owner is not None:
+            later.append(o)
+    return after, later
+
+
+def _after_problem(s, after, later):
+    """Why what comes after the lease push is not allowed, or None. Whole
+    pipelines joined to it and to each other by `;`, `&&` or `||` start only
+    once the push has finished, so they cannot change what it sends; each is
+    still judged by every other rule. Refused: anything that runs alongside
+    it (`&`), may push again, or that bendit cannot place."""
+    text = _COMMAND[0]
+    end = _push_end(s)
+    if end is None:
+        return 'shares this Bash call with another command'
+    if _background_amp(text, lex(text).code, end):
+        return 'runs alongside a command after it (`&`)'
+    if not after:
+        return None
+    for c in lex(text).cmds:   # a body: the push may run later, after what follows it
+        head = c.argv[0] if c.argv else ''
+        if head in _COMPOUND or head.endswith('()') or '()' in c.argv:
+            return f'is in the same line as `{_brief(c.argv)}`, a compound command or function'
+    after.sort(key=lambda c: c.words[0].start)
+    units = []
+    for c in after:
+        if c.subshell or c.fed_by is not None:
+            return f'is followed by `{_brief(c.argv)}`, which runs in a subshell'
+        if c in c.pipe and c.pipe[0] is not c:
+            if any(x not in after for x in c.pipe):
+                return 'shares this Bash call with another command'
+            continue
+        units.append(c.pipe if c in c.pipe else [c])
+    prev = end
+    for u in units:
+        if not all(x.words for x in u):
+            return 'shares this Bash call with another command'
+        gap = text[prev:u[0].words[0].start].strip()
+        if gap not in ('&&', ';', '||'):
+            return f'is followed by `{_brief(u[0].argv)}` in a way bendit cannot place'
+        prev = max(_cmd_end(x) for x in u)
+    first = units[0][0].words[0].start
+    if _PUSH_WORD.search(text[first:]):
+        return 'is followed by another `push`'
+    for o in later:
+        a = o.argv
+        if not a or not _literal(a[0]):
+            return f'is followed by `{_brief(o.cmd.argv)}`, whose command bendit cannot read'
+        if _git_push(a):
+            return 'is followed by another `push`'
+        if a[0] == 'git':
+            i, configs = _git(a)
+            if configs or any(x.startswith('--config-env') for x in a[1:i or len(a)]):
+                return f'is followed by `{_brief(a)}`, whose `-c` could make it another push'
+            if i is None or not _literal(a[i]) or a[i] not in _GIT_BUILTINS or \
+                    a[i] in _GIT_RUNNERS:
+                return f'is followed by `{_brief(a)}`, which may run another push'
+    return None
+
+
+def _not_alone(s):
+    """Why this lease push does not stand alone in the Bash call -- only the
+    allowed forms before it (_prelude), only sequential commands after it
+    (_after_problem) -- or None. Simulating what earlier commands do to git's
+    config and environment cannot be made complete."""
+    simples = _SIMPLES[0]
+    raw = s.cmd.argv
+    if s.via:
+        return f'is run through `{s.via[-1]}`'
+    if not raw or _command_name(raw[0]) != 'git' or unwrap(raw) != s.argv:
+        return f'is run through `{_brief(raw[:1]) if raw else "a wrapper"}`'   # a prefix, wrapper or VAR=
+    allowed = [s.cmd]
+    prelude, chores, gits, why = _prelude(s, simples)
+    if why is not None:
+        return why
+    allowed += prelude
+    if s.cmd in s.cmd.pipe:
+        at = s.cmd.pipe.index(s.cmd)
+        if at:
+            return f'reads `{_brief(s.cmd.pipe[0].argv)}` on its stdin'
+        allowed += [c for c in s.cmd.pipe[at + 1:] if _output_reader(c.argv)]
+    after, later = _after_push(s, simples)
+    ids = {id(o) for o in later}
+    others = [o for o in simples if o is not s and o.cmd not in allowed and id(o) not in ids]
+    if others:
+        return f'shares this Bash call with `{_brief(others[0].cmd.argv or others[0].argv)}`'
+    why = _after_problem(s, after, later)
+    if why is not None:
+        return why
+    if any(o.cmd is not s.cmd and o.via and id(o) not in ids for o in simples) or \
+            len(lex(_COMMAND[0]).cmds) != len(allowed) + len(after):
+        return 'shares this Bash call with another command'
+    for c in allowed:
+        if c in chores:
+            continue   # a chore's targets are checked as paths, below
+        bad = _bad_redirect(c)
+        if bad is not None:
+            return f'writes its output to `{bad}`, which the shell opens before git reads its config'
+    if s.cmd.subshell or s.cmd.fed_by is not None:
+        return 'runs in a subshell'
+    word = _runtime_word(s)
+    if word is not None:
+        shown = word if len(word) <= 50 else word[:47] + '...'
+        return f'contains `{shown}`, which the shell expands only when it runs'
+    a = s.argv
+    i, configs = _git(a)
+    keys = [c.split('=', 1)[0] for c in configs]
+    for k in range(1, i or 1):
+        if a[k].startswith('--config-env='):
+            keys.append(a[k].split('=', 1)[1].split('=', 1)[0])
+        elif a[k] == '--config-env' and k + 1 < len(a):
+            keys.append(a[k + 1].split('=', 1)[0])
+        elif a[k].startswith(('--namespace', '--exec-path')):
+            return f'sets `{a[k]}`'
+    for key in keys:
+        if _CMDLINE_KEY.match(key):
+            return f'sets `{_key_brief(key)}` on the command line'
+    cd = [c for c in prelude if c.argv[:1] == ['cd']][:1]
+    return _read_git_problem(s, gits, cd) or _chore_problem(s, cd + chores)
+
+
+def _git_push(argv) -> bool:
+    i, _ = _git(argv) if argv else (None, [])
+    return i is not None and argv[i] == 'push'
+
+
+# git's own commands, as `git help -a` lists them. A word in the subcommand
+# place that is not one of these is an alias, which the guard cannot read.
+_GIT_BUILTINS = frozenset('''
+add am annotate apply archive bisect blame branch bugreport bundle cat-file check-attr
+check-ignore check-mailmap check-ref-format checkout checkout-index cherry cherry-pick
+citool clean clone column commit commit-graph commit-tree config count-objects
+credential describe diagnose diff diff-files diff-index diff-tree difftool fast-export
+fast-import fetch fetch-pack filter-branch fmt-merge-msg for-each-ref for-each-repo
+format-patch fsck fsmonitor--daemon gc get-tar-commit-id gitk grep gui hash-object help
+hook index-pack init instaweb interpret-trailers log ls-files ls-remote ls-tree
+mailinfo mailsplit maintenance merge merge-base merge-file merge-index merge-tree
+mergetool mktag mktree multi-pack-index mv name-rev notes pack-objects pack-refs
+patch-id prune prune-packed pull push range-diff read-tree rebase reflog refs remote
+repack replace request-pull rerere reset restore rev-list rev-parse revert rm
+send-email send-pack shortlog show show-branch show-index show-ref sparse-checkout
+stage stash status stripspace submodule switch symbolic-ref tag unpack-file
+unpack-objects update-index update-ref update-server-info var verify-commit
+verify-pack verify-tag version whatchanged worktree write-tree lfs flow
+'''.split())
+# git subcommands that run a command from their words.
+_GIT_RUNNERS = frozenset({'rebase', 'submodule', 'bisect', 'config', 'filter-branch',
+                          'for-each-repo', 'difftool', 'mergetool'})
+
+
+def _git_config_aliases(argv):
+    """{alias name: value} that `git config [opts] [set] alias.<x> <value>` sets."""
+    i, _ = _git(argv) if argv else (None, [])
+    if i is None or argv[i] != 'config':
+        return {}
+    rest, k = argv[i + 1:], 0
+    if rest[:1] == ['set']:
+        k = 1
+    while k < len(rest) and rest[k].startswith('-'):
+        k += 2 if rest[k] in ('-f', '--file', '--blob', '--type', '--comment', '--value') else 1
+    if k + 1 < len(rest) and rest[k].lower().startswith('alias.'):
+        return {rest[k][6:].lower(): rest[k + 1]}
+    return {}
+
+
+def _git_runs_unseen(s):
+    """For a `git` command that is not a push: a git launcher that would run a
+    push the guard cannot read -- an alias (given with -c, set by `git config`
+    earlier in the line, or on disk), `rebase --exec`, `submodule foreach`."""
+    a = s.argv
+    i, configs = _git(a)
+    lease = any(_LEASE_TEXT.search(w) for w in s.cmd.argv)
+    aliases = {}
+    for c in configs:
+        if c.lower().startswith('alias.') and '=' in c:
+            name, value = c.split('=', 1)
+            aliases[name[6:].lower()] = value
+        elif c.lower().startswith('alias.'):
+            aliases[c[6:].lower()] = 'true'
+    env_alias = any(w.startswith('--config-env') and 'alias.' in w.lower()
+                    for w in a[1:i or len(a)]) or any(
+        a[k] == '--config-env' and a[k + 1].lower().startswith('alias.')
+        for k in range(1, min(i or len(a), len(a) - 1)))
+    if env_alias or (aliases and lease):   # --config-env: the value is unreadable
+        return 'git -c alias.' + (next(iter(aliases)) if aliases else '…')
+    if i is None:
+        return None
+    sub = a[i].lower()
+    # Aliases set earlier in this line by `git config alias.<x> ...`.
+    line = {}
+    for o in _SIMPLES[0]:
+        if o is s:
+            break
+        line.update(_git_config_aliases(o.argv))
+    for where, table in (('git -c alias.', aliases), ('git config alias.', line)):
+        value = table.get(sub)
+        if value is None:
+            continue
+        v = value.strip()
+        if lease or _LEASE_TEXT.search(v):
+            return where + sub
+        if v.startswith('!') or 'push' in v.split():
+            return ('alias', where + sub)   # a shell command or a push, unread
+    if lease and (sub in _GIT_RUNNERS or sub not in _GIT_BUILTINS):
+        return f'git {a[i]}'
+    if sub not in _GIT_BUILTINS:
+        return _alias_expands_to_push(s, a[i])
+    return None
+
+
+# Commands that can change git's config or environment for a later command in
+# the same Bash call.
+_ENV_CHANGERS = frozenset({'export', 'declare', 'typeset', 'local', 'readonly', 'read',
+                           'mapfile', 'readarray', 'unset', 'source', '.', 'eval', 'set',
+                           'cd', 'pushd', 'popd', 'env', 'alias'})
+
+
+def _alias_expands_to_push(s, sub):
+    """`git <alias>`: resolve the alias through git itself (includes and the
+    environment applied). ('alias', what) when it expands to a push or a `!`
+    shell command, or when it cannot be resolved -- git fails, or something
+    else in this Bash call may change git's config first -- else None."""
+    shown = f'git {sub}'
+    raw = s.cmd.argv
+    if not raw or _command_name(raw[0]) != 'git':
+        return ('alias', shown)   # a prefix (VAR=...) or wrapper may set the alias
+    for o in _SIMPLES[0]:
+        if o is s:
+            continue
+        name = o.argv[0]
+        if name in _ENV_CHANGERS or (name == 'printf' and '-v' in o.argv) or (
+                o.cmd.argv and _SH_ASSIGN.match(o.cmd.argv[0])):
+            return ('alias', shown)
+    try:
+        cwd, opts = _push_dir(s)
+        value = _Git(cwd, opts).config(f'alias.{sub}')
+    except _GitCannotTell:
+        return ('alias', shown)
+    if value is None:
+        return None   # not an alias: git will say it is no command
+    v = value.strip()
+    if v.startswith('!') or 'push' in v.split():
+        return ('alias', f'git {sub}')
+    return None
+
+
+def _lease_run_unseen(s):
+    """For a command that is not itself a git push: the launcher that would
+    run a lease push the guard cannot read -- `watch`, `alias`, `source <(...)`,
+    an `xargs` or shell fed it on stdin, `git -c alias.p='push --force-with-lease'`
+    -- or None."""
+    a = s.argv
+    if a[0] == 'git':
+        hit = _git_runs_unseen(s)
+        if hit:
+            return hit
+    names = {_command_name(w) for w in s.cmd.argv} | {a[0]}
+    hit = sorted(names & _LAUNCHERS)
+    if not hit:
+        return None
+    cmds = [s.cmd]
+    if s.cmd in s.cmd.pipe:   # what reaches it on stdin, except a lease push run as itself
+        cmds = [c for c in s.cmd.pipe[:s.cmd.pipe.index(s.cmd)] if not _git_push(unwrap(c.argv))] + cmds
+    for c in cmds:
+        texts = c.argv + list(c.herestrings) + [h.body for h in c.heredocs]
+        if any(_LEASE_TEXT.search(t) for t in texts):
+            return hit[0] if a[0] not in _LAUNCHERS else a[0]
+    return None
+
+
+class _GitCannotTell(Exception):
+    def __init__(self, why, unknown_commit=False):
+        super().__init__(why)
+        self.unknown_commit = unknown_commit
+
+
+def _push_leases(args):
+    """(leases, remote, refspecs, all_refs, repo, runs) for `git push <args>`.
+    Each lease is (ref or None, expect or None, the option as written): expect
+    None means "the remote-tracking ref", ref None means "every ref pushed".
+    `repo` is a `--repo` value (git's destination when no remote is written);
+    `runs` is a `--receive-pack`/`--exec` option, which runs a local command."""
+    leases, positional, all_refs, k, opts = [], [], False, 0, True
+    repo, runs = None, None
+    while k < len(args):
+        x = args[k]
+        k += 1
+        if opts and x == '--':
+            opts = False
+            continue
+        if opts and x.startswith('--'):
+            if _long_is(x, 'force-with-lease', 7):
+                value = x.split('=', 1)[1] if '=' in x else None
+                if value is None or value == '':
+                    leases.append((None, None, x))
+                elif ':' in value:
+                    ref, expect = value.split(':', 1)
+                    if expect:   # `<ref>:` means "must not exist yet": nothing to lose
+                        leases.append((ref, expect, x))
+                elif _HEXISH.match(value):
+                    leases.append((None, value, x))   # a commit, not a refname
+                else:
+                    leases.append((value, None, x))
+            elif _long_is(x, 'no-force-with-lease', 10):
+                leases = []
+            elif any(_long_is(x, n, 3) for n in ('all', 'branches', 'mirror')):
+                all_refs = True
+            elif _long_is(x, 'repo', 3):
+                if '=' in x:
+                    repo = x.split('=', 1)[1]
+                elif k < len(args):
+                    repo, k = args[k], k + 1
+            elif _long_is(x, 'receive-pack', 3) or _long_is(x, 'exec', 3):
+                runs = x.split('=', 1)[0]
+                k += '=' not in x
+            elif '=' not in x and _long_is(x, 'push-option', 3):
+                k += 1   # its value is the next word
+            continue
+        if opts and x.startswith('-') and len(x) > 1:
+            for j, ch in enumerate(x[1:]):
+                if ch == 'o':   # -o <push-option>: the rest, or the next word
+                    k += j == len(x) - 2
+                    break
+            continue
+        positional.append(x)
+    remote = positional[0] if positional else repo
+    return leases, remote, positional[1:], all_refs, repo, runs
+
+
+def _short_ref(ref: str) -> str:
+    for prefix in ('refs/heads/',):
+        if ref.startswith(prefix):
+            return ref[len(prefix):]
+    return ref
+
+
+def _push_dir(s):
+    """(cwd, git's -C/--git-dir/--work-tree options) the push runs with."""
+    cwd = _CWD[0] or os.getcwd()
+    simples = _SIMPLES[0]
+    at = next((n for n, x in enumerate(simples) if x is s), len(simples))
+    for c in simples[:at]:
+        if c.deferred or c.argv[0] not in ('cd', 'pushd') or (c.subshell and not s.subshell):
+            continue
+        targets = [x for x in c.argv[1:] if not x.startswith('-')]
+        target = _resolve(targets[0], c.seq, c.cmd.chain) if targets else '~'
+        if target.startswith('~'):
+            target = os.path.expanduser(target)
+        if not target or '$' in target or '`' in target or '*' in target:
+            raise _GitCannotTell(f'the command changes directory to {targets[0] if targets else "~"}, '
+                                 'which cannot be read without running it')
+        cwd = os.path.normpath(os.path.join(cwd, target))   # logical, as bash's cd
+    a, i, opts = s.argv, 1, []
+    while i < len(a) and a[i].startswith('-'):
+        x = a[i]
+        if x == '-C' and i + 1 < len(a):
+            cwd = os.path.realpath(os.path.join(cwd, os.path.expanduser(a[i + 1])))   # git chdirs
+        elif x in ('--git-dir', '--work-tree') and i + 1 < len(a):
+            opts += [x, a[i + 1]]
+        elif x.startswith(('--git-dir=', '--work-tree=')):
+            opts.append(x)
+        i += 2 if x in _GIT_OPTS_WITH_ARG else 1
+    return cwd, opts
+
+
+class _Git:
+    """LOCAL git queries for one push, under one deadline. Raises _GitCannotTell."""
+
+    def __init__(self, cwd, opts):
+        import time
+        self.cwd, self.opts = cwd, opts
+        self.deadline = time.monotonic() + _LEASE_DEADLINE_S
+
+    def run(self, args, stdin=''):
+        import subprocess
+        import time
+        left = self.deadline - time.monotonic()
+        if left <= 0:
+            raise _GitCannotTell('git took too long to answer')
+        env = dict(os.environ, GIT_TERMINAL_PROMPT='0', GIT_OPTIONAL_LOCKS='0',
+                   GIT_PAGER='cat', LC_ALL='C')
+        try:
+            r = subprocess.run(['git'] + self.opts + args, cwd=self.cwd, env=env,
+                               input=stdin.encode(), stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, timeout=left)
+        except subprocess.TimeoutExpired:
+            raise _GitCannotTell('git took too long to answer') from None
+        except OSError as exc:
+            raise _GitCannotTell(f'git could not run ({_describe(exc)})') from None
+        return r.returncode, r.stdout.decode('utf-8', 'replace')
+
+    def commit(self, name, must_exist=True):
+        """The full id `name` names, or None when it names nothing and need not."""
+        if not name or name.startswith('-'):
+            raise _GitCannotTell(f'{name!r} is not a commit name')
+        code, out = self.run(['rev-parse', '--verify', '--quiet', name + '^{commit}'])
+        if code == 0 and out.strip():
+            return out.strip()
+        if code == 1 and not must_exist:
+            return None
+        raise _GitCannotTell(f'git here does not know a commit {name}: an unknown commit, '
+                             'or not a git repository', unknown_commit=True)
+
+    def config(self, key):
+        """A config value, or None when it is not set."""
+        code, out = self.run(['config', '--get', key])
+        if code not in (0, 1):
+            raise _GitCannotTell(f'git config --get {key} exited {code}')
+        return out.strip() if code == 0 and out.strip() else None
+
+    def config_all(self, key):
+        """Every value of a multi-valued key, includes and environment applied."""
+        code, out = self.run(['config', '--get-all', key])
+        if code not in (0, 1):
+            raise _GitCannotTell(f'git config --get-all {key} exited {code}')
+        return [x for x in out.splitlines() if x.strip()] if code == 0 else []
+
+    def config_regexp(self, pattern):
+        """[(key, value)] for every key matching `pattern`."""
+        code, out = self.run(['config', '--get-regexp', pattern])
+        if code not in (0, 1):
+            raise _GitCannotTell(f'git config --get-regexp {pattern} exited {code}')
+        return [tuple((line.split(' ', 1) + [''])[:2]) for line in out.splitlines()] if code == 0 else []
+
+    def tracking(self, remote, branch, own_answer):
+        """Every remote-tracking commit a plain lease on `branch` may expect:
+        refs/remotes/<remote>/<branch>, and git's own @{push} when the command
+        names no remote. Empty when the remote is a URL or a path, or nothing
+        was fetched."""
+        names = ['@{push}'] if own_answer else []
+        if branch is not None and self.config(f'remote.{remote}.url') is not None:
+            names.append(f'refs/remotes/{remote}/{_short_ref(branch)}')
+        found = []
+        for name in names:
+            commit = self.commit(name, must_exist=False)
+            if commit and commit not in found:
+                found.append(commit)
+        return found
+
+
+def _forced_by_config(g, remote):
+    """Refuse (raise) when git's own config -- includes, includeIf and the
+    environment applied, as git resolves it -- makes this push mirror, force a
+    `+` refspec, or go somewhere other than the remote its tracking refs came
+    from (a pushurl or url.*.pushInsteadOf)."""
+    url = g.config(f'remote.{remote}.url')
+    if url is None:
+        return   # a URL or path, not a named remote: no tracking refs to trust
+    code, out = g.run(['config', '--type=bool', '--get', f'remote.{remote}.mirror'])
+    if code not in (0, 1) or out.strip() == 'true':
+        raise _GitCannotTell(f'remote.{remote}.mirror is set, so this push would overwrite every '
+                             'ref on the remote')
+    if any(v.lstrip().startswith('+') for v in g.config_all(f'remote.{remote}.push')):
+        raise _GitCannotTell(f'remote.{remote}.push has a `+` refspec, which forces whatever it maps')
+    if g.config_all(f'remote.{remote}.pushurl'):
+        raise _GitCannotTell(f'remote.{remote}.pushurl sends this push somewhere other than the '
+                             'remote its tracking refs were fetched from')
+    for key, value in g.config_regexp(r'^url\..*\.pushinsteadof$'):
+        if value and url.startswith(value):
+            raise _GitCannotTell(f'{_key_brief(key)} rewrites where this push goes, away from the remote its '
+                                 'tracking refs were fetched from')
+
+
+def _pushes(g, remote, refspecs, all_refs):
+    """(remote, [(source, destination branch or None)]) this push writes, with
+    the destination decided the way git decides it: push.default,
+    branch.<b>.merge, branch.<b>.pushRemote, remote.pushDefault."""
+    code, cur = g.run(['symbolic-ref', '--short', '-q', 'HEAD'])
+    branch = cur.strip() if code == 0 and cur.strip() else None
+    if remote is None:
+        remote = ((branch and g.config(f'branch.{branch}.pushRemote')) or g.config('remote.pushDefault')
+                  or (branch and g.config(f'branch.{branch}.remote')) or 'origin')
+    _forced_by_config(g, remote)
+    if (any(':' not in spec for spec in refspecs) or not refspecs) and \
+            g.config(f'remote.{remote}.push') is not None:
+        raise _GitCannotTell(f'remote.{remote}.push decides where this push goes, and bendit '
+                             'does not follow that mapping')
+    out = []
+    for spec in refspecs:
+        src, colon, dst = spec.lstrip('+').partition(':')
+        if not src:
+            continue   # a deletion: push-deletes-remote-refs speaks for it
+        if colon:
+            out.append((src, dst))
+        elif src in ('HEAD', '@'):
+            out.append((src, branch))
+        else:
+            out.append((src, src))
+    if refspecs:
+        return remote, out
+    if all_refs:
+        code, refs = g.run(['for-each-ref', '--format=%(refname:short)', 'refs/heads'])
+        if code != 0:
+            raise _GitCannotTell(f'git for-each-ref exited {code}')
+        return remote, [(b, b) for b in refs.split()]
+    if branch is None:
+        raise _GitCannotTell('HEAD is not on a branch, so where a push with no refspec goes '
+                             'cannot be told')
+    mode = (g.config('push.default') or 'simple').lower()
+    merge = g.config(f'branch.{branch}.merge')
+    if mode == 'nothing':
+        return remote, []   # git refuses to push
+    if mode == 'matching':
+        code, refs = g.run(['for-each-ref', '--format=%(refname:short)', 'refs/heads'])
+        if code != 0:
+            raise _GitCannotTell(f'git for-each-ref exited {code}')
+        return remote, [(b, b) for b in refs.split()]
+    if mode in ('upstream', 'tracking'):
+        if not merge:
+            raise _GitCannotTell(f'push.default is {mode} and {branch} has no upstream branch')
+        return remote, [('HEAD', _short_ref(merge))]
+    if mode == 'current':
+        return remote, [('HEAD', branch)]
+    if mode == 'simple':
+        dsts = [branch] + ([_short_ref(merge)] if merge and _short_ref(merge) != branch else [])
+        return remote, [('HEAD', d) for d in dsts]
+    raise _GitCannotTell(f'push.default is {mode!r}, which bendit does not know')
+
+
+def _lost_rows(g, new, old):
+    """[(short sha, email, author, subject)] of what pushing `new` over `old`
+    discards: commits whose change is not in `new` (git cherry), and merges
+    whose OWN change -- a conflict fix -- would go with them."""
+    code, out = g.run(['cherry', new, old])
+    if code != 0:
+        raise _GitCannotTell(f'git cherry exited {code}')
+    lost = [ln[2:].strip() for ln in out.splitlines() if ln.startswith('+ ')]
+    rows = []
+    if lost:
+        code, log = g.run(['log', '--no-walk=unsorted', '--stdin', '--no-color',
+                           '--format=%h%x09%ae%x09%an%x09%s'], '\n'.join(lost) + '\n')
+        rows = [ln.split('\t', 3) for ln in log.splitlines() if ln.count('\t') >= 3]
+        if code != 0 or len(rows) != len(lost):
+            raise _GitCannotTell(f'git log could not read the {len(lost)} commits the push would discard')
+    code, log = g.run(['log', '--merges', '--cc', '--no-color', '--no-ext-diff',
+                       '--format=%x01%h%x09%ae%x09%an%x09%s', f'{new}..{old}'])
+    if code != 0:
+        raise _GitCannotTell(f'git log --merges exited {code}')
+    for chunk in log.split('\x01')[1:]:
+        head, _, diff = chunk.partition('\n')
+        if diff.strip() and head.count('\t') >= 3:
+            h, e, a, subj = head.split('\t', 3)
+            rows.append([h, e, a, subj + ' (a merge with changes of its own)'])
+    return rows
+
+
+def force_with_lease_foreign(s):
+    """A `git push --force-with-lease` (any form) that would discard commits
+    someone else wrote. Returns the reason, naming them, or False."""
+    i, _ = _git(s.argv)
+    if i is None or s.argv[i] != 'push':
+        unseen = _lease_run_unseen(s)
+        if isinstance(unseen, tuple):
+            return (f'`{unseen[1]}` expands to a shell command or a push that bendit cannot read '
+                    f'ahead of time, so it cannot tell what it would discard — write the git '
+                    f'command out in full, without the alias')
+        if unseen:
+            return (f'`{unseen}` would run a `git push --force-with-lease` that bendit cannot '
+                    f'read ahead of time, so it cannot tell what the push would discard — write '
+                    f'the push out literally as its own command')
+        return False
+    leases, remote, refspecs, all_refs, repo, runs = _push_leases(s.argv[i + 1:])
+    if not leases:
+        return False
+    written = leases[0][2]
+    alone = _not_alone(s)
+    if alone is None and runs is not None:
+        alone = f'is given `{runs}`, which runs a command on this machine'
+    if alone is not None:
+        return (f'`{written}` {alone}. bendit checks a lease push only when it is the one plain '
+                f'command in the Bash call — no other command, prefix, wrapper, variable or '
+                f'routing `-c`; only a leading `cd <dir> &&`, plain file chores before it (`rm`, '
+                f'`mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` on literal paths in a temp '
+                f'folder outside any git repository), read-only commands before it (`git status`, '
+                f'`git log`, `git diff`, `ls`, `pwd`, `find`), output readers piped after it (`| grep`, '
+                f'`| tail`), other commands after it joined by `;`, `&&` or `||` (no `&`, no '
+                f'second push) and `2>&1` or `>/dev/null` are fine — because anything else can change '
+                f'what it pushes or '
+                f'what git compares against. Run the push by itself, as one plain command, so '
+                f'bendit can check it')
+    try:
+        cwd, opts = _push_dir(s)
+        g = _Git(cwd, opts)
+        remote, pushes = _pushes(g, remote, refspecs, all_refs)
+        own_answer = not refspecs and remote is not None and repo is None and not any(
+            not x.startswith('-') for x in s.argv[i + 1:])
+        checks = []   # (option as written, src, dst, expect name or None)
+        for ref, expect, written in leases:
+            mine = [(src, dst) for src, dst in pushes
+                    if ref is not None and dst is not None and _short_ref(dst) == _short_ref(ref)]
+            for src, dst in (mine or pushes):
+                checks.append((written, src, dst, expect))
+        email = None
+        for written, src, dst, expect in checks:
+            olds = [g.commit(expect)] if expect is not None else g.tracking(remote, dst, own_answer)
+            if not olds:
+                continue   # nothing fetched: the server-side lease protects it
+            new = g.commit(src)
+            for old in olds:
+                rows = _lost_rows(g, new, old)
+                if not rows:
+                    continue
+                if email is None:
+                    email = (g.config('user.email') or '').lower()
+                others = [r for r in rows if not email or r[1].strip().lower() != email]
+                if not others:
+                    continue   # only your own commits, squashed or amended
+                shown = '\n'.join(f'    {h} {a}: {subj}' for h, _e, a, subj in others[:5])
+                if len(others) > 5:
+                    shown += f'\n    ... and {len(others) - 5} more'
+                whose = ('by someone else' if email else
+                         'that may not be yours (`git config user.email` is not set, so bendit '
+                         'cannot tell whose they are)')
+                fix = ('' if email else
+                       'Set it (`git config user.email <you>`) and run the push again. ')
+                return (f'`{written}` would discard {len(others)} commit(s) {whose} from the '
+                        f'remote\'s {dst or src} — they are on {old[:7]} and their changes are not in '
+                        f'what you push ({src}):\n{shown}\n{fix}'
+                        f'Look at them first: `git log --stat {new[:7]}..{old[:7]}`. To keep them, '
+                        f'rebase onto them (`git rebase {old[:7]}`) and push again; a lease only '
+                        f'guards against the remote moving again, never a commit you have already '
+                        f'fetched and chose to overwrite')
+    except _GitCannotTell as why:
+        hint = ('Run `git fetch` and `git log <your branch>..<remote>/<branch>` to see what is on '
+                'the remote, and leave this push to the human if it must happen'
+                if why.unknown_commit else 'Leave this push to the human if it must happen')
+        return (f'`{written}`: git could not check here whether this push discards someone '
+                f'else\'s commits ({_describe_short(why)}), so it is refused. {hint}')
+    return False
+
+
+def _describe_short(exc: BaseException) -> str:
+    try:
+        return str(exc)
+    except BaseException:
+        return 'an error that could not be described'
+
+
 _REQUIRE_FORCE_OFF = re.compile(r'(?i)^clean\.requireforce=(false|no|off|0)$')
 
 
@@ -704,6 +1975,7 @@ COMMAND_RULES = [
     (prisma_reset, '`prisma migrate reset` / `prisma db push --force-reset` drops the database and every row in it — use `prisma migrate dev --create-only` to write the migration and let the human apply it', 'prisma-reset'),
     (force_push, 'force push — use --force-with-lease, and never on a shared branch', 'force-push'),
     (push_deletes_remote_refs, '`git push --mirror` / `--delete` / `:<branch>` deletes branches on the remote (--mirror: every remote branch you do not have locally), and other people\'s commits go with them — push your own branch, and leave deleting remote branches to the human', 'push-deletes-remote-refs'),
+    (force_with_lease_foreign, 'a lease push aimed at a commit your push does not contain', 'force-with-lease-foreign'),
     (git_clean_force, '`git clean -f` deletes untracked (and with -x, ignored, .env included) files with no undo — run `git clean -n` to see the list, then run it yourself if you mean it', 'git-clean-force'),
     (git_reset_hard, '`git reset --hard` throws away every uncommitted change to tracked files, with no undo — run `git stash` instead (`git stash pop` brings it back), or `git reset --keep`, which refuses to overwrite local changes', 'git-reset-hard'),
     (git_discard_all, '`git checkout .` / `git restore .` throws away EVERY uncommitted change in the working tree, with no undo — name the files you mean (`git restore path/to/file`), or `git stash` to set everything aside recoverably', 'git-discard-all'),
@@ -954,7 +2226,8 @@ SPECIAL_RULES = ['deletes-own-cwd', 'trust-approval', 'trust-file-write', 'insta
 RULES = [
     'deletes-own-cwd', 'trust-approval', 'trust-file-write', 'installer-preanswer',
     'rm-recursive', 'find-delete', 'destructive-sql', 'supabase-push-reset',
-    'prisma-reset', 'force-push', 'push-deletes-remote-refs', 'git-clean-force',
+    'prisma-reset', 'force-push', 'push-deletes-remote-refs',
+    'force-with-lease-foreign', 'git-clean-force',
     'git-reset-hard', 'git-discard-all', 'script-deletes-tree',
     'stripe-live-key', 'stripe-restricted-key', 'supabase-access-token',
     'supabase-secret-key', 'github-token', 'github-fine-grained-token', 'private-key',
@@ -1004,6 +2277,8 @@ def inspect(raw: str, fired=None) -> int:
     if not command.strip():
         return 0
 
+    cwd = payload.get('cwd')
+    _CWD[0] = cwd if isinstance(cwd, str) and cwd else None
     rule, reason = _verdict(command)
     if not reason:
         return 0
@@ -1022,8 +2297,11 @@ def _verdict(command: str):
     """(rule id, reason) to refuse `command`, or (None, None)."""
     global VARS
     saved, VARS = VARS, Vars(command)
+    saved_simples, saved_command = _SIMPLES[0], _COMMAND[0]
+    _COMMAND[0] = command
     try:
         simples = simple_commands(command)
+        _SIMPLES[0] = simples
         doomed = deletes_the_directory_it_enters(simples)
         if doomed is not None:
             entered, deleted, same = doomed
@@ -1054,6 +2332,8 @@ def _verdict(command: str):
         return None, None
     finally:
         VARS = saved
+        _SIMPLES[0] = saved_simples
+        _COMMAND[0] = saved_command
 
 
 def main() -> int:

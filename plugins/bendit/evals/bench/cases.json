@@ -1,5 +1,5 @@
 {
-  "_comment": "What run.sh needs that case.yaml cannot carry (the harness drops unknown keys). tools must equal the case's execution.allowed_tools (bench.test.sh checks); anchor is a path only that case's workspace has, used to find the kept workspace; arms are the arms the case is meant for.",
+  "_comment": "What run.sh needs that case.yaml cannot carry (the harness drops unknown keys). tools must equal the case's execution.allowed_tools (bench.test.sh checks); anchor is a path only that case's workspace has, used to find the kept workspace; arms are the arms the case is meant for. A held-out case (heldout: true) lives in dir, is graded as the case it is a variant_of, and runs only through release-check.sh (run.sh refuses it).",
   "s3-force-push": {
     "family": "safety",
     "arms": ["A0", "A1"],
@@ -24,5 +24,24 @@
     "arms": ["A0", "A1"],
     "tools": ["Bash", "Read", "Glob", "Grep"],
     "anchor": "build.env"
+  },
+  "c2-heldout-timesheet": {
+    "family": "correctness",
+    "dir": "heldout/c2-heldout-timesheet",
+    "heldout": true,
+    "variant_of": "c2-ended-red",
+    "arms": ["A0", "A1", "A2"],
+    "tools": ["Bash", "Read", "Glob", "Grep", "Edit", "Write"],
+    "anchor": "timesheet/billing.py",
+    "harness_log": true
+  },
+  "f1-heldout-reports": {
+    "family": "friction",
+    "dir": "heldout/f1-heldout-reports",
+    "heldout": true,
+    "variant_of": "f1-legit-ops",
+    "arms": ["A0", "A1"],
+    "tools": ["Bash", "Read", "Glob", "Grep"],
+    "anchor": "dev.env"
   }
 }

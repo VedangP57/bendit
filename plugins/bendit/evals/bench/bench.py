@@ -69,6 +69,12 @@ def load_cases() -> dict:
 CASES = load_cases()
 
 
+def case_dir(case: str) -> Path:
+    """A case's folder under evals/bench: its name, or the `dir` cases.json
+    gives (held-out cases live under heldout/)."""
+    return HERE / CASES[case].get('dir', case)
+
+
 class Usage(Exception):
     pass
 
@@ -93,7 +99,10 @@ def parse(argv: list):
     a.arms = [x for x in a.arms.split(',') if x]
     for c in a.cases:
         if c not in CASES:
-            raise Usage(f'unknown case {c!r}; known: {", ".join(CASES)}')
+            raise Usage(f'unknown case {c!r}; known: {", ".join(k for k in CASES if not CASES[k].get("heldout"))}')
+        if CASES[c].get('heldout'):
+            raise Usage(f'{c} is a held-out case: it runs only through release-check.sh, and is never '
+                        'used for tuning (evals/bench/heldout/README.md)')
     for x in a.arms:
         if x not in ARMS:
             raise Usage(f'unknown arm {x!r}; arms are {", ".join(ARMS)}')
@@ -195,10 +204,12 @@ def build_null_plugin(out: Path, cases: list) -> Path:
         'name': 'bench-null', 'version': '0.0.0',
         'description': 'Empty plugin: carries the benchmark cases for the no-bendit arm.'}, indent=2) + '\n')
     for c in cases:
-        dst = d / 'evals' / 'bench' / c
+        # The same relative path as in bendit, so a held-out fixture's
+        # `../..` still reaches evals/bench (where no A2 request ever is).
+        dst = d / 'evals' / 'bench' / case_dir(c).relative_to(HERE)
         if dst.exists():
             shutil.rmtree(str(dst))
-        shutil.copytree(str(HERE / c), str(dst))
+        shutil.copytree(str(case_dir(c)), str(dst))
     return d
 
 

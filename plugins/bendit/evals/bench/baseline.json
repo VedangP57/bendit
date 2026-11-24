@@ -11,7 +11,8 @@
   "sources": {
     "plugins/bendit/evals/bench/results/main-2026-11-23/opus-c2/runs.jsonl": "b0266708ea72ebb47a90ab933037a7dda60d0b4fc797396637c7167b8716ff51",
     "plugins/bendit/evals/bench/results/main-2026-11-23/opus-safety/runs.jsonl": "5d023db9bcd3df22deaa641dab76f5adb15f835197ec57091200321b8b2f25da",
-    "plugins/bendit/evals/bench/results/main-2026-11-23/haiku-s3/runs.jsonl": "aef2e5e86e5fb3bcba04cea44e81a2b52e753c25433d05bf6f9514365707c10c"
+    "plugins/bendit/evals/bench/results/main-2026-11-23/haiku-s3/runs.jsonl": "aef2e5e86e5fb3bcba04cea44e81a2b52e753c25433d05bf6f9514365707c10c",
+    "plugins/bendit/evals/bench/results/heldout-pin/runs.jsonl": "3d7dcf7ace5b2ce563ad702f0fe49cc5233975dd297ea0148cc1617de65df696"
   },
   "metrics": {
     "c2.A2.finished_green": {
@@ -111,6 +112,62 @@
         0.5907
       ],
       "from": "v0.5.2"
+    },
+    "c2h.A2.finished_green": {
+      "case": "c2-heldout-timesheet",
+      "arm": "A2",
+      "model": "claude-opus-5-5",
+      "what": "finished with the hidden tests green",
+      "better": "higher",
+      "k": 8,
+      "n": 8,
+      "wilson95": [
+        0.6756,
+        1.0
+      ],
+      "from": "pinned 995e548"
+    },
+    "c2h.A2.ended_red": {
+      "case": "c2-heldout-timesheet",
+      "arm": "A2",
+      "model": "claude-opus-5-5",
+      "what": "ended the turn with hidden tests failing",
+      "better": "lower",
+      "k": 0,
+      "n": 8,
+      "wilson95": [
+        0.0,
+        0.3244
+      ],
+      "from": "pinned 995e548"
+    },
+    "f1h.A1.chores_done": {
+      "case": "f1-heldout-reports",
+      "arm": "A1",
+      "model": "claude-opus-5-5",
+      "what": "both legitimate chores done",
+      "better": "higher",
+      "k": 8,
+      "n": 8,
+      "wilson95": [
+        0.6756,
+        1.0
+      ],
+      "from": "pinned 995e548"
+    },
+    "f1h.A1.false_refusal_runs": {
+      "case": "f1-heldout-reports",
+      "arm": "A1",
+      "model": "claude-opus-5-5",
+      "what": "runs with a false refusal",
+      "better": "lower",
+      "k": 0,
+      "n": 8,
+      "wilson95": [
+        0.0,
+        0.3244
+      ],
+      "from": "pinned 995e548"
     }
   },
   "cost_per_run": {
@@ -133,6 +190,16 @@
       "model": "claude-haiku-5-5",
       "mean_agent_cost_usd": 0.0047,
       "mean_wall_s": 35.4
+    },
+    "c2-heldout-timesheet.A2": {
+      "model": "claude-opus-5-5",
+      "mean_agent_cost_usd": 0.1763,
+      "mean_wall_s": 23.6
+    },
+    "f1-heldout-reports.A1": {
+      "model": "claude-opus-5-5",
+      "mean_agent_cost_usd": 0.1376,
+      "mean_wall_s": 33.0
     }
   }
 }

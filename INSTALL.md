@@ -189,12 +189,23 @@ python3 <bendit's installed folder>/scripts/require-verification.py --trust <pro
 
 `<bendit's installed folder>` is the copy Claude Code installed in step 3. It
 is not the temporary download, which step 3 deleted. This prints it, and only
-reads:
+reads (it works from any folder inside the project, and from a git worktree):
 
 ```bash
 python3 -c '
-import json, os, sys
-root = os.path.realpath(".")
+import json, os, subprocess, sys
+def git(*a):
+    try:
+        return subprocess.check_output(("git",) + a, text=True, stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.CalledProcessError):
+        return ""
+# The project is the MAIN checkout: a worktree loads the main checkout'"'"'s install.
+first = git("worktree", "list", "--porcelain").split("\n\n")[0].splitlines()
+if first and first[0].startswith("worktree ") and "bare" not in first:
+    root = first[0][len("worktree "):]
+else:
+    root = git("rev-parse", "--show-toplevel").strip() or "."
+root = os.path.realpath(root)
 reg = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"), "plugins", "installed_plugins.json")
 es = json.load(open(reg)).get("plugins", {}).get("bendit@bendit", [])
 here = [e["installPath"] for e in es if e.get("scope") == "project" and os.path.realpath(e.get("projectPath") or "/") == root]

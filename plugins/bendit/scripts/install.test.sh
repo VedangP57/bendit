@@ -93,6 +93,19 @@ INSTALL_MD="${BENDIT_INSTALL_MD:-$SD/../../../INSTALL.md}"
 INSTALL_MD_TAGS="$(grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' "$INSTALL_MD" 2>/dev/null | sort -u | tr '\n' ' ')"
 chk "INSTALL.md names only the tag v$PLUGIN_VERSION" "$INSTALL_MD_TAGS" "v$PLUGIN_VERSION "
 chk "INSTALL.md fetches nothing from main" "$(grep -c 'bendit/main/' "$INSTALL_MD")|$(grep 'git clone' "$INSTALL_MD" | grep -vc -- '--branch v[0-9]')" "0|0"
+# The trust-path one-liner, extracted from INSTALL.md itself so it cannot drift.
+echo "INSTALL.md installed-path one-liner"
+TP="$T/trustpath"; mkdir -p "$TP/cfg/plugins" "$TP/repo" && ( cd "$TP/repo" && git init -q && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m i && mkdir sub && git worktree add -q "$TP/wt" -b wt 2>/dev/null )
+TP="$(cd "$TP" && pwd -P)"
+awk '/^```bash$/{b=1;n=0;next} /^```$/{if(b&&buf~/installed_plugins\.json/){printf "%s",buf;exit} b=0;buf="";next} b{buf=buf $0 "\n"}' "$INSTALL_MD" > "$TP/oneliner.sh"
+chk "the one-liner was found in INSTALL.md" "$([ -s "$TP/oneliner.sh" ] && echo yes || echo no)" yes
+printf '{"plugins":{"bendit@bendit":[{"scope":"project","projectPath":"%s","installPath":"/main/0.5.2"},{"scope":"project","projectPath":"%s","installPath":"/stale/0.5.0"}]}}\n' "$TP/repo" "$TP/wt" > "$TP/cfg/plugins/installed_plugins.json"
+tp() { ( cd "$1" && CLAUDE_CONFIG_DIR="$TP/cfg" bash "$TP/oneliner.sh" 2>&1; echo "rc=$?" ); }
+chk "project root -> its install"         "$(tp "$TP/repo")"     "$(printf '/main/0.5.2\nrc=0')"
+chk "subfolder -> the same install"       "$(tp "$TP/repo/sub")" "$(printf '/main/0.5.2\nrc=0')"
+chk "worktree -> the MAIN checkout's"     "$(tp "$TP/wt")"       "$(printf '/main/0.5.2\nrc=0')"
+printf '{"plugins":{}}\n' > "$TP/cfg/plugins/installed_plugins.json"
+chk "no install -> plain message, exit 1" "$(tp "$TP/repo")"     "$(printf 'bendit is not installed for this project\nrc=1')"
 expect_capture "--help" run_installer "$S" --help
 chk "--help exits 0"                  "$EXPECT_CODE" 0
 for f in --check --version --help; do

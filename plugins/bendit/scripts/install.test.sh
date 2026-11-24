@@ -92,7 +92,14 @@ chk "BENDIT_VERSION equals plugin.json" "$VERSION" "$PLUGIN_VERSION"
 INSTALL_MD="${BENDIT_INSTALL_MD:-$SD/../../../INSTALL.md}"
 INSTALL_MD_TAGS="$(grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' "$INSTALL_MD" 2>/dev/null | sort -u | tr '\n' ' ')"
 chk "INSTALL.md names only the tag v$PLUGIN_VERSION" "$INSTALL_MD_TAGS" "v$PLUGIN_VERSION "
-chk "INSTALL.md fetches nothing from main" "$(grep -c 'bendit/main/' "$INSTALL_MD")|$(grep 'git clone' "$INSTALL_MD" | grep -vc -- '--branch v[0-9]')" "0|0"
+chk "INSTALL.md fetches nothing from main" "$(grep -c 'bendit/main/' "$INSTALL_MD")|$(grep 'git clone' "$INSTALL_MD" | grep -vc -- "--branch v$PLUGIN_VERSION ")" "0|0"
+# A branch like v0.5 must not pass: the pin is the full x.y.z of this release.
+printf 'git clone --depth 1 --branch v0.5 https://x "$K"\n' > "$T/short-branch.md"
+chk "a clone with --branch v0.5 is caught" "$(grep 'git clone' "$T/short-branch.md" | grep -vc -- "--branch v$PLUGIN_VERSION ")" 1
+# bendit installs from main on purpose (a ref would freeze `claude plugin update`).
+# Adding one needs a decision, so the wording and the bare command are pinned.
+chk "INSTALL.md marketplace add has no ref" "$(grep -c '^  claude plugin marketplace add https://github.com/VedangP57/bendit --scope project$' "$INSTALL_MD")" 1
+chk "INSTALL.md says bendit installs from main" "$(tr '\n' ' ' < "$INSTALL_MD" | tr -s ' ' | grep -c 'bendit installs from its main branch, which only changes when a new release is published')" 1
 # The trust-path one-liner, extracted from INSTALL.md itself so it cannot drift.
 echo "INSTALL.md installed-path one-liner"
 TP="$T/trustpath"; mkdir -p "$TP/cfg/plugins" "$TP/repo" && ( cd "$TP/repo" && git init -q && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m i && mkdir sub && git worktree add -q "$TP/wt" -b wt 2>/dev/null )
@@ -106,6 +113,8 @@ chk "subfolder -> the same install"       "$(tp "$TP/repo/sub")" "$(printf '/mai
 chk "worktree -> the MAIN checkout's"     "$(tp "$TP/wt")"       "$(printf '/main/0.5.2\nrc=0')"
 printf '{"plugins":{}}\n' > "$TP/cfg/plugins/installed_plugins.json"
 chk "no install -> plain message, exit 1" "$(tp "$TP/repo")"     "$(printf 'bendit is not installed for this project\nrc=1')"
+rm "$TP/cfg/plugins/installed_plugins.json"
+chk "no registry file -> same message, exit 1" "$(tp "$TP/repo")" "$(printf 'bendit is not installed for this project\nrc=1')"
 expect_capture "--help" run_installer "$S" --help
 chk "--help exits 0"                  "$EXPECT_CODE" 0
 for f in --check --version --help; do

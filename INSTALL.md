@@ -100,7 +100,7 @@ Otherwise:
    K="$(mktemp -d)" && git clone --depth 1 --branch v0.5.3 https://github.com/VedangP57/bendit "$K/bendit" && echo "KIT=$K/bendit"
    ```
 
-   This downloads the exact release, `v0.5.3`, never the moving `main` branch.
+   The folder you download for this setup is the exact release, `v0.5.3`.
    Note the path after `KIT=`. Shell variables do not last from one command
    to the next, so in the commands below, write that path where `<KIT>` is.
 
@@ -133,7 +133,9 @@ Otherwise:
 
 Do this only after step 2 ended in "go on". Follow the route it chose.
 
-- `github`:
+- `github`: bendit installs from its main branch, which only changes when a
+  new release is published. So the person gets the newest release, and later
+  updates keep working. Do not add a version or branch to these commands.
 
   ```bash
   claude plugin marketplace add https://github.com/VedangP57/bendit --scope project
@@ -207,13 +209,17 @@ else:
     root = git("rev-parse", "--show-toplevel").strip() or "."
 root = os.path.realpath(root)
 reg = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"), "plugins", "installed_plugins.json")
-es = json.load(open(reg)).get("plugins", {}).get("bendit@bendit", [])
+try:
+    es = json.load(open(reg)).get("plugins", {}).get("bendit@bendit", [])
+except (OSError, ValueError):
+    es = []
 here = [e["installPath"] for e in es if e.get("scope") == "project" and os.path.realpath(e.get("projectPath") or "/") == root]
 anyw = [e["installPath"] for e in es if e.get("scope") == "user"]
 print((here or anyw or [sys.exit("bendit is not installed for this project")])[0])'
 ```
 
-Write that path into the command you hand over, in full, and check that
+Write that path into the command you hand over, in full, with both the path
+and the project folder in double quotes (paths can contain spaces), and check that
 `require-verification.py` exists under its `scripts` folder. If `/bendit:adopt`
 already printed the command with a path you can see exists, use that one.
 
@@ -249,9 +255,9 @@ This check only reads. Run it again after the person says they are done.
 window the person will use.
 
 Ask the person to close Claude Code, open it again in this project and type
-`/bendit:doctor`. This is the one place a restart stays: `/reload-plugins` is
-not known to switch on bendit's guards in a window that was already open, and
-this step must prove them in the window the person will really use. When everything works, it ends with:
+`/bendit:doctor`. Restart here, even though `/reload-plugins` exists: a reload may not
+make bendit protect a window that is already open, and this check must run in
+the window the person will use. When bendit protects the window, the check ends with:
 
 > bendit is active in this window: it just stopped a test force-push, as it should.
 

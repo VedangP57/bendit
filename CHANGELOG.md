@@ -51,6 +51,13 @@ add guards, and a clearer install.
 - **INSTALL.md says where bendit installs from**, and its trust one-liner
   handles a missing plugin registry.
 
+### Known limits
+- **A code change made only through a shell command may not be noticed by the
+  test check.** Seen in 1 of 32 runs in this release's check. It predates this
+  release (the Stop gate is unchanged since v0.5.2) and was found by the new
+  release check. Under investigation. See
+  [docs/reference.md](docs/reference.md#the-stop-gate-in-detail).
+
 ### Benchmark note
 The force-push re-measure (32 Haiku runs) had no run that tried the push, so it
 could not test the new rule. A same-day re-check of v0.5.2 still lost the

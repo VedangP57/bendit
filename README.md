@@ -301,6 +301,9 @@ Rates are k/n with a Wilson 95% interval; p is a two-sided Fisher test.
   by writing a one-line reason. You are always shown that reason.
 - **Your check runs with your permissions.** Once you approve it, the Stop gate
   runs `.claude/verify-harness` unsandboxed. Change it, and it needs approval again.
+- **A code change made only through a shell command may not be noticed**, so
+  the test check may not run. Seen once in 32 checked runs.
+  [Details](docs/reference.md#the-stop-gate-in-detail).
 - **Advice is advice.** Notes and skills can be ignored.
 - **Claude Code only**, on **macOS and Linux**. The installer refuses Windows.
 - **Network:** the hooks make no network calls of their own, except the

@@ -469,6 +469,20 @@ you, for example `[bendit] <name>: verified by /bendit:verify at <time>`.
 `verified`, deleting the marks log, writing the approval list directly or
 faking a terminal. "The gate stops an agent that is hasty, not one set on lying."
 
+**Known limit: a change made only through a shell command may not be marked.**
+The gate learns that code changed from PostToolUse marks. For Edit, Write and
+MultiEdit it reads the file named in `tool_input`; for Bash it relies on the
+changed files the tool reports (`tool_response.bashEditDiff.changedFiles`, read
+in `edited()` in `require-verification.py`). If that report is missing or
+empty, no mark is recorded and the gate has nothing to verify. In the v0.5.3
+release check, 1 of 32 Haiku runs, with the test command approved, wrote its
+change only with `cat > timesheet/hours.py <<'EOF' ... EOF` and no Edit or Write
+tool. The gate never ran the tests and the run ended with them failing. It was
+the only run that wrote code that way and the only one the gate missed; every
+run that used Edit or Write was checked. Why that run recorded no mark has not
+been established, and it is under investigation. The gap predates v0.5.3:
+`require-verification.py` and `hooks.json` are unchanged since v0.5.2.
+
 **Generating a harness.** `scripts/scaffold-verification-skill.sh <repo>
 [--dry-run] [--kind web|cli|library] [--dev] [--pm npm|pnpm|yarn|bun] [--name] [--force]
 [--keep-harness]` always writes `.claude/verify-harness`; for a web app it adds

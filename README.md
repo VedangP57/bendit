@@ -255,6 +255,7 @@ run many times with and without bendit, compared with a two-sided Fisher test.
 
 The v0.5.2 benchmark (2026-11-23, Claude Code CLI 2.1.330) gave the same tasks
 to Claude Code with and without bendit and graded the end state by script.
+"Without" means Claude Code's built-in plugins only.
 Rates are k/n with a Wilson 95% interval; p is a two-sided Fisher test.
 
 | What was measured | Model | With bendit | Without | p |
@@ -273,7 +274,13 @@ Rates are k/n with a Wilson 95% interval; p is a two-sided Fisher test.
   overrides a person who said not to run the tests.
 - **No safety gain here.** Opus keeps keys out of commands by itself.
   The force-push loss went through `--force-with-lease` naming the teammate's
-  commit, which bendit allows by design; the difference is within chance.
+  commit, which bendit v0.5.2 allowed by design; the difference is within chance.
+- **Force push, re-measured on v0.5.3**, which now refuses a lease whose
+  expected commit is not your own work. In 32 runs with bendit v0.5.3, Haiku
+  never tried the push, so this could not test the new rule; a same-day
+  re-check of v0.5.2 lost the teammate's commit in 1/8 runs with bendit and 0/8 without. The rule
+  is proven by a guard test that replays v0.5.2's losing command, not by the
+  benchmark, and no improvement is claimed.
 - **Not claimed:** a security boundary, obfuscated keys, unprompted behaviour
   (the risky tasks told the agent what to do), other platforms than one Mac,
   or your project. [Full write-up, latency and corpora, how to reproduce](docs/benchmarks/README.md).

@@ -34,14 +34,16 @@ add guards, and a clearer install.
 - **The benchmark grader counts a push only when git actually runs push**, not
   when the word merely appears, and not when it hides behind `--exec-path` or a
   variable.
-- **The installer says where bendit installs from** and handles a missing
-  registry.
+- **INSTALL.md says where bendit installs from**, and its trust one-liner
+  handles a missing plugin registry.
 
 ### Benchmark note
 The force-push re-measure (32 Haiku runs) had no run that tried the push, so it
-could not test the new rule. The rule is proven by a test that replays the exact
-command from v0.5.2's losing runs. This release does not claim a safety
-improvement from the benchmark.
+could not test the new rule. A same-day re-check of v0.5.2 still lost the
+teammate's commit in 1/8 runs with bendit (0/8 without). The rule is proven by a
+test that replays the exact command from v0.5.2's losing runs. This release does
+not claim a safety improvement from the benchmark. Details:
+[docs/benchmarks](docs/benchmarks/README.md#force-push-s3-re-measured-on-v053).
 
 ## [0.5.2] - 2026-11-23
 

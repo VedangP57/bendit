@@ -930,16 +930,45 @@ run_in 2 "git -c branch.co.pushRemote=..."       "$LT/cur" 'git -c branch.co.pus
 run_in 2 "git --config-env=push.default=PD"      "$LT/cur" 'git --config-env=push.default=PD push --force-with-lease origin'
 run_in 2 "GIT_CONFIG_PARAMETERS= prefix"         "$LT/cur" "GIT_CONFIG_PARAMETERS=\"'push.default'='upstream'\" git push --force-with-lease origin"
 run_in 2 "GIT_CONFIG_COUNT= prefix"              "$LT/cur" 'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=push.default GIT_CONFIG_VALUE_0=upstream git push --force-with-lease origin'
-# ...and set in the environment the hook runs in.
-payload=$(python3 -c '
-import json,sys; print(json.dumps({"tool_name":"Bash","cwd":sys.argv[2],"tool_input":{"command":sys.argv[1]}}))' \
-  "git push --force-with-lease origin solo" "$ME")
-expect_capture "GIT_CONFIG_COUNT in the hook's environment" env GIT_CONFIG_COUNT=0 python3 "$HOOK" <<<"$payload"
-if [ "$EXPECT_CODE" -eq 2 ] && [ -n "$EXPECT_STDERR" ]; then
-  printf '  ok    %-46s\n' "GIT_CONFIG_COUNT in the hook's environment"; pass=$((pass+1))
-else
-  printf '  FAIL  %-46s exit %s\n' "GIT_CONFIG_COUNT in the hook's environment" "$EXPECT_CODE"; fail=$((fail+1))
-fi
+# ...and set in the environment the hook runs in. Only a key that changes
+# where or how a push goes counts: the Claude Code sandbox exports about 40
+# harmless GIT_CONFIG_KEY_* entries, and those must not block a lease push.
+# run_env <want> <label> <cwd> <command> <VAR=value>...
+run_env() {
+  local want="$1" label="$2" dir="$3" cmd="$4" payload; shift 4
+  payload=$(python3 -c '
+import json,sys; print(json.dumps({"tool_name":"Bash","cwd":sys.argv[2],"tool_input":{"command":sys.argv[1]}}))' "$cmd" "$dir")
+  expect_capture "$label" env "$@" python3 "$HOOK" <<<"$payload"
+  if [ "$EXPECT_CODE" -ne "$want" ] || { [ "$want" -eq 2 ] && [ -z "$EXPECT_STDERR" ]; }; then
+    printf '  FAIL  %-46s exit %s, wanted %s\n' "$label" "$EXPECT_CODE" "$want"; fail=$((fail+1)); return
+  fi
+  printf '  ok    %-46s\n' "$label"; pass=$((pass+1))
+}
+HARMLESS=(GIT_CONFIG_COUNT=40)
+for n in $(seq 0 39); do
+  if [ $((n % 2)) -eq 0 ]; then HARMLESS+=("GIT_CONFIG_KEY_$n=safe.directory" "GIT_CONFIG_VALUE_$n=/work/$n")
+  else HARMLESS+=("GIT_CONFIG_KEY_$n=core.k$n" "GIT_CONFIG_VALUE_$n=v$n"); fi
+done
+WITH_PD=("${HARMLESS[@]}" GIT_CONFIG_KEY_19=push.default GIT_CONFIG_VALUE_19=upstream)
+WITH_AL=("${HARMLESS[@]}" GIT_CONFIG_KEY_19=alias.p GIT_CONFIG_VALUE_19=push)
+OWN="git push --force-with-lease origin solo"
+run_env 2 "GIT_CONFIG_COUNT in the hook's environment" "$ME" "$OWN" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=push.default GIT_CONFIG_VALUE_0=upstream
+run_env 0 "40 harmless GIT_CONFIG_KEY_* in the environment" "$ME" "$OWN" "${HARMLESS[@]}"
+run_env 2 "...one of them push.default"            "$ME" "$OWN" "${WITH_PD[@]}"
+run_env 2 "...one of them alias.p"                 "$ME" "$OWN" "${WITH_AL[@]}"
+run_env 2 "...and remote.origin.mirror"            "$ME" "$OWN" "${HARMLESS[@]}" GIT_CONFIG_COUNT=41 GIT_CONFIG_KEY_40=remote.origin.mirror GIT_CONFIG_VALUE_40=true
+run_env 0 "CONTROL: GIT_CONFIG_COUNT=0"            "$ME" "$OWN" GIT_CONFIG_COUNT=0
+run_env 2 "a count that is not a number"           "$ME" "$OWN" GIT_CONFIG_COUNT=two GIT_CONFIG_KEY_0=core.x GIT_CONFIG_VALUE_0=1
+run_env 2 "a count with a pair missing"            "$ME" "$OWN" GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.x GIT_CONFIG_VALUE_0=1
+run_env 2 "a key with no value"                    "$ME" "$OWN" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.x
+run_env 2 "keys with no count"                     "$ME" "$OWN" GIT_CONFIG_KEY_0=core.x GIT_CONFIG_VALUE_0=1
+run_env 0 "harmless GIT_CONFIG_PARAMETERS"         "$ME" "$OWN" "GIT_CONFIG_PARAMETERS='core.pager'='cat' 'safe.directory'='/w'"
+run_env 2 "GIT_CONFIG_PARAMETERS with push.default" "$ME" "$OWN" "GIT_CONFIG_PARAMETERS='core.pager'='cat' 'push.default'='upstream'"
+run_env 2 "GIT_CONFIG_PARAMETERS unreadable"       "$ME" "$OWN" "GIT_CONFIG_PARAMETERS='core.pager"
+run_in 0 "harmless GIT_CONFIG_COUNT= prefix"       "$ME" 'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.pager GIT_CONFIG_VALUE_0=cat git push --force-with-lease origin solo'
+run_in 0 "harmless export GIT_CONFIG_COUNT=..."    "$ME" 'export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.pager GIT_CONFIG_VALUE_0=cat; git push --force-with-lease origin solo'
+run_in 2 "export of an alias.* key"                "$ME" 'export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.p GIT_CONFIG_VALUE_0=push; git push --force-with-lease origin solo'
+run_env 2 "a line key overrides a harmless env one" "$ME" 'GIT_CONFIG_KEY_0=push.default git push --force-with-lease origin solo' "${HARMLESS[@]}"
 run_in 0 "CONTROL: git -c of an unrelated key"   "$ME" 'git -c color.ui=never push --force-with-lease origin solo'
 
 echo

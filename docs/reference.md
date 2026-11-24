@@ -330,7 +330,7 @@ It refuses:
   pull, rebase or reset first, through `;`, `&&`, `||`, newlines, `sh -c` or a
   subshell) is refused: run the push as its own command. So is one with
   `GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR`, `GIT_NAMESPACE` or
-  `GIT_CONFIG*` set in the command. Where the push goes follows git: `@` is
+  `GIT_CONFIG`/`GIT_CONFIG_GLOBAL`/`GIT_CONFIG_SYSTEM` set in the command. Where the push goes follows git: `@` is
   HEAD; with no refspec, `push.default`, `branch.<b>.merge`,
   `branch.<b>.pushRemote` and `remote.pushDefault` decide, and a
   `remote.<r>.push` mapping refuses. A lease push bendit cannot read ahead
@@ -339,7 +339,10 @@ It refuses:
   `>(…)`, in an argument, prefix, redirection or unquoted heredoc), or with
   routing config on the command line (`git -c push.default=…`,
   `remote.<r>.push`, `branch.<b>.merge`, `--config-env`) or in
-  `GIT_CONFIG_PARAMETERS`/`GIT_CONFIG_COUNT`. Write the branch and commit
+  `GIT_CONFIG_PARAMETERS`/`GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n` when a key
+  there is `push.*`, `remote.*.push`/`mirror`/`pushurl`,
+  `branch.*.merge`/`pushRemote`/`remote` or `alias.*`, or the list cannot be
+  read (harmless keys such as `core.*` or `safe.directory` are ignored). Write the branch and commit
   out literally. So is a lease push launched by something that runs it or
   adds to its words: `xargs`, `find -exec`, `parallel`, `eval`, `source`/`.`,
   `sh -c` or a shell fed by a pipe, here-string or heredoc, `env -S`,

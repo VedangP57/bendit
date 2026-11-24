@@ -549,7 +549,8 @@ def push_deletes_remote_refs(s):
 # --force-with-lease ...`, a pull, rebase or reset first -- through `;`, `&&`,
 # `||`, newlines, `sh -c` or a subshell) is refused: run it as its own
 # command. A GIT_DIR / GIT_WORK_TREE / GIT_COMMON_DIR / GIT_NAMESPACE /
-# GIT_CONFIG* assignment anywhere in the command is refused the same way.
+# GIT_CONFIG / GIT_CONFIG_GLOBAL... assignment anywhere in the command is
+# refused the same way (GIT_CONFIG_COUNT/KEY_n/VALUE_n/PARAMETERS are read).
 # Where the push goes follows git: `@` is HEAD; with no refspec, push.default,
 # branch.<b>.merge, branch.<b>.pushRemote and remote.pushDefault decide it,
 # and a remote.<r>.push mapping, which is not followed, refuses. A merge by
@@ -560,7 +561,10 @@ def push_deletes_remote_refs(s):
 # redirection, a here-string or an unquoted heredoc), and any routing config
 # given on the command line (`git -c push.default=...`, `remote.<r>.push`,
 # `branch.<b>.merge`..., `--config-env`) or as GIT_CONFIG_PARAMETERS /
-# GIT_CONFIG_COUNT / GIT_CONFIG_KEY_* / GIT_CONFIG_VALUE_* in the environment.
+# GIT_CONFIG_COUNT / GIT_CONFIG_KEY_* / GIT_CONFIG_VALUE_* -- in the hook's
+# environment or set in the line -- when a key there is push.*, remote.*.push/
+# mirror/pushurl, branch.*.merge/pushRemote/remote or alias.*, or the list
+# cannot be read. Harmless keys (core.*, safe.directory) are ignored.
 #
 # A lease push launched by something that runs a command or appends to it is
 # refused outright: xargs (it supplies words at run time -- `xargs -I{} git
@@ -584,7 +588,10 @@ _LEASE_DEADLINE_S = 6.0   # every git call for one command; the hook's timeout i
 _HEXISH = re.compile(r'^[0-9a-fA-F]{7,40}$')
 # Variables that make git use another repository, worktree or config than the
 # folder the check runs in. Seen anywhere in a command with a lease push: refuse.
-_GIT_ENV = re.compile(r'(?<![\w$])(GIT_DIR|GIT_WORK_TREE|GIT_COMMON_DIR|GIT_NAMESPACE|GIT_CONFIG\w*)=')
+# The GIT_CONFIG_COUNT/KEY_n/VALUE_n/PARAMETERS list is not here: it is read,
+# and only a push-affecting key in it refuses (`_env_config`).
+_GIT_ENV = re.compile(r'(?<![\w$])(GIT_DIR|GIT_WORK_TREE|GIT_COMMON_DIR|GIT_NAMESPACE|'
+                      r'GIT_CONFIG(?!_COUNT=|_KEY_\d+=|_VALUE_\d+=|_PARAMETERS=)\w*)=')
 # A word the shell changes when the command runs: a substitution, a variable,
 # arithmetic, a glob, a brace expansion, process substitution. Read as written
 # it names nothing real, and a substitution may itself fetch first.
@@ -593,7 +600,10 @@ _RUNTIME = re.compile(r'[$`*?\[]|^[<>]\(|\{[^}]*(?:,|\.\.)[^}]*\}')
 _ROUTING_KEY = re.compile(r'(?i)^(?:push\.default|remote\.pushdefault|'
                           r'remote\..+\.(?:push|pushurl|url|fetch)|'
                           r'branch\..+\.(?:merge|pushremote|remote))$')
-_CONFIG_ENV = ('GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT')
+# Keys that change where or how a push goes, in a GIT_CONFIG_* environment list.
+_PUSH_KEY = re.compile(r'(?i)^(?:push\..+|remote\..+\.(?:push|mirror|pushurl)|'
+                       r'branch\..+\.(?:merge|pushremote|remote)|alias\..+)$')
+_CONFIG_LIST = re.compile(r'^GIT_CONFIG_(?:COUNT|KEY_\d+|VALUE_\d+|PARAMETERS)$')
 _CWD = [None]       # the payload's cwd; set by inspect()
 _SIMPLES = [[]]     # every simple command of the command being judged; set by _verdict()
 _COMMAND = ['']     # the text of the command being judged; set by _verdict()
@@ -607,6 +617,8 @@ def _read_only(c) -> bool:
     a = c.argv
     if a[0] in ('cd', 'pushd', 'echo', 'printf', 'true', ':'):
         return True   # a cd is followed by _push_dir
+    if a[0] == 'export' and all(_ASSIGN.match(x) or re.fullmatch(r'\w+', x) for x in a[1:]):
+        return True   # GIT_DIR and the like are refused by name; GIT_CONFIG_* lists are read
     if a[0] == 'eval' or (a[0] in SHELLS and shell_c_string(a) is not None):
         return True   # a container: what it runs is listed, and judged, on its own
     i, _ = _git(a)
@@ -838,9 +850,43 @@ def _routing_config(s):
     for key in keys:
         if _ROUTING_KEY.match(key):
             return f'git -c {key}'
-    for name in os.environ:
-        if name in _CONFIG_ENV or name.startswith(('GIT_CONFIG_KEY_', 'GIT_CONFIG_VALUE_')):
-            return name
+    return _env_config()
+
+
+def _env_config():
+    """The GIT_CONFIG_* list git would read -- the hook's environment, with
+    assignments and exports in this command line on top. Returns the first key
+    that changes where or how a push goes (or `<name> (unreadable)`), or None
+    when every key is harmless (the Claude Code sandbox sets about 40)."""
+    env = {k: v for k, v in os.environ.items() if _CONFIG_LIST.match(k)}
+    for o in _SIMPLES[0]:   # VAR=x prefixes, `export VAR=x`, `env VAR=x`, bare assignments
+        for w in o.cmd.argv:
+            name, eq, value = w.partition('=')
+            if eq and _CONFIG_LIST.match(name):
+                if re.search(r'[$`]', value):
+                    return f'{name} (unreadable)'
+                env[name] = value
+    if 'GIT_CONFIG_PARAMETERS' in env:
+        try:
+            items = shlex.split(env['GIT_CONFIG_PARAMETERS'])
+        except ValueError:
+            return 'GIT_CONFIG_PARAMETERS (unreadable)'
+        for item in items:
+            if _PUSH_KEY.match(item.split('=', 1)[0]) or _ROUTING_KEY.match(item.split('=', 1)[0]):
+                return f'GIT_CONFIG_PARAMETERS {item.split("=", 1)[0]}'
+    pairs = [k for k in env if k != 'GIT_CONFIG_PARAMETERS']
+    if not pairs:
+        return None
+    count = env.get('GIT_CONFIG_COUNT')
+    if count is None or not count.isdigit() or int(count) > 10000:
+        return 'GIT_CONFIG_COUNT (unreadable)'
+    for n in range(int(count)):
+        key, value = env.get(f'GIT_CONFIG_KEY_{n}'), env.get(f'GIT_CONFIG_VALUE_{n}')
+        if key is None or value is None:
+            return f'GIT_CONFIG_KEY_{n} (missing)'
+    for k in pairs:   # every key, counted or not
+        if k.startswith('GIT_CONFIG_KEY_') and (_PUSH_KEY.match(env[k]) or _ROUTING_KEY.match(env[k])):
+            return f'{k}={env[k]}'
     return None
 
 

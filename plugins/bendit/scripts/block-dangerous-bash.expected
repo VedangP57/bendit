@@ -2504,19 +2504,105 @@ If this is genuinely required, ask the human to run it.
 === GIT_CONFIG_PARAMETERS= prefix
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with GIT_CONFIG_PARAMETERS set in this command, so git would push from a different repository or config than the one bendit can check — run the push as its own command, without GIT_CONFIG_PARAMETERS, from the repository itself.
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_PARAMETERS push.default`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
 If this is genuinely required, ask the human to run it.
 
 === GIT_CONFIG_COUNT= prefix
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with GIT_CONFIG_COUNT set in this command, so git would push from a different repository or config than the one bendit can check — run the push as its own command, without GIT_CONFIG_COUNT, from the repository itself.
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_0=push.default`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
 If this is genuinely required, ask the human to run it.
 
 === GIT_CONFIG_COUNT in the hook's environment
 exit 2
 --- stderr
-BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_COUNT`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_0=push.default`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== 40 harmless GIT_CONFIG_KEY_* in the environment
+exit 0
+(silent)
+
+=== ...one of them push.default
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_19=push.default`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== ...one of them alias.p
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_19=alias.p`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== ...and remote.origin.mirror
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_40=remote.origin.mirror`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== CONTROL: GIT_CONFIG_COUNT=0
+exit 0
+(silent)
+
+=== a count that is not a number
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_COUNT (unreadable)`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== a count with a pair missing
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_1 (missing)`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== a key with no value
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_0 (missing)`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== keys with no count
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_COUNT (unreadable)`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== harmless GIT_CONFIG_PARAMETERS
+exit 0
+(silent)
+
+=== GIT_CONFIG_PARAMETERS with push.default
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_PARAMETERS push.default`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== GIT_CONFIG_PARAMETERS unreadable
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_PARAMETERS (unreadable)`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== harmless GIT_CONFIG_COUNT= prefix
+exit 0
+(silent)
+
+=== harmless export GIT_CONFIG_COUNT=...
+exit 0
+(silent)
+
+=== export of an alias.* key
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_0=alias.p`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
+If this is genuinely required, ask the human to run it.
+
+=== a line key overrides a harmless env one
+exit 2
+--- stderr
+BLOCKED by bendit safety hook: `--force-with-lease` runs with `GIT_CONFIG_KEY_0=push.default`, which can change where git pushes and what it compares against, while bendit reads the config on disk — run the push as its own command without it, or set it in the repository first.
 If this is genuinely required, ask the human to run it.
 
 === CONTROL: git -c of an unrelated key

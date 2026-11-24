@@ -85,6 +85,86 @@ chk "falsified: mutation was applied" "$(grep -c 'return False and' "$G")" 1
 chk "its suite fails on a dead rule"  "$(bash "$H/no-skip-hooks.test.sh" >/dev/null 2>&1; echo $?)" 1
 cp "$T/guard.good" "$G"
 
+echo "--replay: a guard must refuse a real past command and allow ordinary ones"
+# Adapted from poteto's pstack: prove each check catches a real past mistake
+# before trusting it. These guards are tiny hand-written ones, so each case
+# tests new-guard.sh's verdict, not a template rule.
+mkguard() {  # mkguard <name> <python expression over `cmd`, True to refuse> [stderr text]
+  cat > "$H/$1.py" <<EOF
+import json, sys
+try:
+    cmd = json.load(sys.stdin)['tool_input']['command']
+    if $2:
+        print('${3-BLOCKED by $1: test rule.}', file=sys.stderr, end='')
+        sys.exit(2)
+except SystemExit:
+    raise
+except Exception:
+    print('BLOCKED by $1: could not read the payload.', file=sys.stderr)
+    sys.exit(2)
+EOF
+}
+mkguard no-force-push "'--force' in cmd.split()"
+mkguard blocks-all "True"
+mkguard blocks-nothing "False"
+mkguard blocks-git-push "cmd.startswith('git push')"
+mkguard silent-block "'--force' in cmd.split()" ""
+printf 'this is not python\n' > "$H/broken-guard.py"
+cp "$P/.claude/settings.json" "$T/settings.before"
+rp() { bash "$NG" "$1" --project "$P" "${@:2}" >/dev/null 2>&1; echo $?; }
+
+expect_capture "replay: a guard that refuses the real command and allows the built-in list" \
+  bash "$NG" no-force-push --project "$P" --replay "git push --force origin main"
+chk "a guard that catches it and allows ordinary work is accepted" "$EXPECT_CODE" 0
+expect_capture "replay: a guard that does not refuse the real command" \
+  bash "$NG" blocks-nothing --project "$P" --replay "git push --force origin main"
+chk "a guard that lets the real command through is rejected"       "$EXPECT_CODE" 1
+expect_capture "replay: a guard that refuses everything" \
+  bash "$NG" blocks-all --project "$P" --replay "git push --force origin main"
+chk "a guard that refuses ordinary commands is rejected"           "$EXPECT_CODE" 1
+chk "the template, before its rule is written, is rejected" \
+    "$(rp no-skip-hooks --replay 'git push --force origin main')" 1
+chk "the template proves itself on its own example mistake" \
+    "$(rp no-skip-hooks --replay 'git commit --no-verify -m wip')" 0
+chk "every replay must be refused, not just one" \
+    "$(rp no-force-push --replay 'git push --force origin main' --replay 'git push origin main')" 1
+chk "exit 2 with no reason on stderr is rejected (the agent retries blind)" \
+    "$(rp silent-block --replay 'git push --force origin main')" 1
+chk "a guard that crashes is rejected, never counted as a refusal" \
+    "$(rp broken-guard --replay 'git push --force origin main')" 1
+
+printf 'git status\n\n# a comment line is skipped\ngit push origin main\n' > "$T/ordinary.txt"
+chk "--allow-file: an ordinary command it refuses rejects the guard" \
+    "$(rp blocks-git-push --replay 'git push --force origin main' --allow-file "$T/ordinary.txt")" 1
+printf 'git status\nls -la\n' > "$T/ordinary2.txt"
+chk "--allow-file: replaces the built-in list"  \
+    "$(rp blocks-git-push --replay 'git push --force origin main' --allow-file "$T/ordinary2.txt")" 0
+chk "without --allow-file the built-in list catches the same guard" \
+    "$(rp blocks-git-push --replay 'git push --force origin main')" 1
+printf '\n# only comments\n' > "$T/empty.txt"
+chk "--allow-file with no commands is bad usage (nothing allowed is no proof)" \
+    "$(rp no-force-push --replay 'git push --force origin main' --allow-file "$T/empty.txt")" 2
+chk "--allow-file that does not exist is bad usage" \
+    "$(rp no-force-push --replay 'git push --force origin main' --allow-file "$T/nope.txt")" 2
+chk "--allow-file without --replay is bad usage (no real command, no proof)" \
+    "$(rp no-force-push --allow-file "$T/ordinary2.txt")" 2
+chk "an empty --replay is bad usage"            "$(rp no-force-push --replay '')" 2
+chk "--replay with no value is bad usage"       "$(rp no-force-push --replay)" 2
+chk "--replay on a guard that does not exist is refused" \
+    "$(rp not-scaffolded --replay 'git push --force origin main')" 1
+chk "--replay scaffolds nothing" "$([ -e "$H/not-scaffolded.py" ] && echo wrote || echo none)" none
+chk "settings.json is byte-identical after every replay" \
+    "$(cmp -s "$P/.claude/settings.json" "$T/settings.before" && echo same || echo changed)" same
+
+# The replayed text comes from logs and transcripts: it is printed redacted.
+out="$(bash "$NG" blocks-nothing --project "$P" --replay 'git push --force https://bot:hunter2secretpw@10.0.0.1/r.git main' 2>&1)"
+chk "a credential in a replayed command is never printed"  "$(printf '%s' "$out" | grep -c hunter2secretpw)" 0
+chk "  ...and the command is still shown, redacted"        "$(printf '%s' "$out" | grep -c 'git push --force https://')" 1
+printf 'curl -u admin:hunter2secretpw https://example.com\n' > "$T/secret.txt"
+out="$(bash "$NG" blocks-all --project "$P" --replay 'x' --allow-file "$T/secret.txt" 2>&1)"
+chk "a credential in an ordinary command is never printed" "$(printf '%s' "$out" | grep -c hunter2secretpw)" 0
+chk "  ...and it is still shown, redacted"                 "$(printf '%s' "$out" | grep -c 'curl -u')" 1
+
 echo
 echo "WHAT IT SAYS (snapshot)"
 expect_verify || fail=$((fail+1))

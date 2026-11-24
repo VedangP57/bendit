@@ -91,6 +91,25 @@ hasnt "$SG" 'Bash(rm'
 hasnt "$SG" '.claude/settings.json'
 pin "$KIT/skills/adopt-bendit/references/grow.md" '/bendit:suggest-guards'
 
+echo; echo "NEW-GUARD: PROVE IT ON A REAL PAST COMMAND, NEVER AN INVENTED ONE"
+NG="$CMD/new-guard.md"
+GW="$KIT/skills/adopt-bendit/references/grow.md"
+pin "$NG" 'new-guard.sh <name> --replay "<the real command>"'
+pin "$NG" '`/bendit:guard-report`'
+pin "$NG" '`/bendit:suggest-guards`'
+pin "$NG" 'ask the person to paste it'
+pin "$NG" 'Never invent or retype a command to replay'
+pin "$NG" 'Exit 1 on a replay means the guard is not proven'
+pin "$NG" 'never weaken the replay'
+pin "$NG" 'Adapted from poteto'"'"'s pstack'
+hasnt "$NG" '.claude/settings.json" >'
+pin "$GW" 'new-guard.sh <name> --replay "<the real command>"'
+pin "$GW" '`/bendit:guard-report`'
+pin "$GW" 'ask the person to paste it'
+pin "$GW" 'Never invent or retype a command to replay'
+pin "$GW" '--allow-file'
+pin "$GW" 'Adapted from poteto'"'"'s pstack'
+
 echo; echo "PRIMARY-CHECKOUT-GUARD: --detailed ASKS (DEFAULT NO), QUICK NEVER TURNS IT ON"
 REF="$KIT/skills/adopt-bendit/references"
 pin "$REF/interview.md" '7. **Edit only in a separate copy?**'

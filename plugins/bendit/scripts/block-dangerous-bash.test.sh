@@ -775,6 +775,19 @@ lg() { GIT_AUTHOR_NAME="$1" GIT_AUTHOR_EMAIL="$1@example.invalid" GIT_COMMITTER_
   # onsolo: my repository with solo checked out, so a push with no refspec
   # names solo while a wrapper may hand it feature/checkout.
   git -C "$LT/me" worktree add -q "$LT/onsolo" solo
+  # fk: a fork setup. origin is my fork (holding my rewritten feature/checkout,
+  # which the branch tracks); upstream is the shared remote with sam's commit.
+  git clone -q -b feature/checkout "$LT/remote.git" "$LT/fk"
+  git -C "$LT/fk" remote rename origin upstream
+  git init -q --bare "$LT/fork.git"; git -C "$LT/fk" remote add origin "$LT/fork.git"
+  git -C "$LT/fk" fetch -q "$LT/me" feature/checkout; git -C "$LT/fk" reset -q --hard FETCH_HEAD
+  git -C "$LT/fk" push -q origin feature/checkout
+  git -C "$LT/fk" branch -q --set-upstream-to=origin/feature/checkout
+  git -C "$LT/fk" config push.default current; git -C "$LT/fk" config user.email me@example.invalid
+  # safe: a repo with an origin and nothing fetched; me/link points into it, so
+  # a logical `cd ..` from me/link is me, but a physical one is safe.
+  git init -q "$LT/safe"; git -C "$LT/safe" remote add origin "$LT/remote.git"
+  mkdir -p "$LT/safe/inner"; ln -s "$LT/safe/inner" "$LT/me/link"
   # evil.cfg: a push mapping that sends co over feature/checkout (cur's upstream).
   printf '[remote "origin"]\n\tpush = refs/heads/co:refs/heads/feature/checkout\n' >"$LT/evil.cfg"
   mkdir -p "$LT/h" "$LT/x/git"; cp "$LT/evil.cfg" "$LT/h/.gitconfig"; cp "$LT/evil.cfg" "$LT/x/git/config"
@@ -1078,6 +1091,27 @@ run_in 2 "cd repo & push (background cd)"         "$LT" 'cd me & git push --forc
 run_in 2 "cd repo || push"                        "$LT" 'cd me || git push --force-with-lease origin solo'
 run_in 2 "two cds"                                "$LT" 'cd me && cd . && git push --force-with-lease origin solo'
 run_in 2 "cd -P repo && ..."                      "$LT" 'cd -P me && git push --force-with-lease origin solo'
+
+echo
+echo "THE FINAL REVIEW: --repo, receive-pack, redirects, a logical cd"
+FK="$LT/fk"
+run_in 2 "C1: --repo=upstream is the destination" "$FK" 'git push --force-with-lease --repo=upstream'
+run_in 2 "C1: --repo upstream"                     "$FK" 'git push --force-with-lease --repo upstream'
+run_in 2 "C1: --rep=upstream (abbreviated)"        "$FK" 'git push --force-with-lease --rep=upstream'
+run_in 0 "CONTROL: fork, no --repo (my fork)"      "$FK" 'git push --force-with-lease'
+run_in 2 "I2: --receive-pack='...'"                "$ME" "git push --force-with-lease --receive-pack='git-receive-pack' origin solo"
+run_in 2 "I2: --receive-pack <cmd>"                "$ME" 'git push --force-with-lease --receive-pack git-receive-pack origin solo'
+run_in 2 "I2: --exec=<cmd>"                        "$ME" 'git push --force-with-lease --exec=git-receive-pack origin solo'
+run_in 2 "I2: -c core.sshCommand="                 "$ME" 'git -c core.sshCommand=ssh push --force-with-lease origin solo'
+run_in 2 "I1: > .git/extra.cfg on the push"        "$ME" 'git push --force-with-lease origin solo > .git/extra.cfg'
+run_in 2 "I1: | cat > .git/extra.cfg"              "$ME" 'git push --force-with-lease origin solo 2>&1 | cat > .git/extra.cfg'
+run_in 2 "I1: > push.log"                          "$ME" 'git push --force-with-lease origin solo > push.log 2>&1'
+run_in 2 "I1: 2>> push.log"                        "$ME" 'git push --force-with-lease origin solo 2>> push.log'
+run_in 0 "CONTROL: &>/dev/null"                    "$ME" 'git push --force-with-lease origin solo &>/dev/null'
+run_in 0 "CONTROL: 2>&1 >/dev/null"                "$ME" 'git push --force-with-lease origin solo 2>&1 >/dev/null'
+run_in 2 "I3: cd .. from a symlinked cwd (logical, as bash)" "$ME/link" 'cd .. && git push --force-with-lease origin feature/checkout'
+names_it "  ...checked in me, naming sam's commit"
+run_in 0 "CONTROL: cd .. from a symlinked cwd, own work" "$ME/link" 'cd .. && git push --force-with-lease origin solo'
 
 echo
 echo "A MERGE SOMEONE ELSE MADE, with a change of its own"

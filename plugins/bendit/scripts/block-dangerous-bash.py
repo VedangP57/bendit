@@ -551,7 +551,10 @@ def push_deletes_remote_refs(s):
 # export HOME). So a lease push is checked only when it is the ONE plain
 # command in the Bash call (one leading literal `cd <dir> &&` or `;`, and
 # output readers after it -- grep, tail, head, cat, wc, sort, uniq, `sed -n`
-# printing, awk with no system/getline/pipe/redirect -- excepted): no other
+# printing, awk with no system/getline/pipe/redirect -- excepted, and
+# redirections only to /dev/null or another fd, since a file target is
+# truncated before git reads its config; no --receive-pack/--exec, which run
+# a local command; a cd is resolved logically, as bash does): no other
 # statement or pipe stage, no prefix
 # (VAR=, HOME=, GIT_*), no wrapper (xargs, sh -c, eval, nohup, sudo...), no
 # function or alias in the line, no run-time word (`$(...)`, `$VAR`, a glob,
@@ -589,7 +592,8 @@ _HEXISH = re.compile(r'^[0-9a-fA-F]{7,40}$')
 _RUNTIME = re.compile(r'[$`*?\[]|^[<>]\(|\{[^}]*(?:,|\.\.)[^}]*\}')
 # `git -c` / `--config-env` keys that route a push, change what it compares
 # against, or bring in more config. On the push's own command line: refuse.
-_CMDLINE_KEY = re.compile(r'(?i)^(?:push|remote|branch|alias|include|includeif|url)\.')
+_CMDLINE_KEY = re.compile(r'(?i)^(?:(?:push|remote|branch|alias|include|includeif|url)\.|'
+                          r'core\.sshcommand$)')
 _CWD = [None]       # the payload's cwd; set by inspect()
 _SIMPLES = [[]]     # every simple command of the command being judged; set by _verdict()
 _COMMAND = ['']     # the text of the command being judged; set by _verdict()
@@ -679,6 +683,20 @@ def _output_reader(argv) -> bool:
     return True
 
 
+def _bad_redirect(cmd):
+    """A redirection target other than /dev/null or an fd duplication
+    (`2>&1`, `>&2`), or None. A file target is truncated by the shell before
+    git starts, and could be a config file git is about to read."""
+    text = _COMMAND[0]
+    for r in cmd.redirs:
+        if r.value == '/dev/null':
+            continue
+        if (r.value.isdigit() or r.value == '-') and text[:r.start].rstrip().endswith('&'):
+            continue
+        return r.value
+    return None
+
+
 def _leading_cd(s, simples):
     """The one `cd <literal>` that may come before the push, joined by `&&`
     or `;` and nothing else, or None when there is none. Anything that looks
@@ -722,6 +740,10 @@ def _not_alone(s):
     if any(o.cmd is not s.cmd and o.via for o in simples) or \
             len(lex(_COMMAND[0]).cmds) != len(allowed):
         return 'shares this Bash call with another command'
+    for c in allowed:
+        bad = _bad_redirect(c)
+        if bad is not None:
+            return f'writes its output to `{bad}`, which the shell opens before git reads its config'
     if s.cmd.subshell or s.cmd.fed_by is not None:
         return 'runs in a subshell'
     word = _runtime_word(s)
@@ -900,10 +922,13 @@ class _GitCannotTell(Exception):
 
 
 def _push_leases(args):
-    """(leases, remote, refspecs, all_refs) for `git push <args>`. Each lease
-    is (ref or None, expect or None, the option as written): expect None means
-    "the remote-tracking ref", ref None means "every ref pushed"."""
+    """(leases, remote, refspecs, all_refs, repo, runs) for `git push <args>`.
+    Each lease is (ref or None, expect or None, the option as written): expect
+    None means "the remote-tracking ref", ref None means "every ref pushed".
+    `repo` is a `--repo` value (git's destination when no remote is written);
+    `runs` is a `--receive-pack`/`--exec` option, which runs a local command."""
     leases, positional, all_refs, k, opts = [], [], False, 0, True
+    repo, runs = None, None
     while k < len(args):
         x = args[k]
         k += 1
@@ -927,8 +952,15 @@ def _push_leases(args):
                 leases = []
             elif any(_long_is(x, n, 3) for n in ('all', 'branches', 'mirror')):
                 all_refs = True
-            elif '=' not in x and any(_long_is(x, n, 3) for n in
-                                      ('repo', 'receive-pack', 'exec', 'push-option')):
+            elif _long_is(x, 'repo', 3):
+                if '=' in x:
+                    repo = x.split('=', 1)[1]
+                elif k < len(args):
+                    repo, k = args[k], k + 1
+            elif _long_is(x, 'receive-pack', 3) or _long_is(x, 'exec', 3):
+                runs = x.split('=', 1)[0]
+                k += '=' not in x
+            elif '=' not in x and _long_is(x, 'push-option', 3):
                 k += 1   # its value is the next word
             continue
         if opts and x.startswith('-') and len(x) > 1:
@@ -938,7 +970,8 @@ def _push_leases(args):
                     break
             continue
         positional.append(x)
-    return leases, (positional[0] if positional else None), positional[1:], all_refs
+    remote = positional[0] if positional else repo
+    return leases, remote, positional[1:], all_refs, repo, runs
 
 
 def _short_ref(ref: str) -> str:
@@ -963,12 +996,12 @@ def _push_dir(s):
         if not target or '$' in target or '`' in target or '*' in target:
             raise _GitCannotTell(f'the command changes directory to {targets[0] if targets else "~"}, '
                                  'which cannot be read without running it')
-        cwd = os.path.join(cwd, target)
+        cwd = os.path.normpath(os.path.join(cwd, target))   # logical, as bash's cd
     a, i, opts = s.argv, 1, []
     while i < len(a) and a[i].startswith('-'):
         x = a[i]
         if x == '-C' and i + 1 < len(a):
-            cwd = os.path.join(cwd, os.path.expanduser(a[i + 1]))
+            cwd = os.path.realpath(os.path.join(cwd, os.path.expanduser(a[i + 1])))   # git chdirs
         elif x in ('--git-dir', '--work-tree') and i + 1 < len(a):
             opts += [x, a[i + 1]]
         elif x.startswith(('--git-dir=', '--work-tree=')):
@@ -1173,23 +1206,26 @@ def force_with_lease_foreign(s):
                     f'read ahead of time, so it cannot tell what the push would discard — write '
                     f'the push out literally as its own command')
         return False
-    leases, remote, refspecs, all_refs = _push_leases(s.argv[i + 1:])
+    leases, remote, refspecs, all_refs, repo, runs = _push_leases(s.argv[i + 1:])
     if not leases:
         return False
     written = leases[0][2]
     alone = _not_alone(s)
+    if alone is None and runs is not None:
+        alone = f'is given `{runs}`, which runs a command on this machine'
     if alone is not None:
         return (f'`{written}` {alone}. bendit checks a lease push only when it is the one plain '
                 f'command in the Bash call — no other command, prefix, wrapper, variable or '
-                f'routing `-c`; only a leading `cd <dir> &&` and output readers after it (`| grep`, '
-                f'`| tail`, `2>&1`) are fine — because anything else can change what it pushes or '
+                f'routing `-c`; only a leading `cd <dir> &&`, output readers after it (`| grep`, '
+                f'`| tail`) and `2>&1` or `>/dev/null` are fine — because anything else can change '
+                f'what it pushes or '
                 f'what git compares against. Run the push by itself, as one plain command, so '
                 f'bendit can check it')
     try:
         cwd, opts = _push_dir(s)
         g = _Git(cwd, opts)
         remote, pushes = _pushes(g, remote, refspecs, all_refs)
-        own_answer = not refspecs and remote is not None and not any(
+        own_answer = not refspecs and remote is not None and repo is None and not any(
             not x.startswith('-') for x in s.argv[i + 1:])
         checks = []   # (option as written, src, dst, expect name or None)
         for ref, expect, written in leases:

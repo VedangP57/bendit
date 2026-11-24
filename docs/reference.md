@@ -330,13 +330,18 @@ It refuses:
   pipe stage, except one leading literal `cd <dir> &&` (or `;`), which moves
   the check to that folder, and output readers after the push (`grep`,
   `tail`, `head`, `cat`, `wc`, `sort`, `uniq`, `sed -n` that only prints, `awk`
-  with no `system(`, `getline`, `|` or `>`) and redirections of its output;
+  with no `system(`, `getline`, `|` or `>`) and redirections of its output
+  to `/dev/null` or another descriptor (`2>&1`) only — a file target is
+  truncated by the shell before git reads its config; a `cd` is resolved
+  logically from the payload's folder, as bash does; no `--receive-pack` or
+  `--exec`, which run a local command; `--repo=<remote>` is the destination
+  when no remote is written;
   no prefix (`VAR=`, `HOME=`, `GIT_*=`),
   no wrapper (`xargs`, `sh -c`, `eval`, `nohup`, `timeout`, `sudo`…), no
   function or alias in the line, no run-time word (`$(…)`, backticks,
   `$VAR`, `${…}`, a glob, a brace expansion, `~user`, `<(…)`), and no
   `-c`/`--config-env` key in `push.*`, `remote.*`, `branch.*`, `alias.*`,
-  `include.*`, `includeIf.*` or `url.*`. Anything else is refused with "run
+  `include.*`, `includeIf.*`, `url.*` or `core.sshCommand`. Anything else is refused with "run
   the push by itself, as one plain command, so bendit can check it".
   **git resolves the config:** every setting is read with `git config` in the
   push's folder, so `include.path`, `includeIf`, `GIT_CONFIG_*` and `HOME`

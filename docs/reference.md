@@ -328,7 +328,12 @@ It refuses:
   counts too. **The push must stand alone:** bendit checks a lease push only
   when it is the one plain command in the Bash call — no other command or
   pipe stage, except one leading literal `cd <dir> &&` (or `;`), which moves
-  the check to that folder; plain file chores before the push, joined by `&&`
+  the check to that folder; read-only commands before the push (`git
+  status`, `git log`, `git show`, `git diff`, `git rev-parse`, `git
+  describe`, `git remote -v`, `git branch` in list forms, `ls`, `pwd`,
+  `true`, `echo`), with literal words, no `-c`, no `--output` or
+  `--ext-diff`, piped only into the readers below; plain file chores before
+  the push, joined by `&&`
   or `;` (`rm`, `mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` without
   `-v`), only on literal paths that, with every symlink resolved, lie under a
   system temp folder (`/tmp`, `/var/folders`, the user temp dir — never

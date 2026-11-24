@@ -932,7 +932,7 @@ run_in 2 "fetch in a subshell; lease"           "$ME" "(git fetch origin); git p
 run_in 2 "fetch || lease"                       "$ME" "git fetch origin || git push --force-with-lease origin fc2"
 run_in 2 "fetch, newline, lease"                "$ME" $'git fetch origin\ngit push --force-with-lease origin fc2'
 run_in 0 "CONTROL: fc2 lease on its own (state as it is)" "$ME" "git push --force-with-lease origin fc2"
-run_in 2 "read-only git before the lease: not alone" "$ME" "git status -sb && git log --oneline -3 && git branch --list && git remote -v && git push --force-with-lease origin solo"
+run_in 0 "CONTROL: read-only git before the lease" "$ME" "git status -sb && git log --oneline -3 && git branch --list && git remote -v && git push --force-with-lease origin solo"
 run_in 0 "CONTROL: cd, echo (a chore), the lease" "$LT" "cd me && echo pushing && git push --force-with-lease origin solo 2>&1 | grep -v hint"
 
 echo
@@ -1167,7 +1167,7 @@ run_in 2 "mkdir without -p"                        "$ME" 'mkdir /tmp/bendit-y &&
 run_in 2 "touch -r (takes a file)"                 "$ME" 'touch -r .git/config /tmp/bendit-z && git push --force-with-lease origin solo'
 run_in 2 "rm || push"                              "$ME" 'rm -f /tmp/bendit-x || git push --force-with-lease origin solo'
 run_in 2 "rm & push"                               "$ME" 'rm -f /tmp/bendit-x & git push --force-with-lease origin solo'
-run_in 2 "ls && push (not a chore)"                "$ME" 'ls && git push --force-with-lease origin solo'
+run_in 0 "CONTROL: ls && push (read-only)"         "$ME" 'ls && git push --force-with-lease origin solo'
 run_in 2 "a chore AFTER the push"                  "$ME" 'git push --force-with-lease origin solo && rm -f /tmp/bendit-x'
 run_in 2 "echo | tee (a pipe)"                     "$ME" 'echo x | tee /tmp/bendit-x && git push --force-with-lease origin solo'
 run_in 2 "cd after a chore"                        "$LT" 'rm -f /tmp/bendit-x && cd me && git push --force-with-lease origin solo'
@@ -1201,6 +1201,34 @@ run_in 2 "A3/N2: cp onto a hard link to .git/config" "$LT/hld" "cp $LT/evil.cfg 
 run_in 2 "A4/N3: cp into the bare remote's hooks"  "$ME" "cp $LT/evil.cfg $LT/remote.git/hooks/post-receive && $OWNS"
 run_in 2 "A8/N3: mv the bare remote's ref"         "$ME" "mv $LT/remote.git/refs/heads/solo $LT/stage2/old && $OWNS"
 run_in 0 "CONTROL: temp cleanup, then own push"    "$ME" "rm -rf /tmp/bendit-verify-old && $OWNS"
+
+echo
+echo "READ-ONLY GIT AND ls MAY COME BEFORE A LEASE PUSH"
+# The release-check pilot put `git status` or `ls` in the same call as its own
+# lease push. A narrow read-only list may come first, joined by && or ;, with
+# literal arguments, no -c, no file output, and only pure readers piped after.
+P_OWN="git push --force-with-lease origin solo"
+run_in 0 "pilot shape: git status && own push"   "$ME" "git status && $P_OWN"
+run_in 2 "git status && sam's commit"            "$ME" 'git status && git push --force-with-lease origin feature/checkout'
+names_it "  ...on the merits, naming sam's commit"
+run_in 0 "every read-only command, then own push" "$ME" "git status -sb; git log --oneline -3 && git show --stat HEAD && git diff --stat && git rev-parse HEAD && git describe --always && git remote -v && git branch && git branch -a && git branch -r && git branch -v && git branch --list && git branch --show-current && ls && ls -la && pwd && true && echo ok && $P_OWN"
+run_in 0 "git diff --stat | head -5 && own push"  "$ME" "git diff --stat | head -5 && $P_OWN"
+run_in 0 "cd, git status, temp chore, own push"   "$LT" "cd me && git status && rm -rf /tmp/bendit-old-reports && $P_OWN"
+run_in 2 "git branch -D x && push"                "$ME" "git branch -D x && $P_OWN"
+run_in 2 "git branch foo (creates) && push"       "$ME" "git branch foo && $P_OWN"
+run_in 2 "git remote set-url ... && push"         "$ME" "git remote set-url origin $LT/fork.git && $P_OWN"
+run_in 2 "git log --output=/x && push"            "$ME" "git log --output=/tmp/bendit-x && $P_OWN"
+run_in 2 "git diff --output x && push"            "$ME" "git diff --output /tmp/bendit-x && $P_OWN"
+run_in 2 "git diff --ext-diff && push"            "$ME" "git diff --ext-diff && $P_OWN"
+run_in 2 "git -c core.fsmonitor=... status"       "$ME" "git -c core.fsmonitor=/tmp/x status && $P_OWN"
+run_in 2 "git -c remote.origin.push=... status"   "$ME" "git -c remote.origin.push=refs/heads/solo:refs/heads/feature/checkout status && $P_OWN"
+run_in 2 "git status > file && push"              "$ME" "git status > /tmp/bendit-x && $P_OWN"
+run_in 2 "git status | sh && push"                "$ME" "git status | sh && $P_OWN"
+run_in 2 "ls \$HOME && push (run-time word)"      "$ME" 'ls "$HOME" && git push --force-with-lease origin solo'
+run_in 2 "echo > a repo file (a chore) && push"   "$ME" "echo x > notes.txt && $P_OWN"
+run_in 2 "git status || push"                     "$ME" "git status || $P_OWN"
+run_in 2 "git fetch && push (not read-only)"      "$ME" "git fetch -q origin && $P_OWN"
+run_in 2 "git status && cd me && push (cd later)"  "$LT" "git -C me status && cd me && $P_OWN"
 
 echo
 echo "A MERGE SOMEONE ELSE MADE, with a change of its own"

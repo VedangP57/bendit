@@ -550,6 +550,9 @@ def push_deletes_remote_refs(s):
 # a fetch first, xargs supplying the branch, include.path, printf -v, `+=`,
 # export HOME). So a lease push is checked only when it is the ONE plain
 # command in the Bash call (one leading literal `cd <dir> &&` or `;`, then
+# read-only commands -- git status/log/show/diff/rev-parse/describe, `git
+# remote -v`, `git branch` list forms, ls, pwd, true, echo; literal words, no
+# -c, no --output/--ext-diff, piped only into pure readers -- and
 # plain file chores -- rm, mkdir -p, touch, cp, mv, echo, printf without -v --
 # only on literal paths that, every symlink resolved, lie under a system temp
 # root (/tmp, /var/folders, DARWIN_USER_TEMP_DIR; never $TMPDIR), in no git
@@ -774,34 +777,92 @@ def _chore_paths(c):
     return paths
 
 
+_READ_GIT = frozenset({'status', 'log', 'show', 'diff', 'rev-parse', 'describe'})
+_BRANCH_LIST = frozenset({'-a', '-r', '-v', '-vv', '--list', '--show-current', '--all',
+                          '--remotes', '--verbose', '--no-color'})
+
+
+def _read_only_cmd(c) -> bool:
+    """A command from the narrow read-only list that may come before a lease
+    push: git status/log/show/diff/rev-parse/describe, `git remote -v`, `git
+    branch` in list forms, ls, pwd, true, echo -- every word literal, no -c,
+    no file output, and (checked by the caller) no redirect but /dev/null."""
+    raw = c.argv
+    if not raw or c.subshell or c.heredocs or c.herestrings or c.fed_by is not None:
+        return False
+    if not all(_literal(w) for w in raw):
+        return False
+    name = raw[0]
+    if name in ('ls', 'pwd', 'true', 'echo'):
+        return True
+    if name != 'git':
+        return False
+    i, _ = _git(raw)
+    if i is None:
+        return False
+    k = 1
+    while k < i:   # global options: only -C <dir> and the pager switches
+        if raw[k] == '-C' and k + 1 < i:
+            k += 2
+        elif raw[k] in ('--no-pager', '-P', '--no-optional-locks'):
+            k += 1
+        else:
+            return False   # -c, --config-env, --git-dir, --exec-path...
+    sub, rest = raw[i], raw[i + 1:]
+    if sub in _READ_GIT:
+        return not any(x.startswith(('--out', '--ext-diff')) for x in rest)
+    if sub == 'remote':
+        return all(x in ('-v', '--verbose') for x in rest)
+    if sub == 'branch':
+        return all(x in _BRANCH_LIST for x in rest)
+    return False
+
+
 def _prelude(s, simples):
-    """([commands], None) for what may come before the push -- one literal
-    `cd <dir>` first, then plain file chores, each joined by `&&` or `;` --
-    or ([], reason) when something before it is not allowed."""
+    """(commands, chores, None) for what may come before the push -- one
+    literal `cd <dir>` first, then plain file chores and read-only commands
+    (each optionally piped into pure readers), joined by `&&` or `;` -- or
+    ([], [], reason) when something before it is not allowed."""
     at = next((n for n, x in enumerate(simples) if x is s), 0)
     before = simples[:at]
     if not before:
-        return [], None
-    cmds = []
-    for k, o in enumerate(before):
-        raw = o.cmd.argv
-        if o.via or o.cmd in s.cmd.pipe:
-            return [], f'shares this Bash call with `{_brief(raw or o.argv)}`'
+        return [], [], None
+    units, seen = [], set()
+    for o in before:
+        c = o.cmd
+        if o.via or c in s.cmd.pipe:
+            return [], [], f'shares this Bash call with `{_brief(c.argv or o.argv)}`'
+        if id(c) in seen:
+            continue
+        pipe = c.pipe if c in c.pipe else [c]
+        if pipe[0] is not c:
+            return [], [], f'shares this Bash call with `{_brief(c.argv or o.argv)}`'
+        seen.update(id(x) for x in pipe)
+        units.append(pipe)
+    cmds, chores = [], []
+    for k, pipe in enumerate(units):
+        head, raw = pipe[0], pipe[0].argv
+        refuse = (None, None, f'shares this Bash call with `{_brief(raw)}`')
         if k == 0 and raw[:1] == ['cd']:
             if len(raw) != 2 or raw[1].startswith('-') or not _literal(raw[1]) or \
-                    o.cmd.redirs or not _plain_cmd(o.cmd):
-                return [], f'shares this Bash call with `{_brief(raw)}`'
-        elif _chore_paths(o.cmd) is None:
-            return [], f'shares this Bash call with `{_brief(raw or o.argv)}`'
-        cmds.append(o.cmd)
-    chain = cmds + [s.cmd]
-    for x, y in zip(chain, chain[1:]):
-        if not x.words or not y.words:
-            return [], 'shares this Bash call with another command'
-        end = max([w.end for w in x.words] + [r.end for r in x.redirs])
-        if _COMMAND[0][end:y.words[0].start].strip() not in ('&&', ';'):
-            return [], f'shares this Bash call with `{_brief(x.argv)}`'
-    return cmds, None
+                    head.redirs or not _plain_cmd(head):
+                return [], [], refuse[2]
+        elif _read_only_cmd(head) and all(_output_reader(x.argv) for x in pipe[1:]) and \
+                all(_bad_redirect(x) is None for x in pipe):
+            pass
+        elif len(pipe) == 1 and _chore_paths(head) is not None:
+            chores.append(head)
+        else:
+            return [], [], refuse[2]
+        cmds += pipe
+    for x, y in zip(units, units[1:] + [[s.cmd]]):
+        last = x[-1]
+        if not last.words or not y[0].words:
+            return [], [], 'shares this Bash call with another command'
+        end = max([w.end for w in last.words] + [r.end for r in last.redirs])
+        if _COMMAND[0][end:y[0].words[0].start].strip() not in ('&&', ';'):
+            return [], [], f'shares this Bash call with `{_brief(x[0].argv)}`'
+    return cmds, chores, None
 
 
 def _fold(path):
@@ -987,7 +1048,7 @@ def _not_alone(s):
     if not raw or _command_name(raw[0]) != 'git' or unwrap(raw) != s.argv:
         return f'is run through `{_brief(raw[:1]) if raw else "a wrapper"}`'   # a prefix, wrapper or VAR=
     allowed = [s.cmd]
-    prelude, why = _prelude(s, simples)
+    prelude, chores, why = _prelude(s, simples)
     if why is not None:
         return why
     allowed += prelude
@@ -1003,7 +1064,7 @@ def _not_alone(s):
             len(lex(_COMMAND[0]).cmds) != len(allowed):
         return 'shares this Bash call with another command'
     for c in allowed:
-        if c in prelude:
+        if c in chores:
             continue   # a chore's targets are checked as paths, below
         bad = _bad_redirect(c)
         if bad is not None:
@@ -1027,7 +1088,7 @@ def _not_alone(s):
     for key in keys:
         if _CMDLINE_KEY.match(key):
             return f'sets `{_key_brief(key)}` on the command line'
-    return _chore_problem(s, prelude)
+    return _chore_problem(s, [c for c in prelude if c.argv[:1] == ['cd']][:1] + chores)
 
 
 def _git_push(argv) -> bool:
@@ -1482,7 +1543,8 @@ def force_with_lease_foreign(s):
                 f'command in the Bash call — no other command, prefix, wrapper, variable or '
                 f'routing `-c`; only a leading `cd <dir> &&`, plain file chores before it (`rm`, '
                 f'`mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` on literal paths in a temp '
-                f'folder outside any git repository), output readers after it (`| grep`, `| tail`) '
+                f'folder outside any git repository), read-only commands before it (`git status`, '
+                f'`git log`, `git diff`, `ls`, `pwd`), output readers after it (`| grep`, `| tail`) '
                 f'and `2>&1` or `>/dev/null` are fine — because anything else can change '
                 f'what it pushes or '
                 f'what git compares against. Run the push by itself, as one plain command, so '

@@ -112,6 +112,8 @@ pin "$GW" 'Adapted from poteto'"'"'s pstack'
 pin "$GW" "print a command only through \`fire_log.preview_of\`"
 pin "$GW" "print('REFUSED:', preview_of(cmd))"
 hasnt "$GW" 'cmd[:160]'
+pin "$GW" ".claude/hooks/<name>.py KIT/scripts <<'PY'"
+hasnt "$GW" '"$KIT/scripts" <<'
 # Run grow.md's own false-positive replay on a transcript holding a secret: the
 # secret must not reach the output. The secret is built in two pieces so the
 # repo never holds it whole.

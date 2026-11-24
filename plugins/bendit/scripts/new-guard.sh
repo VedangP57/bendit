@@ -142,7 +142,14 @@ def run(cmd):
     except subprocess.TimeoutExpired:
         return 'other', f'timed out after {TIMEOUT}s; a hook that times out does not refuse'
     err = r.stderr.decode('utf-8', 'replace').strip()
-    reason = preview_of(err.splitlines()[0]) if err else ''
+    first = err.splitlines()[0] if err else ''
+    reason = preview_of(first) if first else ''
+    # The template's main() turns any exception into exit 2 with this text.
+    # That keeps the hook fail-closed in use, but it is not the rule catching
+    # the mistake, so it never counts as proof.
+    said = first[len(f'BLOCKED by {name}: '):] if first.startswith(f'BLOCKED by {name}: ') else first
+    if r.returncode == 2 and said.startswith('the guard itself failed ('):
+        return 'other', f'the guard crashed instead of refusing: {reason}'
     if r.returncode == 2 and err:
         return 'refused', reason
     if r.returncode == 2:
@@ -155,11 +162,13 @@ def run(cmd):
 
 print(f'Proving {name} ({guard})')
 print(f'\nReal past commands ({len(replays)}): each must be refused (exit 2 with a reason)')
-missed = 0
+missed = crashed = 0
 for cmd in replays:
     verdict, detail = run(cmd)
+    crashed += detail.startswith('the guard crashed')
     if verdict == 'refused':
         print(f'  refused      {preview_of(cmd)}')
+        print(f'               {detail}')
     else:
         missed += 1
         print(f'  NOT REFUSED  {preview_of(cmd)}')
@@ -178,8 +187,11 @@ for cmd in ordinary:
 print()
 if missed or blocked:
     print(f'NOT PROVEN. Do not turn {name} on.')
-    if missed:
-        print(f'  {missed} of {len(replays)} real past command(s) got through: '
+    if crashed:
+        print(f'  {crashed} of {len(replays)} real past command(s) made the guard crash: '
+              'a crash refuses in use, but it is not the rule catching the mistake.')
+    if missed - crashed:
+        print(f'  {missed - crashed} of {len(replays)} real past command(s) got through: '
               f'the rule in {name}.py does not catch the mistake yet.')
     if blocked:
         print(f'  {blocked} of {len(ordinary)} ordinary command(s) were not allowed: '

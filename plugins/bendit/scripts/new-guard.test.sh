@@ -156,13 +156,33 @@ chk "--replay scaffolds nothing" "$([ -e "$H/not-scaffolded.py" ] && echo wrote 
 chk "settings.json is byte-identical after every replay" \
     "$(cmp -s "$P/.claude/settings.json" "$T/settings.before" && echo same || echo changed)" same
 
+# The template's main() turns any exception into exit 2 + "the guard itself
+# failed (...)". That is fail-closed in use, but it is not proof the rule
+# catches the mistake: a rule that crashes only on the bad command must fail.
+bash "$NG" crashy-guard --project "$P" >/dev/null 2>&1
+python3 - "$H/crashy-guard.py" <<'PY'
+import sys
+p = sys.argv[1]; s = open(p).read()
+s = s.replace("RULES = [\n", "def crash_on_force(argv):\n    return '--force' in argv and argv.idx('--force')\n\n\nRULES = [\n    (crash_on_force, 'force push'),\n", 1)
+open(p, 'w').write(s)
+PY
+chk "crashy rule was inserted"  "$(grep -c "argv.idx('--force')" "$H/crashy-guard.py")" 1
+out="$(bash "$NG" crashy-guard --project "$P" --replay 'git push --force origin main' 2>&1)"; code=$?
+chk "a guard that crashes on the real command is not proof (exit 1)" "$code" 1
+chk "  ...and it says the guard crashed"   "$(printf '%s' "$out" | grep -c 'the guard crashed')" 1
+chk "  ...and never says PROVEN"           "$(printf '%s' "$out" | grep -c '^PROVEN')" 0
+out="$(bash "$NG" no-force-push --project "$P" --replay 'git push --force origin main' 2>&1)"
+chk "a refused line shows the guard's reason" "$(printf '%s' "$out" | grep -c 'BLOCKED by no-force-push: test rule.')" 1
+
 # The replayed text comes from logs and transcripts: it is printed redacted.
-out="$(bash "$NG" blocks-nothing --project "$P" --replay 'git push --force https://bot:hunter2secretpw@10.0.0.1/r.git main' 2>&1)"
-chk "a credential in a replayed command is never printed"  "$(printf '%s' "$out" | grep -c hunter2secretpw)" 0
+# The fake secret is built in two pieces so the repo never holds it whole.
+SECRET="hunter2""secretpw"
+out="$(bash "$NG" blocks-nothing --project "$P" --replay "git push --force https://bot:$SECRET@10.0.0.1/r.git main" 2>&1)"
+chk "a credential in a replayed command is never printed"  "$(printf '%s' "$out" | grep -c "$SECRET")" 0
 chk "  ...and the command is still shown, redacted"        "$(printf '%s' "$out" | grep -c 'git push --force https://')" 1
-printf 'curl -u admin:hunter2secretpw https://example.com\n' > "$T/secret.txt"
+printf 'curl -u admin:%s https://example.com\n' "$SECRET" > "$T/secret.txt"
 out="$(bash "$NG" blocks-all --project "$P" --replay 'x' --allow-file "$T/secret.txt" 2>&1)"
-chk "a credential in an ordinary command is never printed" "$(printf '%s' "$out" | grep -c hunter2secretpw)" 0
+chk "a credential in an ordinary command is never printed" "$(printf '%s' "$out" | grep -c "$SECRET")" 0
 chk "  ...and it is still shown, redacted"                 "$(printf '%s' "$out" | grep -c 'curl -u')" 1
 
 echo

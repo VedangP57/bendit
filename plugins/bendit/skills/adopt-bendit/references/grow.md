@@ -57,7 +57,7 @@ Transcripts hold secrets: print a command only through `fire_log.preview_of`
 (redacted, then cut to 120 characters), never raw, as this does:
 
 ```bash
-python3 - "$HOME/.claude/projects/<dir>" .claude/hooks/<name>.py "$KIT/scripts" <<'PY'
+python3 - "$HOME/.claude/projects/<dir>" .claude/hooks/<name>.py KIT/scripts <<'PY'
 import json, pathlib, subprocess, sys
 src, guard = pathlib.Path(sys.argv[1]), sys.argv[2]
 sys.path.insert(0, sys.argv[3])

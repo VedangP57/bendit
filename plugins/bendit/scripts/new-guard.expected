@@ -69,6 +69,7 @@ Proving no-force-push (<tmp>/proj/.claude/hooks/no-force-push.py)
 
 Real past commands (1): each must be refused (exit 2 with a reason)
   refused      git push --force origin main
+               BLOCKED by no-force-push: test rule.
 
 Ordinary commands (22, built-in everyday list): each must be allowed (exit 0)
   allowed      git status
@@ -141,6 +142,7 @@ Proving blocks-all (<tmp>/proj/.claude/hooks/blocks-all.py)
 
 Real past commands (1): each must be refused (exit 2 with a reason)
   refused      git push --force origin main
+               BLOCKED by blocks-all: test rule.
 
 Ordinary commands (22, built-in everyday list): each must be allowed (exit 0)
   NOT ALLOWED  git status

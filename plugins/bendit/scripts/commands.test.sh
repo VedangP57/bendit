@@ -109,6 +109,25 @@ pin "$GW" 'ask the person to paste it'
 pin "$GW" 'Never invent or retype a command to replay'
 pin "$GW" '--allow-file'
 pin "$GW" 'Adapted from poteto'"'"'s pstack'
+pin "$GW" "print a command only through \`fire_log.preview_of\`"
+pin "$GW" "print('REFUSED:', preview_of(cmd))"
+hasnt "$GW" 'cmd[:160]'
+# Run grow.md's own false-positive replay on a transcript holding a secret: the
+# secret must not reach the output. The secret is built in two pieces so the
+# repo never holds it whole.
+RT="$(mktemp -d)"
+sed -n "/^python3 - \"\$HOME\/.claude\/projects/,/^PY\$/p" "$GW" | sed '1d;$d' > "$RT/replay.py"
+mkdir "$RT/proj"
+printf 'import sys\nprint("BLOCKED", file=sys.stderr)\nsys.exit(2)\n' > "$RT/guard.py"
+SECRET="hunter2""secretpw"
+python3 -c 'import json,sys;print(json.dumps({"message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"git push --force https://bot:"+sys.argv[1]+"@10.0.0.1/r.git main"}}]}}))' "$SECRET" > "$RT/proj/s.jsonl"
+out="$(python3 "$RT/replay.py" "$RT/proj" "$RT/guard.py" "$SD" 2>&1)"
+if [ -s "$RT/replay.py" ] && printf '%s' "$out" | grep -q '^1 of 1 commands refused' \
+   && printf '%s' "$out" | grep -q 'REFUSED: git push --force https://' \
+   && ! printf '%s' "$out" | grep -q "$SECRET"; then
+  printf '  ok    grow.md replay prints the refused command redacted\n'; pass=$((pass+1))
+else printf '  FAIL  grow.md replay leaked or did not run: %s\n' "$(printf '%s' "$out" | sed "s/$SECRET/<SECRET>/g" | head -3)"; fail=$((fail+1)); fi
+rm -rf "$RT"
 
 echo; echo "PRIMARY-CHECKOUT-GUARD: --detailed ASKS (DEFAULT NO), QUICK NEVER TURNS IT ON"
 REF="$KIT/skills/adopt-bendit/references"

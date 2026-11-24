@@ -52,12 +52,16 @@ snapshot with `--accept`, **read it**, and run again without `--accept`.
 
 Replay real history through it. Claude Code keeps session transcripts as JSONL
 under `~/.claude/projects/<project-path-with-dashes>/`; this feeds every Bash
-command recorded there to the guard and prints what it would have refused:
+command recorded there to the guard and prints what it would have refused.
+Transcripts hold secrets: print a command only through `fire_log.preview_of`
+(redacted, then cut to 120 characters), never raw, as this does:
 
 ```bash
-python3 - "$HOME/.claude/projects/<dir>" .claude/hooks/<name>.py <<'PY'
+python3 - "$HOME/.claude/projects/<dir>" .claude/hooks/<name>.py "$KIT/scripts" <<'PY'
 import json, pathlib, subprocess, sys
 src, guard = pathlib.Path(sys.argv[1]), sys.argv[2]
+sys.path.insert(0, sys.argv[3])
+from fire_log import preview_of  # no fire_log, no output: never print unredacted
 seen = refused = 0
 for f in sorted(src.glob('*.jsonl')):
     for line in f.open(errors='replace'):
@@ -73,7 +77,7 @@ for f in sorted(src.glob('*.jsonl')):
                 r = subprocess.run(['python3', guard], input=p, capture_output=True, text=True)
                 if r.returncode == 2:
                     refused += 1
-                    print('REFUSED:', cmd[:160].replace('\n', ' '))
+                    print('REFUSED:', preview_of(cmd))
 print(f'{refused} of {seen} commands refused')
 PY
 ```

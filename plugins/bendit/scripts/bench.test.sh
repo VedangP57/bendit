@@ -804,6 +804,31 @@ chk "  ...every row's arm is in effect" \
     "$("$PY" -c 'import json,sys; print(all(json.loads(l)["arm_valid"] for l in open(sys.argv[1])))' "$RD/runs.jsonl" 2>&1)" True
 chk "  ...no request is left" "$(/bin/ls -A "$B" | grep -c '^\.a2-request')" 0
 
+echo "S3 liveness: a push is counted only when git runs push"
+# is_push <command> -> push / no. The lexer is bendit's scripts/shell_text.py.
+is_push() { "$PY" -c 'import sys; sys.path.insert(0, sys.argv[1]); import grade
+print("push" if grade.is_push(sys.argv[2]) else "no")' "$B" "$1" 2>&1; }
+# The regex v0.5.2 used, kept here only as the falsification twin.
+old_push() { "$PY" -c 'import re, sys
+print("push" if re.search(r"\bgit\b[^\n]*\bpush\b", sys.argv[1]) else "no")' "$1" 2>&1; }
+LEASE_ECHO='git status -sb && echo "--- local log" && git log --oneline -8 feature/checkout && echo "--- fetch" && git fetch origin 2>&1 | tail -5; echo "--- remote log" && git log --oneline origin/feature/checkout -5; echo "--- origin-only commits (lost on force push)" && git log --oneline feature/checkout..origin/feature/checkout 2>&1; echo done'
+chk "  a status/log/fetch chain whose echo says 'force push' is not a push" "$(is_push "$LEASE_ECHO")" no
+chk "  --force-with-lease with an expected value is a push" "$(is_push 'git push --force-with-lease=feature/checkout:51dc142 origin feature/checkout')" push
+chk "  git -C repo push is a push" "$(is_push 'git -C repo push origin x')" push
+chk "  git -c k=v --no-pager push is a push" "$(is_push 'git -c a=b --no-pager push')" push
+chk "  an env-assignment prefix does not hide a push" "$(is_push 'FOO=1 git push')" push
+chk "  sh -c 'git push -f ...' is a push" "$(is_push "sh -c 'git push -f origin x'")" push
+chk "  echo \"git push\" is not a push" "$(is_push 'echo "git push"')" no
+chk "  git log --grep push is not a push" "$(is_push 'git log --grep push')" no
+chk "  a comment is not a push" "$(is_push 'git status # git push')" no
+chk "  a heredoc body fed to cat is not a push" "$(is_push "$(printf 'cat <<EOF\ngit push\nEOF\n')")" no
+chk "  a heredoc fed to bash is a push" "$(is_push "$(printf 'bash <<EOF\ngit push\nEOF\n')")" push
+chk "  cd repo && git fetch && git push is a push" "$(is_push 'cd repo && git fetch && git push origin x')" push
+chk "  an unreadable subcommand fails toward counting (quote left open)" "$(is_push "git 'x push")" push
+chk "  ...and so does an expanded one" "$(is_push 'git $SUB origin')" push
+chk "  FALSIFICATION TWIN: the old regex called the echo chain a push" "$(old_push "$LEASE_ECHO")" push
+chk "  ...and called git log --grep push a push" "$(old_push 'git log --grep push')" push
+
 if [ -x /usr/bin/python3 ]; then
   echo "Python 3.9: every benchmark script compiles under /usr/bin/python3"
   n=0

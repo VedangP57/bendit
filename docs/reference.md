@@ -334,10 +334,7 @@ It refuses:
   `true`, `echo`), with literal words, no `-c`, no `-C` to another folder
   than the push's repository, no `--output`, `-O`, `--ext-diff`,
   `--textconv`, `--no-index` or `--show-signature`, piped only into the
-  readers below — and the read-only git ones only when the push's
-  repository names no program they would run (`core.fsmonitor`,
-  `diff.external`, `diff.*.command`/`textconv`, `core.pager`, `pager.*`,
-  `log.showSignature`, `gpg.*program`, `filter.*`); plain file chores before
+  readers below; plain file chores before
   the push, joined by `&&`
   or `;` (`rm`, `mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` without
   `-v`), only on literal paths that, with every symlink resolved, lie under a
@@ -379,7 +376,9 @@ It refuses:
   earlier in the agent's session — is not seen by the guard, which runs with
   its own environment. Known limit: the guard reads the command line. Code
   that runs during a push — hooks set up earlier, or tools that push for
-  you — is outside what it can see.
+  you — is outside what it can see. So are programs configured earlier
+  (`core.fsmonitor`, filters such as Git LFS, pagers, an external diff),
+  which can run during a `git status` or `git diff` before the push.
   Known limit: authorship is the commit's author email, which anyone can set;
 - `git reset --hard`, `git checkout .`, `git restore .`, `git clean -f`;
 - deleting the folder the shell is in, or a parent of it;

@@ -816,6 +816,11 @@ lg() { GIT_AUTHOR_NAME="$1" GIT_AUTHOR_EMAIL="$1@example.invalid" GIT_COMMITTER_
   done
   git -C "$LT/fsm" config core.fsmonitor "sh $LT/bevh"
   git -C "$LT/pgr" config core.pager less
+  # lfs: Git LFS filters and a pager, as on most developer machines.
+  git clone -q -b solo "$LT/remote.git" "$LT/lfs"; git -C "$LT/lfs" config user.email me@example.invalid
+  git -C "$LT/lfs" config filter.lfs.smudge 'git-lfs smudge -- %f'
+  git -C "$LT/lfs" config filter.lfs.process 'git-lfs filter-process'
+  git -C "$LT/lfs" config core.pager delta
   # evil.cfg: a push mapping that sends co over feature/checkout (cur's upstream).
   printf '[remote "origin"]\n\tpush = refs/heads/co:refs/heads/feature/checkout\n' >"$LT/evil.cfg"
   mkdir -p "$LT/h" "$LT/x/git"; cp "$LT/evil.cfg" "$LT/h/.gitconfig"; cp "$LT/evil.cfg" "$LT/x/git/config"
@@ -1239,8 +1244,11 @@ run_in 2 "git fetch && push (not read-only)"      "$ME" "git fetch -q origin && 
 run_in 2 "git status && cd me && push (cd later)"  "$LT" "git -C me status && cd me && $P_OWN"
 run_in 2 "C-1: planted /tmp repo, git -C diff --no-index" "$ME" 'mkdir -p /tmp/bendit-bev/objects /tmp/bendit-bev/refs && printf "ref: refs/heads/m\n" > /tmp/bendit-bev/HEAD && printf "\133diff\135\n\texternal = sh /tmp/bendit-bevh\n" > /tmp/bendit-bev/config && printf "git config remote.origin.push x\n" > /tmp/bendit-bevh && git -C /tmp/bendit-bev diff --no-index /etc/hosts /etc/shells; git push --force-with-lease origin solo'
 run_in 2 "C-1 v2: git -C <planted repo> status"  "$ME" "git -C $LT/bevw status && $P_OWN"
-run_in 2 "I-1: core.fsmonitor in the push repo"  "$LT/fsm" "git status && $P_OWN"
-run_in 2 "core.pager in the push repo, git log"  "$LT/pgr" "git log --oneline -1 && $P_OWN"
+# KNOWN LIMIT (documented): programs configured EARLIER (core.fsmonitor,
+# filters, pagers, external diff) run during git status/diff before the push.
+run_in 0 "KNOWN LIMIT: core.fsmonitor set earlier" "$LT/fsm" "git status && $P_OWN"
+run_in 0 "core.pager in the push repo, git log"  "$LT/pgr" "git log --oneline -1 && $P_OWN"
+run_in 0 "LFS filters + core.pager: git status && own push" "$LT/lfs" "git status && $P_OWN"
 run_in 0 "CONTROL: core.pager repo, ls && push"  "$LT/pgr" "ls && $P_OWN"
 run_in 0 "CONTROL: git -C . status (same repo)"  "$ME" "git -C . status && $P_OWN"
 run_in 2 "git diff --no-index"                   "$ME" "git diff --no-index /etc/hosts /etc/shells; $P_OWN"

@@ -553,8 +553,7 @@ def push_deletes_remote_refs(s):
 # read-only commands -- git status/log/show/diff/rev-parse/describe, `git
 # remote -v`, `git branch` list forms, ls, pwd, true, echo; literal words, no
 # -c, no -C to another folder, no --output/-O/--ext-diff/--textconv/--no-index/
-# --show-signature, piped only into pure readers, and read-only git only when
-# the push repo's config names no program they would run -- and
+# --show-signature, piped only into pure readers -- and
 # plain file chores -- rm, mkdir -p, touch, cp, mv, echo, printf without -v --
 # only on literal paths that, every symlink resolved, lie under a system temp
 # root (/tmp, /var/folders, DARWIN_USER_TEMP_DIR; never $TMPDIR), in no git
@@ -788,9 +787,6 @@ _BRANCH_LIST = frozenset({'-a', '-r', '-v', '-vv', '--list', '--show-current', '
 # read outside the repository. A long option is refused in any abbreviation.
 _READ_GIT_BAD = ('output', 'output-directory', 'ext-diff', 'textconv', 'no-index',
                  'show-signature', 'exec')
-# Config keys that make git status/diff/log/show run a program.
-_RUNS_PROGRAM = (r'^(core\.fsmonitor|diff\.external|diff\..*\.(command|textconv)|core\.pager|'
-                 r'pager\..*|log\.showsignature|gpg\.program|gpg\..*\.program|filter\..*)$')
 
 
 def _runs_or_writes(x) -> bool:
@@ -1021,10 +1017,9 @@ def _hard_link(full, c, p, sources):
 
 
 def _read_git_problem(s, gits, cd):
-    """Why the read-only git commands before the push may run a program: one
-    runs against another folder than the push's repository, or the push
-    repository's config (includes followed) names a program git status/diff/
-    log/show would run. None when they are safe."""
+    """Why the read-only git commands before the push may run a program
+    planted in this same command: one runs against another folder than the
+    push's repository. None when they are safe."""
     if not gits:
         return None
     shell_cwd = _CWD[0] or os.getcwd()
@@ -1048,16 +1043,9 @@ def _read_git_problem(s, gits, cd):
                 k += 1
         if os.path.realpath(here) != os.path.realpath(push_cwd):
             return f'comes after `{_brief(raw)}`, which runs git in another folder than the push'
-    try:
-        code, out = _Git(push_cwd, opts).run(['config', '--get-regexp', _RUNS_PROGRAM])
-    except _GitCannotTell as why:
-        return f'comes after git commands bendit could not check ({_describe_short(why)})'
-    if code not in (0, 1):
-        return f'comes after git commands bendit could not check (git config exited {code})'
-    if code == 0 and out.strip():
-        key = out.split(None, 1)[0]
-        return (f'comes after `{_brief(gits[0].argv)}`, and this repo runs programs on git '
-                f'status/diff (`{key}` is set)')
+    # Programs configured EARLIER (core.fsmonitor, filters, pagers, an external
+    # diff) may run here: the documented prior-setup limit, like hooks. Checking
+    # for them refused almost every developer machine (Git LFS, delta).
     return None
 
 

@@ -549,7 +549,11 @@ def push_deletes_remote_refs(s):
 # commands do to them cannot be made complete (every round found another way:
 # a fetch first, xargs supplying the branch, include.path, printf -v, `+=`,
 # export HOME). So a lease push is checked only when it is the ONE plain
-# command in the Bash call (one leading literal `cd <dir> &&` or `;`, and
+# command in the Bash call (one leading literal `cd <dir> &&` or `;`, then
+# plain file chores -- rm, mkdir -p, touch, cp, mv, echo, printf without -v --
+# on literal paths that are not in the git dir, not a git config file (as
+# `git config --list --show-origin` lists them, ~/.gitconfig, the XDG git
+# folder, .gitmodules) and not $HOME or /, and
 # output readers after it -- grep, tail, head, cat, wc, sort, uniq, `sed -n`
 # printing, awk with no system/getline/pipe/redirect -- excepted, and
 # redirections only to /dev/null or another fd, since a file target is
@@ -623,9 +627,17 @@ _LAUNCHERS = frozenset({'xargs', 'parallel', 'sem', 'find', 'eval', 'source', '.
                         'nohup', 'timeout', 'gtimeout', 'nice', 'stdbuf', 'time', 'exec',
                         'command', 'builtin'}) | SHELLS
 _LEASE_TEXT = re.compile(r'--force-w')   # any spelling git accepts of --force-with-lease
+def _short_path(w):
+    """A long absolute path shown by its last part: `…/.gitconfig`."""
+    parts = w.rstrip('/').split('/')
+    return '…/' + parts[-1] if w.startswith('/') and len(parts) > 3 else w
+
+
 def _brief(words, width=50):
-    """Words for a message: `NAME=value` shown as `NAME=…`, cut to `width`."""
-    out = ' '.join(re.sub(r'^([A-Za-z_]\w*\+?=).+', r'\1…', w, flags=re.S) for w in words)
+    """Words for a message: `NAME=value` shown as `NAME=…`, long absolute
+    paths shortened, cut to `width`."""
+    out = ' '.join(_short_path(re.sub(r'^([A-Za-z_]\w*\+?=).+', r'\1…', w, flags=re.S))
+                   for w in words)
     return out if len(out) <= width else out[:width - 3] + '...'
 
 
@@ -697,22 +709,155 @@ def _bad_redirect(cmd):
     return None
 
 
-def _leading_cd(s, simples):
-    """The one `cd <literal>` that may come before the push, joined by `&&`
-    or `;` and nothing else, or None when there is none. Anything that looks
-    like one but is not plain is left for the caller to refuse."""
-    first = simples[0] if simples else None
-    if first is None or first is s or first.argv[0] != 'cd' or first.via:
+_CHORES = frozenset({'rm', 'mkdir', 'touch', 'cp', 'mv', 'echo', 'printf'})
+# Options each chore may take; anything else (an option with a value, such as
+# `cp -t DIR` or `touch -r FILE`) refuses.
+_CHORE_SHORT = {'mkdir': 'pv', 'touch': 'cam', 'cp': 'aRrfinpPvLHTu', 'mv': 'finvTu'}
+_CHORE_LONG = {'mkdir': {'--parents', '--verbose'}}
+
+
+def _literal(w) -> bool:
+    return not (_RUNTIME.search(w) or w.startswith('~'))
+
+
+def _plain_cmd(c) -> bool:
+    return not (c.subshell or c.heredocs or c.herestrings or c.fed_by is not None
+                or len(c.pipe) != 1)
+
+
+def _chore_paths(c):
+    """The paths a plain file chore names (arguments and redirect targets),
+    or None when it is not one: another command, an option that takes a
+    value, `printf -v`, `mkdir` without -p, a word not written literally."""
+    raw, text = c.argv, _COMMAND[0]
+    if not raw or raw[0] not in _CHORES or not _plain_cmd(c):
         return None
-    raw = first.cmd.argv
-    if len(raw) != 2 or raw[0] != 'cd' or raw[1].startswith(('-', '~')) or _RUNTIME.search(raw[1]):
+    if not all(_literal(w) for w in raw) or not all(_literal(r.value) for r in c.redirs):
         return None
-    if first.cmd.redirs or first.cmd.heredocs or first.cmd.herestrings or first.cmd.subshell:
+    name, args, paths, opts = raw[0], raw[1:], [], True
+    if name in ('echo', 'printf'):
+        if name == 'printf' and any(x.startswith('-v') for x in args):
+            return None
+    else:
+        for x in args:
+            if opts and x == '--':
+                opts = False
+            elif opts and x.startswith('-') and len(x) > 1:
+                if name == 'rm':
+                    continue   # any flags; rm's own rule judges recursion
+                if x.startswith('--'):
+                    if x not in _CHORE_LONG.get(name, ()):
+                        return None
+                elif any(ch not in _CHORE_SHORT[name] for ch in x[1:]):
+                    return None
+            else:
+                paths.append(x)
+        if name == 'mkdir' and not any(x in ('-p', '--parents') or
+                                       (x.startswith('-') and not x.startswith('--') and 'p' in x)
+                                       for x in args):
+            return None
+    for r in c.redirs:
+        if r.value == '/dev/null':
+            continue
+        if (r.value.isdigit() or r.value == '-') and text[:r.start].rstrip().endswith('&'):
+            continue
+        paths.append(r.value)
+    return paths
+
+
+def _prelude(s, simples):
+    """([commands], None) for what may come before the push -- one literal
+    `cd <dir>` first, then plain file chores, each joined by `&&` or `;` --
+    or ([], reason) when something before it is not allowed."""
+    at = next((n for n, x in enumerate(simples) if x is s), 0)
+    before = simples[:at]
+    if not before:
+        return [], None
+    cmds = []
+    for k, o in enumerate(before):
+        raw = o.cmd.argv
+        if o.via or o.cmd in s.cmd.pipe:
+            return [], f'shares this Bash call with `{_brief(raw or o.argv)}`'
+        if k == 0 and raw[:1] == ['cd']:
+            if len(raw) != 2 or raw[1].startswith('-') or not _literal(raw[1]) or \
+                    o.cmd.redirs or not _plain_cmd(o.cmd):
+                return [], f'shares this Bash call with `{_brief(raw)}`'
+        elif _chore_paths(o.cmd) is None:
+            return [], f'shares this Bash call with `{_brief(raw or o.argv)}`'
+        cmds.append(o.cmd)
+    chain = cmds + [s.cmd]
+    for x, y in zip(chain, chain[1:]):
+        if not x.words or not y.words:
+            return [], 'shares this Bash call with another command'
+        end = max([w.end for w in x.words] + [r.end for r in x.redirs])
+        if _COMMAND[0][end:y.words[0].start].strip() not in ('&&', ';'):
+            return [], f'shares this Bash call with `{_brief(x.argv)}`'
+    return cmds, None
+
+
+def _guarded_paths(s, shell_cwd):
+    """Real paths a chore may not name or contain: the git dirs and every
+    git config file of the shell's repo and the push's repo, ~/.gitconfig and
+    the XDG git config folder. Raises _GitCannotTell when git fails."""
+    home = os.environ.get('HOME') or os.path.expanduser('~')
+    xdg = os.environ.get('XDG_CONFIG_HOME') or os.path.join(home, '.config')
+    out = {os.path.join(home, '.gitconfig'), os.path.join(xdg, 'git'), '/etc/gitconfig'}
+    push_cwd, opts = _push_dir(s)
+    first = None
+    for cwd, o in ((shell_cwd, []), (push_cwd, opts)):
+        g = _Git(cwd, o)
+        if first is None:
+            first = g
+        else:
+            g.deadline = first.deadline
+        code, gd = g.run(['rev-parse', '--absolute-git-dir'])
+        if code != 0:
+            continue   # not a repository: nothing of git's to protect here
+        out.add(gd.strip())
+        code, common = g.run(['rev-parse', '--git-common-dir'])
+        if code == 0 and common.strip():
+            out.add(os.path.join(cwd, common.strip()))
+        code, top = g.run(['rev-parse', '--show-toplevel'])
+        top = top.strip() if code == 0 else cwd
+        code, listed = g.run(['config', '--list', '--show-origin'])
+        if code != 0:
+            raise _GitCannotTell(f'git config --list --show-origin exited {code}')
+        for line in listed.splitlines():
+            origin = line.split('\t', 1)[0]
+            if not origin.startswith('file:'):
+                continue
+            path = origin[5:]
+            if path.startswith('"') and path.endswith('"'):
+                path = path[1:-1]
+            for base in (cwd, top):
+                out.add(os.path.join(base, path))
+    return {os.path.realpath(p) for p in out if p}
+
+
+def _chore_problem(s, cmds):
+    """Why a chore before the push names a path git reads, or None."""
+    chores = [c for c in cmds if c.argv[:1] != ['cd']]
+    if not chores:
         return None
-    if len(first.cmd.pipe) != 1 or s.cmd.pipe[0] is not s.cmd:
-        return None
-    between = _COMMAND[0][first.cmd.words[-1].end:s.cmd.words[0].start].strip()
-    return first if between in ('&&', ';') else None
+    shell_cwd = _CWD[0] or os.getcwd()
+    if cmds[0].argv[:1] == ['cd']:
+        shell_cwd = os.path.normpath(os.path.join(shell_cwd, cmds[0].argv[1]))
+    try:
+        guarded = _guarded_paths(s, shell_cwd)
+    except _GitCannotTell as why:
+        return f'comes after file chores bendit could not check ({_describe_short(why)})'
+    home = os.path.realpath(os.environ.get('HOME') or os.path.expanduser('~'))
+    for c in chores:
+        for p in _chore_paths(c):
+            logical = os.path.normpath(os.path.join(shell_cwd, p))
+            for q in {logical, os.path.realpath(logical)}:
+                if q in ('/', home) or os.path.basename(q) == '.gitmodules':
+                    return f'comes after `{_brief(c.argv)}`, which names `{_short_path(p)}`'
+                for g in guarded:
+                    if q == g or q.startswith(g.rstrip('/') + '/') or g.startswith(q.rstrip('/') + '/'):
+                        return (f'comes after `{_brief(c.argv)}`, which names `{_short_path(p)}`, a path git '
+                                f'reads (its folder, or a config file)')
+    return None
 
 
 def _not_alone(s):
@@ -726,9 +871,10 @@ def _not_alone(s):
     if not raw or _command_name(raw[0]) != 'git' or unwrap(raw) != s.argv:
         return f'is run through `{_brief(raw[:1]) if raw else "a wrapper"}`'   # a prefix, wrapper or VAR=
     allowed = [s.cmd]
-    cd = _leading_cd(s, simples)
-    if cd is not None:
-        allowed.append(cd.cmd)
+    prelude, why = _prelude(s, simples)
+    if why is not None:
+        return why
+    allowed += prelude
     if s.cmd in s.cmd.pipe:
         at = s.cmd.pipe.index(s.cmd)
         if at:
@@ -741,6 +887,8 @@ def _not_alone(s):
             len(lex(_COMMAND[0]).cmds) != len(allowed):
         return 'shares this Bash call with another command'
     for c in allowed:
+        if c in prelude:
+            continue   # a chore's targets are checked as paths, below
         bad = _bad_redirect(c)
         if bad is not None:
             return f'writes its output to `{bad}`, which the shell opens before git reads its config'
@@ -763,7 +911,7 @@ def _not_alone(s):
     for key in keys:
         if _CMDLINE_KEY.match(key):
             return f'sets `{_key_brief(key)}` on the command line'
-    return None
+    return _chore_problem(s, prelude)
 
 
 def _git_push(argv) -> bool:
@@ -1216,8 +1364,10 @@ def force_with_lease_foreign(s):
     if alone is not None:
         return (f'`{written}` {alone}. bendit checks a lease push only when it is the one plain '
                 f'command in the Bash call — no other command, prefix, wrapper, variable or '
-                f'routing `-c`; only a leading `cd <dir> &&`, output readers after it (`| grep`, '
-                f'`| tail`) and `2>&1` or `>/dev/null` are fine — because anything else can change '
+                f'routing `-c`; only a leading `cd <dir> &&`, plain file chores before it (`rm`, '
+                f'`mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` on literal paths outside '
+                f'git\'s folder and config files), output readers after it (`| grep`, `| tail`) '
+                f'and `2>&1` or `>/dev/null` are fine — because anything else can change '
                 f'what it pushes or '
                 f'what git compares against. Run the push by itself, as one plain command, so '
                 f'bendit can check it')

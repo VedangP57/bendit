@@ -328,7 +328,12 @@ It refuses:
   counts too. **The push must stand alone:** bendit checks a lease push only
   when it is the one plain command in the Bash call — no other command or
   pipe stage, except one leading literal `cd <dir> &&` (or `;`), which moves
-  the check to that folder, and output readers after the push (`grep`,
+  the check to that folder; plain file chores before the push, joined by `&&`
+  or `;` (`rm`, `mkdir -p`, `touch`, `cp`, `mv`, `echo`, `printf` without
+  `-v`), whose literal paths are not in the git dir, not a git config file
+  (as `git config --list --show-origin` lists them, `~/.gitconfig`, the XDG
+  git folder, `.gitmodules`) and not `$HOME` or `/` — `rm` is still judged
+  by its own rule; and output readers after the push (`grep`,
   `tail`, `head`, `cat`, `wc`, `sort`, `uniq`, `sed -n` that only prints, `awk`
   with no `system(`, `getline`, `|` or `>`) and redirections of its output
   to `/dev/null` or another descriptor (`2>&1`) only — a file target is

@@ -913,7 +913,7 @@ run_in 2 "fetch || lease"                       "$ME" "git fetch origin || git p
 run_in 2 "fetch, newline, lease"                "$ME" $'git fetch origin\ngit push --force-with-lease origin fc2'
 run_in 0 "CONTROL: fc2 lease on its own (state as it is)" "$ME" "git push --force-with-lease origin fc2"
 run_in 2 "read-only git before the lease: not alone" "$ME" "git status -sb && git log --oneline -3 && git branch --list && git remote -v && git push --force-with-lease origin solo"
-run_in 2 "echo and cd before the lease: not alone" "$LT" "cd me && echo pushing && git push --force-with-lease origin solo 2>&1 | grep -v hint"
+run_in 0 "CONTROL: cd, echo (a chore), the lease" "$LT" "cd me && echo pushing && git push --force-with-lease origin solo 2>&1 | grep -v hint"
 
 echo
 echo "WHERE THE PUSH GOES, as git decides it"
@@ -1112,6 +1112,45 @@ run_in 0 "CONTROL: 2>&1 >/dev/null"                "$ME" 'git push --force-with-
 run_in 2 "I3: cd .. from a symlinked cwd (logical, as bash)" "$ME/link" 'cd .. && git push --force-with-lease origin feature/checkout'
 names_it "  ...checked in me, naming sam's commit"
 run_in 0 "CONTROL: cd .. from a symlinked cwd, own work" "$ME/link" 'cd .. && git push --force-with-lease origin solo'
+
+echo
+echo "PLAIN FILE CHORES MAY COME BEFORE A LEASE PUSH"
+# The release-check pilot: Opus chains `rm -rf <temp dir> && git push
+# --force-with-lease ...`. rm/mkdir -p/touch/cp/mv/echo/printf with literal
+# paths may come first, joined by && or ;, when no path is in the git dir, is
+# a git config file (as git lists them, ~/.gitconfig, XDG git config,
+# .gitmodules) or is $HOME or / -- the rm rule still applies on its own terms.
+mkdir -p "$LT/h2"
+run_in 0 "the pilot's form: rm -rf <temp> && own push" "$ME" 'rm -rf /tmp/bendit-old-reports && git push --force-with-lease origin solo'
+run_in 0 "rm -rf <temp> ; own push"               "$ME" 'rm -rf /tmp/bendit-old-reports ; git push --force-with-lease origin solo'
+run_in 0 "every chore, then own push | grep"      "$ME" "mkdir -p /tmp/bendit-x && touch /tmp/bendit-x/a && cp /tmp/bendit-x/a /tmp/bendit-x/b && mv /tmp/bendit-x/b /tmp/bendit-x/c && echo done && printf 'ok\\n' > /dev/null && git push --force-with-lease origin solo 2>&1 | grep -v hint"
+run_in 0 "cd repo && rm -rf <temp> && own push"   "$LT" 'cd me && rm -rf /tmp/bendit-old-reports && git push --force-with-lease origin solo'
+run_in 0 "echo > a literal file, then own push"  "$ME" 'echo hi > /tmp/bendit-note.txt && git push --force-with-lease origin solo'
+run_in 2 "rm -rf <temp> && sam's commit: on the merits" "$ME" 'rm -rf /tmp/bendit-old-reports && git push --force-with-lease origin feature/checkout'
+names_it "  ...names sam's commit"
+run_in 2 "rm -rf .git/refs/... && push"           "$ME" 'rm -rf .git/refs/remotes/origin && git push --force-with-lease origin solo'
+run_in 2 "rm -f .git/refs/... && push"            "$ME" 'rm -f .git/refs/remotes/origin/feature/checkout && git push --force-with-lease origin feature/checkout'
+run_in 2 "cp evil .git/config && push"            "$ME" "cp $LT/evil.cfg .git/config && git push --force-with-lease origin solo"
+run_in 2 "echo x > ~/.gitconfig && push"          "$ME" 'echo x > ~/.gitconfig && git push --force-with-lease origin solo'
+run_env 2 "echo x > \$HOME/.gitconfig (literal)" "$ME" "echo x > $LT/h2/.gitconfig && git push --force-with-lease origin solo" "HOME=$LT/h2"
+run_env 2 "touch \$HOME itself (literal)"         "$ME" "touch $LT/h2 && git push --force-with-lease origin solo" "HOME=$LT/h2"
+run_env 2 "mkdir -p \$XDG_CONFIG_HOME/git"        "$ME" "mkdir -p $LT/xdg/git && git push --force-with-lease origin solo" "XDG_CONFIG_HOME=$LT/xdg"
+run_in 2 "mv a .gitmodules && push"               "$ME" 'mv a .gitmodules && git push --force-with-lease origin solo'
+run_in 2 "echo x > an included config && push"    "$LT/inc" "echo x > $LT/inc.cfg && git push --force-with-lease origin"
+run_in 2 "touch / && push"                        "$ME" 'touch / && git push --force-with-lease origin solo'
+run_in 2 "rm -f . (holds the git dir) && push"    "$ME" 'rm -f . && git push --force-with-lease origin solo'
+run_in 2 "a non-literal path"                      "$ME" 'rm -rf "$TMPDIR/x" && git push --force-with-lease origin solo'
+run_in 2 "a ~ path"                                "$ME" 'rm -f ~/x && git push --force-with-lease origin solo'
+run_in 2 "printf -v"                               "$ME" 'printf -v X y && git push --force-with-lease origin solo'
+run_in 2 "cp -t .git"                              "$ME" "cp -t .git $LT/evil.cfg && git push --force-with-lease origin solo"
+run_in 2 "mkdir without -p"                        "$ME" 'mkdir /tmp/bendit-y && git push --force-with-lease origin solo'
+run_in 2 "touch -r (takes a file)"                 "$ME" 'touch -r .git/config /tmp/bendit-z && git push --force-with-lease origin solo'
+run_in 2 "rm || push"                              "$ME" 'rm -f /tmp/bendit-x || git push --force-with-lease origin solo'
+run_in 2 "rm & push"                               "$ME" 'rm -f /tmp/bendit-x & git push --force-with-lease origin solo'
+run_in 2 "ls && push (not a chore)"                "$ME" 'ls && git push --force-with-lease origin solo'
+run_in 2 "a chore AFTER the push"                  "$ME" 'git push --force-with-lease origin solo && rm -f /tmp/bendit-x'
+run_in 2 "echo | tee (a pipe)"                     "$ME" 'echo x | tee /tmp/bendit-x && git push --force-with-lease origin solo'
+run_in 2 "cd after a chore"                        "$LT" 'rm -f /tmp/bendit-x && cd me && git push --force-with-lease origin solo'
 
 echo
 echo "A MERGE SOMEONE ELSE MADE, with a change of its own"
